@@ -1,0 +1,793 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ProbeHive API",
+    "version": "v1",
+    "description": "Contract-compatible API for ProbeHive organization bootstrap, local authentication, Monitors, and immutable Monitor revisions."
+  },
+  "tags": [
+    { "name": "Health" },
+    { "name": "Setup" },
+    { "name": "Authentication" },
+    { "name": "Organizations" },
+    { "name": "Monitors" }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "tags": ["Health"],
+        "operationId": "getLiveness",
+        "summary": "Report process liveness",
+        "responses": {
+          "200": { "$ref": "#/components/responses/Healthy" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      },
+      "head": {
+        "tags": ["Health"],
+        "operationId": "headLiveness",
+        "summary": "Report process liveness without a body",
+        "responses": {
+          "200": { "description": "The process is alive." },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": ["Health"],
+        "operationId": "getReadiness",
+        "summary": "Report PostgreSQL readiness",
+        "responses": {
+          "200": { "$ref": "#/components/responses/Healthy" },
+          "503": { "$ref": "#/components/responses/Unhealthy" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      },
+      "head": {
+        "tags": ["Health"],
+        "operationId": "headReadiness",
+        "summary": "Report PostgreSQL readiness without a body",
+        "responses": {
+          "200": { "description": "PostgreSQL is ready." },
+          "503": { "description": "PostgreSQL is not ready." },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/openapi/v1.json": {
+      "get": {
+        "tags": ["Health"],
+        "operationId": "getOpenAPIV1",
+        "summary": "Return this OpenAPI document in Development",
+        "responses": {
+          "200": {
+            "description": "The OpenAPI 3.1 document.",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      },
+      "head": {
+        "tags": ["Health"],
+        "operationId": "headOpenAPIV1",
+        "summary": "Check OpenAPI availability in Development",
+        "responses": {
+          "200": { "description": "The OpenAPI document is available." },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/setup/status": {
+      "get": {
+        "tags": ["Setup"],
+        "operationId": "getSetupStatus",
+        "summary": "Report whether the first administrator exists",
+        "responses": {
+          "200": { "$ref": "#/components/responses/SetupStatus" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/setup/admin": {
+      "post": {
+        "tags": ["Setup"],
+        "operationId": "createFirstAdministrator",
+        "summary": "Create and sign in the first administrator",
+        "security": [
+          { "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CreateFirstAdministratorRequest" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The first administrator was created and a session cookie was issued.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/auth/antiforgery": {
+      "get": {
+        "tags": ["Authentication"],
+        "operationId": "issueAntiforgeryToken",
+        "summary": "Issue or rotate a synchronizer antiforgery token",
+        "responses": {
+          "200": {
+            "description": "The request token and required header name. A host-only antiforgery cookie is also set.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AntiforgeryTokenResponse" } } }
+          },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "operationId": "login",
+        "summary": "Authenticate a local user and issue a session",
+        "security": [
+          { "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The authenticated user. A fresh session cookie is also set.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SessionResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": ["Authentication"],
+        "operationId": "logout",
+        "summary": "Invalidate the current session",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "responses": {
+          "204": { "description": "The session was invalidated and its cookie expired." },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/auth/session": {
+      "get": {
+        "tags": ["Authentication"],
+        "operationId": "getSession",
+        "summary": "Return the current authenticated session",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "The current user session.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SessionResponse" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations": {
+      "post": {
+        "tags": ["Organizations"],
+        "operationId": "provisionOrganization",
+        "summary": "Idempotently provision an Organization and default Project",
+        "description": "Requires an Administrator session. A matching slug and display name replays with 200; a new Organization returns 201.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CreateOrganizationRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Organization" },
+          "201": {
+            "description": "The Organization and default Project were created.",
+            "headers": { "Location": { "$ref": "#/components/headers/Location" } },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrganizationResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}": {
+      "parameters": [{ "$ref": "#/components/parameters/OrganizationID" }],
+      "get": {
+        "tags": ["Organizations"],
+        "operationId": "getOrganization",
+        "summary": "Return an Organization and its default Project",
+        "description": "Requires an Administrator session.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Organization" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" }
+      ],
+      "get": {
+        "tags": ["Monitors"],
+        "operationId": "listMonitors",
+        "summary": "List Monitors in creation order",
+        "description": "Requires an Administrator session.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "The scoped Monitors.",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/MonitorResponse" } }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      },
+      "post": {
+        "tags": ["Monitors"],
+        "operationId": "createMonitor",
+        "summary": "Create a draft Monitor",
+        "description": "Requires an Administrator session.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CreateMonitorRequest" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The Monitor was created.",
+            "headers": { "Location": { "$ref": "#/components/headers/Location" } },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MonitorResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" }
+      ],
+      "get": {
+        "tags": ["Monitors"],
+        "operationId": "getMonitor",
+        "summary": "Return a fully scoped Monitor",
+        "description": "Requires an Administrator session.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Monitor" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/name": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" }
+      ],
+      "put": {
+        "tags": ["Monitors"],
+        "operationId": "renameMonitor",
+        "summary": "Rename a non-archived Monitor",
+        "description": "Requires an Administrator session.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/RenameMonitorRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Monitor" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/state": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" }
+      ],
+      "put": {
+        "tags": ["Monitors"],
+        "operationId": "changeMonitorState",
+        "summary": "Apply a valid Monitor state transition",
+        "description": "Requires an Administrator session.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ChangeMonitorStateRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Monitor" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" }
+      ],
+      "get": {
+        "tags": ["Monitors"],
+        "operationId": "listMonitorRevisions",
+        "summary": "List immutable revisions in ascending number order",
+        "description": "Requires an Administrator session.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "The Monitor revisions.",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/MonitorRevisionResponse" } }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      },
+      "post": {
+        "tags": ["Monitors"],
+        "operationId": "createMonitorRevision",
+        "summary": "Validate and append the next immutable revision",
+        "description": "Requires an Administrator session.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CreateMonitorRevisionRequest" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The revision was appended.",
+            "headers": { "Location": { "$ref": "#/components/headers/Location" } },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MonitorRevisionResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" },
+        { "$ref": "#/components/parameters/RevisionNumber" }
+      ],
+      "get": {
+        "tags": ["Monitors"],
+        "operationId": "getMonitorRevision",
+        "summary": "Return one immutable Monitor revision",
+        "description": "Requires an Administrator session.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/MonitorRevision" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "probehive.session",
+        "description": "Opaque server-side session token. Only its SHA-256 hash is persisted."
+      },
+      "antiforgeryCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "probehive.antiforgery",
+        "description": "Host-only selector cookie issued by the antiforgery endpoint."
+      },
+      "antiforgeryHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-ProbeHive-Antiforgery",
+        "description": "Synchronizer request token returned by the antiforgery endpoint."
+      }
+    },
+    "parameters": {
+      "OrganizationID": {
+        "name": "organizationId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "ProjectID": {
+        "name": "projectId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "MonitorID": {
+        "name": "monitorId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "RevisionNumber": {
+        "name": "revisionNumber",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "integer", "format": "int32", "minimum": 1, "maximum": 2147483647 }
+      }
+    },
+    "headers": {
+      "Location": {
+        "description": "Canonical relative URI of the created resource.",
+        "schema": { "type": "string" }
+      }
+    },
+    "responses": {
+      "Healthy": {
+        "description": "Healthy.",
+        "content": { "text/plain": { "schema": { "type": "string", "const": "Healthy" } } }
+      },
+      "Unhealthy": {
+        "description": "Unhealthy.",
+        "content": { "text/plain": { "schema": { "type": "string", "const": "Unhealthy" } } }
+      },
+      "SetupStatus": {
+        "description": "Current setup state.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupStatusResponse" } } }
+      },
+      "Organization": {
+        "description": "The Organization and default Project.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrganizationResponse" } } }
+      },
+      "Monitor": {
+        "description": "The Monitor.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MonitorResponse" } } }
+      },
+      "MonitorRevision": {
+        "description": "The immutable Monitor revision.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MonitorRevisionResponse" } } }
+      },
+      "BadRequest": {
+        "description": "Malformed input, validation failure, or invalid antiforgery state.",
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/ProblemDetails" } } }
+      },
+      "Unauthorized": {
+        "description": "A valid session is required.",
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/ProblemDetails" } } }
+      },
+      "Forbidden": {
+        "description": "The principal lacks the required role or the browser origin was rejected.",
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/ProblemDetails" } } }
+      },
+      "NotFound": {
+        "description": "The route or fully scoped resource was not found.",
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/ProblemDetails" } } }
+      },
+      "Conflict": {
+        "description": "The requested operation conflicts with current or concurrently updated state.",
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/ProblemDetails" } } }
+      },
+      "TooManyRequests": {
+        "description": "The per-client credential-attempt limit was exhausted.",
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/ProblemDetails" } } }
+      },
+      "MethodNotAllowed": {
+        "description": "The route does not allow this method.",
+        "headers": {
+          "Allow": {
+            "description": "Allowed methods.",
+            "schema": { "type": "string" }
+          }
+        },
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/ProblemDetails" } } }
+      }
+    },
+    "schemas": {
+      "ProblemDetails": {
+        "type": "object",
+        "required": ["type", "title", "status"],
+        "properties": {
+          "type": { "type": "string" },
+          "title": { "type": "string" },
+          "status": { "type": "integer" },
+          "detail": { "type": "string" },
+          "errors": {
+            "type": "object",
+            "additionalProperties": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      },
+      "SetupStatusResponse": {
+        "type": "object",
+        "required": ["setupComplete"],
+        "properties": { "setupComplete": { "type": "boolean" } }
+      },
+      "AntiforgeryTokenResponse": {
+        "type": "object",
+        "required": ["headerName", "requestToken"],
+        "properties": {
+          "headerName": { "type": "string", "const": "X-ProbeHive-Antiforgery" },
+          "requestToken": { "type": "string" }
+        }
+      },
+      "SessionResponse": {
+        "type": "object",
+        "required": ["userId", "email", "displayName", "role"],
+        "properties": {
+          "userId": { "type": "string", "format": "uuid" },
+          "email": { "type": "string" },
+          "displayName": { "type": "string" },
+          "role": { "type": "string", "const": "Administrator" }
+        }
+      },
+      "UserResponse": {
+        "type": "object",
+        "required": ["id", "email", "displayName", "role", "createdAt"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "email": { "type": "string" },
+          "displayName": { "type": "string" },
+          "role": { "type": "string", "const": "Administrator" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ProjectResponse": {
+        "type": "object",
+        "required": ["id", "organizationId", "name", "isDefault", "createdAt"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "organizationId": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "isDefault": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "OrganizationResponse": {
+        "type": "object",
+        "required": ["id", "slug", "displayName", "createdAt", "defaultProject"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "slug": { "type": "string" },
+          "displayName": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "defaultProject": { "$ref": "#/components/schemas/ProjectResponse" }
+        }
+      },
+      "MonitorResponse": {
+        "type": "object",
+        "required": ["id", "organizationId", "projectId", "name", "checkType", "state", "latestRevisionNumber", "createdAt", "updatedAt"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "organizationId": { "type": "string", "format": "uuid" },
+          "projectId": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "checkType": { "type": "string", "const": "http" },
+          "state": { "type": "string", "enum": ["draft", "active", "paused", "archived"] },
+          "latestRevisionNumber": { "type": "integer", "minimum": 0 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "MonitorRevisionResponse": {
+        "type": "object",
+        "required": ["id", "monitorId", "revisionNumber", "checkType", "checkSchemaVersion", "checkConfiguration", "createdAt"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "monitorId": { "type": "string", "format": "uuid" },
+          "revisionNumber": { "type": "integer", "minimum": 1 },
+          "checkType": { "type": "string", "const": "http" },
+          "checkSchemaVersion": { "type": "integer", "const": 1 },
+          "checkConfiguration": { "$ref": "#/components/schemas/HTTPCheckConfigurationV1" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateFirstAdministratorRequest": {
+        "type": "object",
+        "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown.",
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "required": ["email", "displayName", "password"],
+        "properties": {
+          "email": { "type": ["string", "null"] },
+          "displayName": { "type": ["string", "null"] },
+          "password": { "type": ["string", "null"] }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown.",
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": ["string", "null"] },
+          "password": { "type": ["string", "null"] }
+        }
+      },
+      "CreateOrganizationRequest": {
+        "type": "object",
+        "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown.",
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "required": ["slug", "displayName"],
+        "properties": {
+          "slug": { "type": ["string", "null"] },
+          "displayName": { "type": ["string", "null"] }
+        }
+      },
+      "CreateMonitorRequest": {
+        "type": "object",
+        "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown.",
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "required": ["name", "checkType"],
+        "properties": {
+          "name": { "type": ["string", "null"] },
+          "checkType": { "type": ["string", "null"] }
+        }
+      },
+      "RenameMonitorRequest": {
+        "type": "object",
+        "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown.",
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "required": ["name"],
+        "properties": { "name": { "type": ["string", "null"] } }
+      },
+      "ChangeMonitorStateRequest": {
+        "type": "object",
+        "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown.",
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "required": ["state"],
+        "properties": {
+          "state": { "type": ["string", "null"], "enum": ["active", "paused", "archived", null] }
+        }
+      },
+      "CreateMonitorRevisionRequest": {
+        "type": "object",
+        "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown.",
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "required": ["checkSchemaVersion", "checkConfiguration"],
+        "properties": {
+          "checkSchemaVersion": { "type": "integer", "const": 1 },
+          "checkConfiguration": { "$ref": "#/components/schemas/HTTPCheckConfigurationV1" }
+        }
+      },
+      "HTTPCheckConfigurationV1": {
+        "type": "object",
+        "required": ["url"],
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://",
+            "description": "Absolute HTTP(S) URL without user information or a fragment; length is measured in UTF-16 code units.",
+            "x-probehive-length-unit": "utf16-code-units"
+          },
+          "method": { "type": "string", "enum": ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], "default": "GET" },
+          "expectedStatusCodes": {
+            "type": "array",
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": { "type": "integer", "minimum": 100, "maximum": 599 }
+          },
+          "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 60, "default": 30 },
+          "followRedirects": { "type": "boolean", "default": true },
+          "maxRedirects": { "type": "integer", "minimum": 0, "maximum": 10, "default": 5 },
+          "headers": {
+            "type": "array",
+            "maxItems": 20,
+            "items": { "$ref": "#/components/schemas/HTTPHeader" },
+            "description": "Header names must be unique using ASCII case-insensitive comparison.",
+            "x-probehive-unique-name-comparison": "ascii-case-insensitive"
+          }
+        }
+      },
+      "HTTPHeader": {
+        "type": "object",
+        "required": ["name", "value"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$",
+            "description": "HTTP token excluding Authorization, Proxy-Authorization, Cookie, Host, Content-Length, and Transfer-Encoding using ASCII case-insensitive comparison.",
+            "x-probehive-forbidden-names": ["authorization", "proxy-authorization", "cookie", "host", "content-length", "transfer-encoding"]
+          },
+          "value": {
+            "type": "string",
+            "maxLength": 1024,
+            "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
+            "description": "Value without Unicode control characters; length is measured in UTF-16 code units.",
+            "x-probehive-length-unit": "utf16-code-units"
+          }
+        }
+      }
+    }
+  }
+}
