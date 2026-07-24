@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title description">
+  <title id="title">ProbeHive logo</title>
+  <desc id="description">A gold hexagonal hive surrounding a white monitoring pulse that ends in a green probe point.</desc>
+
+  <rect width="1024" height="1024" fill="#111820"/>
+
+  <g aria-hidden="true" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path
+      d="M512 150 824 330V694L512 874 200 694V330Z"
+      stroke="#F6B73C"
+      stroke-width="88"
+    />
+
+    <path
+      d="M278 540H366L424 416 500 648 570 486H835"
+      stroke="#F4F7FA"
+      stroke-width="66"
+    />
+  </g>
+
+  <circle cx="835" cy="486" r="58" fill="#111820"/>
+  <circle cx="835" cy="486" r="40" fill="#43D6B0"/>
+  <circle cx="835" cy="486" r="14" fill="#111820"/>
+</svg>
