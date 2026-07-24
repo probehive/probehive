@@ -1,0 +1,115 @@
+:root {
+  --text: #2a2633;
+  --text-muted: #6b6375;
+  --bg: #ffffff;
+  --border: #e5e4e7;
+  --accent: #b8860b;
+  --error: #b3261e;
+  --success: #1e6b3a;
+
+  color: var(--text);
+  background-color: var(--bg);
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.app-header {
+  border-bottom: 1px solid var(--border);
+  padding: 0.75rem 1.5rem;
+}
+
+.app-title {
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.app-main {
+  margin: 0 auto;
+  max-width: 40rem;
+  padding: 1.5rem;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: 24rem;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+  gap: 0.25rem;
+}
+
+input {
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  font: inherit;
+  padding: 0.5rem;
+}
+
+button {
+  align-self: flex-start;
+  background: var(--accent);
+  border: none;
+  border-radius: 0.25rem;
+  color: #ffffff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  margin-top: 0.75rem;
+  padding: 0.5rem 1.25rem;
+}
+
+button:disabled {
+  opacity: 0.6;
+}
+
+.field-errors {
+  color: var(--error);
+  font-size: 0.875rem;
+  list-style: none;
+  margin: 0;
+  min-height: 0.25rem;
+  padding: 0;
+}
+
+.error {
+  color: var(--error);
+}
+
+.success {
+  color: var(--success);
+}
+
+dt {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+dd {
+  margin: 0 0 0.75rem;
+}
+
+.app-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.app-session {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
