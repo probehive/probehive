@@ -1,0 +1,41 @@
+# Repository-local environment and secrets
+/.env
+/.env.*
+!/.env.example
+!/.env.*.example
+/secrets/
+/scratch/
+/tmp/
+
+# Go build, test, and coverage output
+/probehive
+/bin/
+*.test
+*.prof
+coverage.out
+/coverage/
+
+# Frontend dependencies and generated output
+/web/node_modules/
+/web/dist/
+/web/coverage/
+/web/playwright-report/
+/web/test-results/
+/web/blob-report/
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs and local process state
+*.log
+*.pid
+
+# Local tool managers
+/.mise.local.toml
+/.tool-versions.local
