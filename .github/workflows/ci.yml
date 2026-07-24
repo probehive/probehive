@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-24.04
+    env:
+      PROBEHIVE_TEST_DATABASE_URL: postgresql://probehive:probehive@127.0.0.1:5432/probehive?sslmode=disable
+    services:
+      postgres:
+        image: postgres:17.10
+        env:
+          POSTGRES_DB: probehive
+          POSTGRES_USER: probehive
+          POSTGRES_PASSWORD: probehive
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U probehive -d probehive"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.5"
+          cache-dependency-path: go.sum
+
+      - name: Report resolved toolchain
+        run: go version
+
+      - name: Verify module content
+        run: go mod verify
+
+      - name: Verify formatting
+        run: test -z "$(gofmt -l .)"
+
+      - name: Vet
+        run: go vet -mod=readonly ./...
+
+      - name: Test
+        run: go test -mod=readonly -race ./...
+
+      - name: Build server
+        run: go build -mod=readonly ./cmd/probehive
+
+  web:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: web
+    services:
+      postgres:
+        image: postgres:17.10
+        env:
+          POSTGRES_DB: probehive
+          POSTGRES_USER: probehive
+          POSTGRES_PASSWORD: probehive
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U probehive -d probehive"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.5"
+          cache-dependency-path: go.sum
+
+      - name: Report resolved toolchain
+        run: go version
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: web/package.json
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install (clean, lifecycle scripts disabled)
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npx --no-install playwright install --with-deps chromium
+
+      - name: End-to-end test
+        run: npm run e2e
+        env:
+          PROBEHIVE_GO: go
