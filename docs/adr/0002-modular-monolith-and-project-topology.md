@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-22
+- Clarified by: [ADR 0015](0015-frontend-dependency-and-tooling-baseline.md)
 
 ## Context
 

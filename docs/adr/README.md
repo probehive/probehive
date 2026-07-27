@@ -12,7 +12,9 @@ Each ADR uses a zero-padded sequence number and a short lowercase filename:
 
 An ADR contains its status, decision date, context, decision, and consequences. Status and relationship metadata may be updated; a later decision clarifies, amends, or supersedes an earlier ADR through a new record that links to both decisions. New ADRs start from [template.md](template.md).
 
-## Initial Decisions
+## Decisions
+
+Every record below is `Accepted` unless its entry says otherwise.
 
 - [0001: License and open-core boundary](0001-license-and-open-core-boundary.md)
 - [0002: Modular monolith and canonical project topology](0002-modular-monolith-and-project-topology.md)
@@ -28,3 +30,6 @@ An ADR contains its status, decision date, context, decision, and consequences. 
 - [0012: Organization provisioning idempotency semantics](0012-organization-provisioning-idempotency.md), which clarifies ADR 0009
 - [0013: First administrator bootstrap and local authentication](0013-first-administrator-and-local-authentication.md), which implements ADR 0010 and documents an ADR 0009 exception
 - [0014: Monitor lifecycle, revision immutability, and check configuration versioning](0014-monitor-lifecycle-and-revision-immutability.md), which clarifies ADR 0003
+- [0015: Frontend dependency and tooling baseline](0015-frontend-dependency-and-tooling-baseline.md), which clarifies ADR 0002
+- [0016: Monitor Project movement and default Project lifecycle](0016-monitor-project-movement-and-default-project-lifecycle.md), which clarifies ADR 0003 and ADR 0014
+- [0017: Organization membership and authorization](0017-organization-membership-and-authorization.md) — **Proposed**, awaiting an owner decision; it would amend ADR 0013 and no implementation may depend on it until it is accepted

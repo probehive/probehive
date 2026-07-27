@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-24
 - Clarifies: [ADR 0003](0003-organization-project-monitor-ownership.md)
+- Clarified by: [ADR 0016](0016-monitor-project-movement-and-default-project-lifecycle.md)
 
 ## Context
 
@@ -32,7 +33,7 @@ Draft ----activate----> Active <---activate--- Paused
 - An `Archived` Monitor is read-only: no rename, no state change, no new revisions.
 - Renaming is valid in every non-archived state and never changes lifecycle state.
 
-Whether a Monitor may move between Projects or Organizations remains an open owner decision (ADR 0003); no move operation exists.
+Whether a Monitor may move between Projects or Organizations was open when this decision was recorded and is answered by [ADR 0016](0016-monitor-project-movement-and-default-project-lifecycle.md); no move operation is implemented yet.
 
 ### Monitor Revision immutability
 

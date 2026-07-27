@@ -520,4 +520,6 @@ Before launching the API, `web/e2e/start-api.sh` must preserve this reset contra
 The browser journey assumes an empty database, routes `/` to `/setup`, creates and
 signs in the first Administrator, signs out, signs back in, creates slug `acme` with
 display name `Acme Monitoring`, follows the returned Organization, and renders its
-default Project. This journey and `web/src` must remain unchanged.
+default Project. The journey and `web/src` are contract consumers: either may change,
+but a change that alters observable behavior described here must update this document
+in the same commit.

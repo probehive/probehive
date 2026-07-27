@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-22
 - Amended by: [ADR 0009](0009-tenant-scope-default-project-and-telemetry.md)
+- Clarified by: [ADR 0014](0014-monitor-lifecycle-and-revision-immutability.md), [ADR 0016](0016-monitor-project-movement-and-default-project-lifecycle.md)
 
 ## Context
 
