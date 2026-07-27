@@ -27,6 +27,14 @@ var standardLibraryOnlyPackages = []string{
 	"./internal/outbound",
 }
 
+// adapterFreePackages are packages ADR 0020 bars from persistence and composition without
+// holding them to the standard library. internal/probe speaks protocols for a living, so an
+// HTTP client is its purpose rather than a violation; what it must never learn is where an
+// Observation is stored or who composed it.
+var adapterFreePackages = []string{
+	"./internal/probe",
+}
+
 // forbiddenStandardPackages are standard-library packages ADR 0002 names explicitly:
 // feature packages "import no SQL package, HTTP package, database driver, composition
 // package, or sibling feature implementation". Membership of the standard library is not
@@ -79,6 +87,32 @@ func TestDeclaredPackagesUseOnlyTheStandardLibrary(t *testing.T) {
 					violations = append(violations, fmt.Sprintf("%s (transport or persistence package)", dependency.ImportPath))
 				case !dependency.Standard:
 					violations = append(violations, fmt.Sprintf("%s (non-standard-library package)", dependency.ImportPath))
+				}
+			}
+
+			sort.Strings(violations)
+			if len(violations) != 0 {
+				t.Fatalf("%s has forbidden direct or transitive dependencies:\n  %s", rootPackage.ImportPath, strings.Join(violations, "\n  "))
+			}
+		})
+	}
+}
+
+func TestDeclaredPackagesAvoidPersistenceAndComposition(t *testing.T) {
+	moduleRoot := findModuleRoot(t)
+	goTool := findGoTool(t)
+
+	for _, declaredPackage := range adapterFreePackages {
+		declaredPackage := declaredPackage
+		t.Run(filepath.Base(declaredPackage), func(t *testing.T) {
+			packages := listDependencies(t, goTool, moduleRoot, declaredPackage)
+			rootPackage := listedRootPackage(t, packages)
+			modulePath := modulePathFor(t, rootPackage.ImportPath, declaredPackage)
+
+			var violations []string
+			for _, dependency := range packages {
+				if dependency.ImportPath != rootPackage.ImportPath && isForbiddenAdapter(modulePath, dependency.ImportPath) {
+					violations = append(violations, dependency.ImportPath)
 				}
 			}
 

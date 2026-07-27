@@ -74,6 +74,7 @@ internal/
   monitor/
   check/
   outbound/
+  probe/
   postgres/
   httpapi/
   httpapi/v1/
@@ -81,7 +82,7 @@ web/
 deploy/
 ```
 
-Feature packages, `internal/check`, and `internal/outbound` use only the Go standard library. `internal/outbound` owns the outbound-access policy and the validating dialer every tenant-influenced destination passes through, including probes, redirects, webhooks, and notification deliveries. `internal/postgres` implements feature-owned persistence interfaces with pgx and embedded SQL migrations. `internal/httpapi` owns HTTP routing, browser security, versioned wire types, and Problem Details. The frontend remains a separately deployable API client and owns no authoritative authorization or business rules.
+Feature packages, `internal/check`, and `internal/outbound` use only the Go standard library. `internal/outbound` owns the outbound-access policy and the validating dialer every tenant-influenced destination passes through, including probes, redirects, webhooks, and notification deliveries. `internal/probe` executes checks, turning a validated configuration and that dialer into an Observation and reaching the network through no other path. `internal/postgres` implements feature-owned persistence interfaces with pgx and embedded SQL migrations. `internal/httpapi` owns HTTP routing, browser security, versioned wire types, and Problem Details. The frontend remains a separately deployable API client and owns no authoritative authorization or business rules.
 
 The backend uses Go 1.26.5 and PostgreSQL. First-party web applications use React, strict TypeScript, Vite, and React Router and build to static assets. The public API begins at `/api/v1`.
 

@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-27
 - Clarifies: [ADR 0005](0005-postgresql-leases-and-outbox.md), [ADR 0014](0014-monitor-lifecycle-and-revision-immutability.md)
+- Clarified by: [ADR 0024](0024-http-check-execution-and-observation-content.md)
 
 ## Context
 
