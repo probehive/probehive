@@ -7,13 +7,19 @@ import { vi } from 'vitest'
 import type { SessionResponse } from '../api/auth.ts'
 import App from '../App.tsx'
 import { sessionQueryKey } from '../auth/useSession.ts'
+import { localeStorageKey } from '../i18n/locale.ts'
+import { TranslationProvider } from '../i18n/useTranslation.tsx'
 
 interface RenderOptions {
   /** Seeded session so the App shell does not fetch one; defaults to signed out. */
   session?: SessionResponse | null
+  /** Pinned so assertions do not depend on the runner's language; defaults to English. */
+  locale?: string
 }
 
 export function renderRoutes(children: RouteObject[], initialPath: string, options: RenderOptions = {}) {
+  // Pin the locale before the provider reads it, so tests never depend on the host.
+  globalThis.localStorage.setItem(localeStorageKey, options.locale ?? 'en')
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -32,9 +38,11 @@ export function renderRoutes(children: RouteObject[], initialPath: string, optio
   )
   return {
     ...render(
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>,
+      <TranslationProvider>
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      </TranslationProvider>,
     ),
     queryClient,
   }

@@ -109,6 +109,19 @@ dd {
   justify-content: space-between;
 }
 
+.app-language {
+  align-items: center;
+  color: var(--text-muted);
+  display: inline-flex;
+  gap: 0.4rem;
+  margin-inline-start: auto;
+  margin-inline-end: 1rem;
+}
+
+.app-language select {
+  width: auto;
+}
+
 .app-session {
   color: var(--text-muted);
   font-size: 0.9rem;

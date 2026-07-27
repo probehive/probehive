@@ -2,9 +2,11 @@ import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router'
 
 import { ApiError, getOrganization } from '../api/organizations'
+import { useTranslation } from '../i18n/context'
 
 export default function OrganizationPage() {
   const { organizationId } = useParams<'organizationId'>()
+  const { t, formatDateTime } = useTranslation()
   const query = useQuery({
     queryKey: ['organizations', organizationId],
     queryFn: () => getOrganization(organizationId ?? ''),
@@ -12,14 +14,14 @@ export default function OrganizationPage() {
   })
 
   if (query.isPending) {
-    return <p>Loading…</p>
+    return <p>{t('organization.loading')}</p>
   }
 
   if (query.isError) {
     const notFound = query.error instanceof ApiError && query.error.status === 404
     return (
       <p className="error" role="alert">
-        {notFound ? 'This Organization does not exist.' : 'The Organization could not be loaded.'}
+        {notFound ? t('organization.notFound') : t('organization.loadFailed')}
       </p>
     )
   }
@@ -29,20 +31,20 @@ export default function OrganizationPage() {
     <section>
       <h1>{organization.displayName}</h1>
       <dl>
-        <dt>Slug</dt>
+        <dt>{t('organization.slug')}</dt>
         <dd>{organization.slug}</dd>
-        <dt>Identifier</dt>
+        <dt>{t('organization.identifier')}</dt>
         <dd>
           <code>{organization.id}</code>
         </dd>
-        <dt>Created</dt>
-        <dd>{new Date(organization.createdAt).toISOString()}</dd>
+        <dt>{t('organization.created')}</dt>
+        <dd>{formatDateTime(organization.createdAt)}</dd>
       </dl>
-      <h2>Default Project</h2>
+      <h2>{t('organization.defaultProject')}</h2>
       <dl>
-        <dt>Name</dt>
+        <dt>{t('organization.name')}</dt>
         <dd>{organization.defaultProject.name}</dd>
-        <dt>Identifier</dt>
+        <dt>{t('organization.identifier')}</dt>
         <dd>
           <code>{organization.defaultProject.id}</code>
         </dd>

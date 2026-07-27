@@ -5,19 +5,25 @@ import { Navigate, useNavigate } from 'react-router'
 import { createFirstAdministrator, getSetupStatus, type SetupResponse } from '../api/auth'
 import { ApiError } from '../api/http'
 import { sessionQueryKey } from '../auth/useSession'
+import { useTranslation } from '../i18n/context'
 import { organizationsQueryKey } from './useOrganizations'
 
-function fieldErrors(error: unknown, field: string): string[] {
-  if (error instanceof ApiError && error.status === 400) {
-    return (error.problem.errors?.[field] ?? []).map((entry) => entry.message)
+function useFieldErrors() {
+  const { translateError } = useTranslation()
+  return (error: unknown, field: string): string[] => {
+    if (error instanceof ApiError && error.status === 400) {
+      return (error.problem.errors?.[field] ?? []).map(translateError)
+    }
+    return []
   }
-  return []
 }
 
 export default function SetupPage() {
   const [email, setEmail] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [password, setPassword] = useState('')
+  const { t } = useTranslation()
+  const fieldErrors = useFieldErrors()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const setupStatus = useQuery({ queryKey: ['setup-status'], queryFn: getSetupStatus })
@@ -47,14 +53,11 @@ export default function SetupPage() {
 
   return (
     <section>
-      <h1>Set up ProbeHive</h1>
-      <p>
-        Create the first administrator account for this installation. Its Organization is created
-        at the same time, so you can add a Monitor immediately.
-      </p>
-      <form onSubmit={onSubmit} aria-label="Create first administrator">
+      <h1>{t('setup.heading')}</h1>
+      <p>{t('setup.intro')}</p>
+      <form onSubmit={onSubmit} aria-label={t('setup.form')}>
         <label>
-          Email
+          {t('setup.email')}
           <input
             name="email"
             type="email"
@@ -69,7 +72,7 @@ export default function SetupPage() {
           ))}
         </ul>
         <label>
-          Display name
+          {t('setup.displayName')}
           <input
             name="displayName"
             value={displayName}
@@ -83,7 +86,7 @@ export default function SetupPage() {
           ))}
         </ul>
         <label>
-          Password
+          {t('setup.password')}
           <input
             name="password"
             type="password"
@@ -98,12 +101,12 @@ export default function SetupPage() {
           ))}
         </ul>
         <button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? 'Creating…' : 'Create administrator'}
+          {mutation.isPending ? t('setup.submitting') : t('setup.submit')}
         </button>
       </form>
       {conflict && (
         <p className="error" role="alert">
-          Setup is already completed on this installation. <a href="/login">Sign in instead.</a>
+          {t('setup.alreadyComplete')} <a href="/login">{t('setup.signInInstead')}</a>
         </p>
       )}
     </section>

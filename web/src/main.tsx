@@ -5,6 +5,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router'
 
 import App from './App.tsx'
 import RequireAuth from './auth/RequireAuth.tsx'
+import { TranslationProvider } from './i18n/useTranslation.tsx'
 import LoginPage from './routes/LoginPage.tsx'
 import OrganizationPage from './routes/OrganizationPage.tsx'
 import OrganizationsPage from './routes/OrganizationsPage.tsx'
@@ -39,8 +40,10 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    <TranslationProvider>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </TranslationProvider>
   </StrictMode>,
 )

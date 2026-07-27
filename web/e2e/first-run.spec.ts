@@ -48,3 +48,18 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await expect(page.getByText('acme', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Default Project' })).toBeVisible()
 })
+
+test('the interface can be switched to another language', async ({ page }) => {
+  // Runs after the first-run journey, so the installation already has an administrator.
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
+
+  await page.getByLabel('Language').selectOption('zh-CN')
+
+  await expect(page.getByRole('heading', { name: '登录' })).toBeVisible()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
+
+  // The preference survives a reload rather than renegotiating from the browser.
+  await page.reload()
+  await expect(page.getByRole('heading', { name: '登录' })).toBeVisible()
+})

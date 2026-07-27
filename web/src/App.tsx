@@ -3,9 +3,12 @@ import { Link, Outlet, useNavigate } from 'react-router'
 
 import { logout } from './api/auth'
 import { sessionQueryKey, useSession } from './auth/useSession'
+import { useTranslation } from './i18n/context'
+import { locales, localeNames } from './i18n/locale'
 
 export default function App() {
   const session = useSession()
+  const { t, locale, setLocale } = useTranslation()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const signOut = useMutation({
@@ -20,13 +23,23 @@ export default function App() {
     <>
       <header className="app-header">
         <Link to="/" className="app-title">
-          ProbeHive
+          {t('app.title')}
         </Link>
+        <label className="app-language">
+          {t('app.language')}
+          <select value={locale} onChange={(event) => setLocale(event.target.value as typeof locale)}>
+            {locales.map((available) => (
+              <option key={available} value={available}>
+                {localeNames[available]}
+              </option>
+            ))}
+          </select>
+        </label>
         {session.data && (
           <span className="app-session">
             {session.data.email}{' '}
             <button type="button" onClick={() => signOut.mutate()} disabled={signOut.isPending}>
-              {signOut.isPending ? 'Signing out…' : 'Sign out'}
+              {signOut.isPending ? t('app.signingOut') : t('app.signOut')}
             </button>
           </span>
         )}

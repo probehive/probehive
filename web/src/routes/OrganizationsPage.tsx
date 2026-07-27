@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 
+import { useTranslation } from '../i18n/context'
 import CreateOrganizationForm from './CreateOrganizationForm.tsx'
 import { useOrganizations } from './useOrganizations'
 
@@ -10,19 +11,20 @@ import { useOrganizations } from './useOrganizations'
  */
 export default function OrganizationsPage() {
   const organizations = useOrganizations()
+  const { t } = useTranslation()
 
   return (
     <section>
-      <h1>Organizations</h1>
-      {organizations.isPending && <p role="status">Loading Organizations…</p>}
+      <h1>{t('organizations.heading')}</h1>
+      {organizations.isPending && <p role="status">{t('organizations.loading')}</p>}
       {organizations.isError && (
         <p className="error" role="alert">
-          Organizations could not be loaded.
+          {t('organization.loadFailed')}
         </p>
       )}
       {organizations.data &&
         (organizations.data.length === 0 ? (
-          <p>No Organizations yet.</p>
+          <p>{t('organizations.empty')}</p>
         ) : (
           <ul>
             {organizations.data.map((organization) => (

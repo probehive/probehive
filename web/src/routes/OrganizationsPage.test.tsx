@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 
 import type { OrganizationResponse } from '../api/organizations'
+import { en } from '../i18n/en'
 import { jsonResponse, mockFetchRoutes, renderWithProviders } from '../test/renderWithProviders.tsx'
 import OrganizationsPage from './OrganizationsPage.tsx'
 
@@ -92,7 +93,7 @@ test('shows a success message with a link after creating', async () => {
   )
 })
 
-test('shows field-level validation problems', async () => {
+test('localizes field-level failures from their code, not the server sentence', async () => {
   vi.spyOn(globalThis, 'fetch').mockImplementation((_input: RequestInfo | URL, init) =>
     Promise.resolve(
       init?.method === 'POST'
@@ -100,11 +101,12 @@ test('shows field-level validation problems', async () => {
             title: 'One or more validation errors occurred.',
             status: 400,
             errors: {
-              slug: [{ code: 'organization.slug.invalid', message: 'A slug is 3 to 63 characters.' }],
+              // A deliberately different sentence: the catalog entry must win.
+              slug: [{ code: 'organization.slug.invalid', message: 'server wording that must not appear' }],
               displayName: [
                 {
                   code: 'organization.displayName.invalid',
-                  message: 'A display name is 1 to 100 characters after trimming.',
+                  message: 'server wording that must not appear',
                 },
               ],
             },
@@ -116,8 +118,30 @@ test('shows field-level validation problems', async () => {
 
   await submit('x', ' ')
 
-  expect(await screen.findByText('A slug is 3 to 63 characters.')).toBeInTheDocument()
-  expect(screen.getByText('A display name is 1 to 100 characters after trimming.')).toBeInTheDocument()
+  expect(await screen.findByText(en['error.organization.slug.invalid'])).toBeInTheDocument()
+  expect(screen.getByText(en['error.organization.displayName.invalid'])).toBeInTheDocument()
+  expect(screen.queryByText('server wording that must not appear')).not.toBeInTheDocument()
+})
+
+test('falls back to the server message for a code the catalog does not know', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation((_input: RequestInfo | URL, init) =>
+    Promise.resolve(
+      init?.method === 'POST'
+        ? jsonResponse(400, {
+            title: 'One or more validation errors occurred.',
+            status: 400,
+            errors: {
+              slug: [{ code: 'organization.slug.inventedByANewerServer', message: 'A newer rule failed.' }],
+            },
+          })
+        : jsonResponse(200, []),
+    ),
+  )
+  renderPage()
+
+  await submit('x', 'Acme')
+
+  expect(await screen.findByText('A newer rule failed.')).toBeInTheDocument()
 })
 
 test('shows a conflict message when the slug is taken', async () => {

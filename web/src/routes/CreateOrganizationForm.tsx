@@ -3,13 +3,17 @@ import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 
 import { ApiError, createOrganization, type CreateOrganizationOutcome } from '../api/organizations'
+import { useTranslation } from '../i18n/context'
 import { organizationsQueryKey } from './useOrganizations'
 
-function fieldErrors(error: unknown, field: string): string[] {
-  if (error instanceof ApiError && error.status === 400) {
-    return (error.problem.errors?.[field] ?? []).map((entry) => entry.message)
+function useFieldErrors() {
+  const { translateError } = useTranslation()
+  return (error: unknown, field: string): string[] => {
+    if (error instanceof ApiError && error.status === 400) {
+      return (error.problem.errors?.[field] ?? []).map(translateError)
+    }
+    return []
   }
-  return []
 }
 
 /**
@@ -19,6 +23,8 @@ function fieldErrors(error: unknown, field: string): string[] {
 export default function CreateOrganizationForm() {
   const [slug, setSlug] = useState('')
   const [displayName, setDisplayName] = useState('')
+  const { t } = useTranslation()
+  const fieldErrors = useFieldErrors()
   const queryClient = useQueryClient()
   const mutation = useMutation<CreateOrganizationOutcome, unknown, void>({
     mutationFn: () => createOrganization({ slug, displayName }),
@@ -37,10 +43,10 @@ export default function CreateOrganizationForm() {
 
   return (
     <section>
-      <h2>Create an Organization</h2>
-      <form onSubmit={onSubmit} aria-label="Create organization">
+      <h2>{t('organization.create.heading')}</h2>
+      <form onSubmit={onSubmit} aria-label={t('organization.create.form')}>
         <label>
-          Slug
+          {t('organization.create.slug')}
           <input
             name="slug"
             value={slug}
@@ -55,7 +61,7 @@ export default function CreateOrganizationForm() {
           ))}
         </ul>
         <label>
-          Display name
+          {t('organization.create.displayName')}
           <input
             name="displayName"
             value={displayName}
@@ -70,18 +76,20 @@ export default function CreateOrganizationForm() {
           ))}
         </ul>
         <button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? 'Creating…' : 'Create'}
+          {mutation.isPending ? t('organization.create.submitting') : t('organization.create.submit')}
         </button>
       </form>
       {conflict && (
         <p className="error" role="alert">
-          That slug is already in use by an Organization with a different display name.
+          {t('organization.create.conflict')}
         </p>
       )}
       {outcome && (
         <p className="success" role="status">
-          {outcome.created ? 'Organization created.' : 'Organization already existed; returning it.'}{' '}
-          <Link to={`/organizations/${outcome.organization.id}`}>View {outcome.organization.displayName}</Link>
+          {outcome.created ? t('organization.create.created') : t('organization.create.replayed')}{' '}
+          <Link to={`/organizations/${outcome.organization.id}`}>
+            {t('organization.create.view', { name: outcome.organization.displayName })}
+          </Link>
         </p>
       )}
     </section>
