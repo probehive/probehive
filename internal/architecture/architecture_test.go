@@ -14,11 +14,17 @@ import (
 	"testing"
 )
 
-var featurePackages = []string{
+// standardLibraryOnlyPackages are the packages ADR 0002 and ADR 0020 hold to the standard
+// library alone: the feature packages, the check catalog, and the outbound policy engine.
+// internal/outbound is on the list because its whole value is being small enough to review,
+// and because a policy engine that can reach for an HTTP client is one refactor away from
+// deciding what it is enforcing against.
+var standardLibraryOnlyPackages = []string{
 	"./internal/organization",
 	"./internal/user",
 	"./internal/monitor",
 	"./internal/check",
+	"./internal/outbound",
 }
 
 // forbiddenStandardPackages are standard-library packages ADR 0002 names explicitly:
@@ -49,16 +55,16 @@ type listedPackage struct {
 	DepOnly    bool
 }
 
-func TestFeaturePackagesUseOnlyTheStandardLibrary(t *testing.T) {
+func TestDeclaredPackagesUseOnlyTheStandardLibrary(t *testing.T) {
 	moduleRoot := findModuleRoot(t)
 	goTool := findGoTool(t)
 
-	for _, featurePackage := range featurePackages {
-		featurePackage := featurePackage
-		t.Run(filepath.Base(featurePackage), func(t *testing.T) {
-			packages := listDependencies(t, goTool, moduleRoot, featurePackage)
+	for _, declaredPackage := range standardLibraryOnlyPackages {
+		declaredPackage := declaredPackage
+		t.Run(filepath.Base(declaredPackage), func(t *testing.T) {
+			packages := listDependencies(t, goTool, moduleRoot, declaredPackage)
 			rootPackage := listedRootPackage(t, packages)
-			modulePath := modulePathFor(t, rootPackage.ImportPath, featurePackage)
+			modulePath := modulePathFor(t, rootPackage.ImportPath, declaredPackage)
 
 			var violations []string
 			for _, dependency := range packages {
@@ -84,10 +90,10 @@ func TestFeaturePackagesUseOnlyTheStandardLibrary(t *testing.T) {
 	}
 }
 
-func listDependencies(t *testing.T, goTool, moduleRoot, featurePackage string) []listedPackage {
+func listDependencies(t *testing.T, goTool, moduleRoot, declaredPackage string) []listedPackage {
 	t.Helper()
 
-	command := exec.Command(goTool, "list", "-mod=readonly", "-deps", "-json", featurePackage)
+	command := exec.Command(goTool, "list", "-mod=readonly", "-deps", "-json", declaredPackage)
 	command.Dir = moduleRoot
 	command.Env = withEnvironment(os.Environ(), "GOWORK", "off")
 
@@ -96,7 +102,7 @@ func listDependencies(t *testing.T, goTool, moduleRoot, featurePackage string) [
 	command.Stdout = &stdout
 	command.Stderr = &stderr
 	if err := command.Run(); err != nil {
-		t.Fatalf("go list failed for %s: %v\n%s", featurePackage, err, strings.TrimSpace(stderr.String()))
+		t.Fatalf("go list failed for %s: %v\n%s", declaredPackage, err, strings.TrimSpace(stderr.String()))
 	}
 
 	decoder := json.NewDecoder(&stdout)
@@ -108,7 +114,7 @@ func listDependencies(t *testing.T, goTool, moduleRoot, featurePackage string) [
 			break
 		}
 		if err != nil {
-			t.Fatalf("decode go list output for %s: %v", featurePackage, err)
+			t.Fatalf("decode go list output for %s: %v", declaredPackage, err)
 		}
 		packages = append(packages, current)
 	}
@@ -130,10 +136,10 @@ func listedRootPackage(t *testing.T, packages []listedPackage) listedPackage {
 	return roots[0]
 }
 
-func modulePathFor(t *testing.T, importPath, featurePackage string) string {
+func modulePathFor(t *testing.T, importPath, declaredPackage string) string {
 	t.Helper()
 
-	suffix := strings.TrimPrefix(featurePackage, ".")
+	suffix := strings.TrimPrefix(declaredPackage, ".")
 	if !strings.HasSuffix(importPath, suffix) {
 		t.Fatalf("root import path %q does not end in %q", importPath, suffix)
 	}

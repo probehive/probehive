@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-23
-- Clarified by: [ADR 0020](0020-check-execution-and-outbound-enforcement.md)
+- Clarified by: [ADR 0020](0020-check-execution-and-outbound-enforcement.md), [ADR 0023](0023-outbound-policy-classification-and-denial-reasons.md)
 - Amended: 2026-07-23 — Distinguished tenant-selected resolvers as DNS check destinations from the operator-controlled trusted resolver used for validation resolution.
 
 ## Context

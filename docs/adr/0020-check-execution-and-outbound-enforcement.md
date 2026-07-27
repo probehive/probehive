@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-27
 - Clarifies: [ADR 0002](0002-modular-monolith-and-project-topology.md), [ADR 0007](0007-outbound-access-and-ssrf-security.md)
+- Clarified by: [ADR 0023](0023-outbound-policy-classification-and-denial-reasons.md)
 
 ## Context
 
