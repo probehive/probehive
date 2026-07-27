@@ -34,3 +34,4 @@ Every record below is `Accepted` unless its entry says otherwise.
 - [0016: Monitor Project movement and default Project lifecycle](0016-monitor-project-movement-and-default-project-lifecycle.md), which clarifies ADR 0003 and ADR 0014
 - [0017: Organization membership and authorization](0017-organization-membership-and-authorization.md), which amends ADR 0013
 - [0018: First-run Organization provisioning](0018-first-run-organization-provisioning.md), which amends ADR 0013 and clarifies ADR 0012
+- [0019: Internationalization, localization, and stable error codes](0019-internationalization-and-error-codes.md), which amends ADR 0012, ADR 0013, and ADR 0014 by replacing their character-exact English messages with stable codes

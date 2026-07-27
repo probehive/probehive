@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-24
-- Amended by: [ADR 0017](0017-organization-membership-and-authorization.md), [ADR 0018](0018-first-run-organization-provisioning.md)
+- Amended by: [ADR 0017](0017-organization-membership-and-authorization.md), [ADR 0018](0018-first-run-organization-provisioning.md), [ADR 0019](0019-internationalization-and-error-codes.md)
 
 ## Context
 
