@@ -9,10 +9,33 @@ import (
 )
 
 func (server *Server) organizationsRoot(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		methodNotAllowed(w, http.MethodPost)
+	switch r.Method {
+	case http.MethodGet:
+		server.listOrganizations(w, r)
+	case http.MethodPost:
+		server.createOrganization(w, r)
+	default:
+		methodNotAllowed(w, http.MethodGet, http.MethodPost)
+	}
+}
+
+func (server *Server) listOrganizations(w http.ResponseWriter, r *http.Request) {
+	if _, ok := server.requireAdministrator(w, r); !ok {
 		return
 	}
+	values, err := server.organizations.List(r.Context())
+	if err != nil {
+		server.internalError(w, r, "list Organizations", err)
+		return
+	}
+	responses := make([]api.OrganizationResponse, len(values))
+	for index, value := range values {
+		responses[index] = toOrganizationResponse(value)
+	}
+	writeJSON(w, http.StatusOK, responses)
+}
+
+func (server *Server) createOrganization(w http.ResponseWriter, r *http.Request) {
 	if _, ok := server.protectUnsafe(w, r, true); !ok {
 		return
 	}

@@ -54,6 +54,56 @@ FROM projects
 WHERE id = $1 AND organization_id = $2`, string(projectID), string(organizationID)))
 }
 
+// List returns every Organization joined to its default Project in creation order.
+func (store *OrganizationStore) List(ctx context.Context) ([]organization.Details, error) {
+	rows, err := store.pool.Query(ctx, `
+SELECT o.id, o.slug, o.display_name, o.created_at,
+       p.id, p.organization_id, p.name, p.is_default, p.created_at
+FROM organizations o
+JOIN projects p ON p.organization_id = o.id AND p.is_default
+ORDER BY o.created_at, o.id`)
+	if err != nil {
+		return nil, fmt.Errorf("list Organizations: %w", err)
+	}
+	defer rows.Close()
+
+	values := make([]organization.Details, 0)
+	for rows.Next() {
+		var (
+			id             string
+			slug           string
+			displayName    string
+			createdAt      time.Time
+			projectID      string
+			organizationID string
+			projectName    string
+			isDefault      bool
+			projectCreated time.Time
+		)
+		if err := rows.Scan(
+			&id, &slug, &displayName, &createdAt,
+			&projectID, &organizationID, &projectName, &isDefault, &projectCreated,
+		); err != nil {
+			return nil, fmt.Errorf("scan Organization list row: %w", err)
+		}
+		value, err := organization.NewOrganization(organization.ID(id), slug, displayName, createdAt.UTC())
+		if err != nil {
+			return nil, fmt.Errorf("restore Organization: %w", err)
+		}
+		values = append(values, organization.Details{
+			Organization: value,
+			DefaultProject: organization.Project{
+				ID: organization.ProjectID(projectID), OrganizationID: organization.ID(organizationID),
+				Name: projectName, IsDefault: isDefault, CreatedAt: projectCreated.UTC(),
+			},
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list Organizations: %w", err)
+	}
+	return values, nil
+}
+
 func (store *OrganizationStore) Create(ctx context.Context, value organization.Organization, defaultProject organization.Project) error {
 	transaction, err := store.pool.Begin(ctx)
 	if err != nil {

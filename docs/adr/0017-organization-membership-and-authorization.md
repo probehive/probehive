@@ -74,7 +74,7 @@ The primary key makes a duplicate membership unrepresentable. The "at least one 
 
 - Deny by default is unchanged. Every `/api/v1/organizations/{organizationId}/...` route resolves membership once per request and derives the effective permission set.
 - **Non-membership returns `404`, not `403`.** A real Organization the caller does not belong to must be indistinguishable from one that does not exist, matching the rule the backend contract already applies to identifiers presented through the wrong scope. `403` is reserved for a caller who is a member but lacks the permission — there the resource's existence is already known.
-- Membership never comes from a request header, browser-selected context, or a hosted claim taken at face value. Under ADR 0010 and cloud ADR 0004 the API validates a signed assertion and then resolves membership from its own records.
+- Membership never comes from a request header, browser-selected context, or a hosted claim taken at face value. Under ADR 0010 the API validates a signed assertion against its external-identity configuration and then resolves membership from its own records.
 - Current endpoints map as: Monitor and revision reads require `monitor.read`; Monitor creation, rename, state change, and revision creation require `monitor.write`; membership changes require `member.write`.
 
 ### The instance Administrator manages membership but holds no implicit data access
@@ -103,12 +103,12 @@ The mechanism is public; only commercial gating and hosted identity are private.
 
 | Concern | Owner |
 | --- | --- |
-| Membership records, roles, permissions, enforcement, custom roles when built | Public core. It is the only writer of membership rows (cloud ADR 0004). |
-| How many members an Organization may have, and whether custom roles are available on a plan | Private cloud entitlements, applied through public limits — the same pattern cloud ADR 0001 uses for scheduling quotas. Never a public feature flag. |
+| Membership records, roles, permissions, enforcement, custom roles when built | Public core, and it is the only writer of membership rows (ADR 0006). |
+| How many members an Organization may have, and whether custom roles are available on a plan | Private hosted entitlements, applied through public limits — the same pattern hosted plans use for scheduling quotas. Never a public feature flag. |
 | Signup, email invitations, SSO and SCIM provisioning into public membership records | Private cloud. The public core accepts adding an existing instance user to an Organization; richer provisioning layers on top through public APIs. |
-| Support staff access to tenant data | Private cloud support tooling, audited (cloud ADR 0001). Never the public instance role. |
+| Support staff access to tenant data | Private hosted support tooling, audited. Never the public instance role. |
 
-The instance `Administrator` role means different things in the two deployments and this difference is security-relevant. Self-hosted, it is the operator who runs the server. In Cloud the "instance" is ProbeHive's shared multi-tenant deployment, so an instance administrator would be ProbeHive staff with membership-management power over every tenant. **Cloud deployments must not expose the instance-administrator surface on any tenant-reachable route**, and hosted onboarding must not create instance administrators. Enforcing that at the edge belongs to the hosted trust-contract specification cloud ADR 0004 already requires.
+The instance `Administrator` role means different things in the two deployments and this difference is security-relevant. Self-hosted, it is the operator who runs the server. In Cloud the "instance" is ProbeHive's shared multi-tenant deployment, so an instance administrator would be ProbeHive staff with membership-management power over every tenant. **Cloud deployments must not expose the instance-administrator surface on any tenant-reachable route**, and hosted onboarding must not create instance administrators. Enforcing that at the edge is the hosted operator's responsibility and is specified in the private repository, not here.
 
 ### Deliberately deferred
 

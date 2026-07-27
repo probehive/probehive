@@ -32,6 +32,13 @@ type UserResponse struct {
 	CreatedAt   time.Time `json:"createdAt"`
 }
 
+// SetupResponse is the first-administrator setup result. Setup provisions the
+// installation's Organization as well, so a new installation is immediately usable.
+type SetupResponse struct {
+	User         UserResponse         `json:"user"`
+	Organization OrganizationResponse `json:"organization"`
+}
+
 type ProjectResponse struct {
 	ID             string    `json:"id"`
 	OrganizationID string    `json:"organizationId"`

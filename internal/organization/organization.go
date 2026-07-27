@@ -12,6 +12,12 @@ import (
 const (
 	// DefaultProjectName is the source name assigned transactionally at provisioning.
 	DefaultProjectName = "Default"
+	// BootstrapSlug is the slug of the Organization first-administrator setup provisions
+	// so a new installation can create a Monitor without any manual setup step (ADR 0018).
+	BootstrapSlug = "default"
+	// BootstrapDisplayName is the display name of that Organization. Setup accepts no
+	// Organization input; renaming is the separate future operation named in ADR 0012.
+	BootstrapDisplayName = "Default"
 	// SlugValidationMessage is the public validation message for Organization slugs.
 	SlugValidationMessage = "A slug is 3 to 63 characters of lowercase ASCII letters and digits with single interior hyphens, starting and ending with a letter or digit."
 	// DisplayNameValidationMessage is the public validation message for display names.

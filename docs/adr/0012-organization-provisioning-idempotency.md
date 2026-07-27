@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-23
 - Clarifies: [ADR 0009](0009-tenant-scope-default-project-and-telemetry.md)
+- Clarified by: [ADR 0018](0018-first-run-organization-provisioning.md)
 
 ## Context
 
@@ -20,7 +21,7 @@ The Organization slug is the natural idempotency key for provisioning.
 - Lost races are resolved by the database unique index on the slug: on a uniqueness violation the use case re-reads the winner and then applies the same replay-or-conflict rules.
 - Validation of slug and display name lives in the use case so every creation path shares it; the API surfaces failures as `400` validation Problem Details.
 
-The first HTTP surface for this use case is `POST /api/v1/organizations`. It ships before the first-administrator authentication baseline exists and is unreleased source under ADR 0010; it must be placed behind the authentication and authorization baseline before any published artifact exposes it.
+The first HTTP surface for this use case is `POST /api/v1/organizations`. It ships before the first-administrator authentication baseline exists and is unreleased source under ADR 0010; it must be placed behind the authentication and authorization baseline before any published artifact exposes it. First-administrator setup calls the same use case rather than a second creation path (ADR 0018).
 
 ## Consequences
 

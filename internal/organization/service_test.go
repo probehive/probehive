@@ -35,6 +35,8 @@ type fakeStore struct {
 	bySlugFound       bool
 	defaultProject    Project
 	defaultFound      bool
+	listed            []Details
+	listErr           error
 	createErr         error
 	winnerAfterCreate bool
 	findBySlugErr     error
@@ -63,6 +65,10 @@ func (store *fakeStore) FindDefaultProject(ctx context.Context, _ ID) (Project, 
 }
 func (*fakeStore) FindProject(context.Context, ID, ProjectID) (Project, bool, error) {
 	return Project{}, false, nil
+}
+func (store *fakeStore) List(ctx context.Context) ([]Details, error) {
+	store.lastContextValue = ctx.Value(contextKey{})
+	return store.listed, store.listErr
 }
 func (store *fakeStore) Create(ctx context.Context, organization Organization, project Project) error {
 	store.lastContextValue = ctx.Value(contextKey{})

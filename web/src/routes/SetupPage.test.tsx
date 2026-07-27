@@ -17,12 +17,27 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+const organization = {
+  id: '019f8f3d-5bb0-76fc-8fcf-02811ef6b2ee',
+  slug: 'default',
+  displayName: 'Default',
+  createdAt: '2026-07-24T12:00:00+00:00',
+  defaultProject: {
+    id: '019f8f3d-5bb0-7aa5-b81a-2868fc7c2420',
+    organizationId: '019f8f3d-5bb0-76fc-8fcf-02811ef6b2ee',
+    name: 'Default',
+    isDefault: true,
+    createdAt: '2026-07-24T12:00:00+00:00',
+  },
+}
+
 function renderPage() {
   return renderRoutes(
     [
       { index: true, element: <p>Home page</p> },
       { path: 'setup', element: <SetupPage /> },
       { path: 'login', element: <p>Login page</p> },
+      { path: 'organizations/:organizationId', element: <p>Organization page</p> },
     ],
     '/setup',
   )
@@ -36,10 +51,10 @@ async function submit() {
   await user.click(screen.getByRole('button', { name: 'Create administrator' }))
 }
 
-test('creates the first administrator and lands on the home page', async () => {
+test('creates the first administrator and lands on its provisioned Organization', async () => {
   mockFetchRoutes({
     '/api/v1/setup/status': () => jsonResponse(200, { setupComplete: false }),
-    '/api/v1/setup/admin': () => jsonResponse(201, administrator),
+    '/api/v1/setup/admin': () => jsonResponse(201, { user: administrator, organization }),
     '/api/v1/auth/antiforgery': () =>
       jsonResponse(200, { headerName: 'X-ProbeHive-Antiforgery', requestToken: 'fresh-token' }),
     '/api/v1/auth/session': () => jsonResponse(200, {
@@ -53,7 +68,7 @@ test('creates the first administrator and lands on the home page', async () => {
 
   await submit()
 
-  expect(await screen.findByText('Home page')).toBeInTheDocument()
+  expect(await screen.findByText('Organization page')).toBeInTheDocument()
 })
 
 test('shows field-level validation problems', async () => {

@@ -5,9 +5,9 @@ import { createBrowserRouter, RouterProvider } from 'react-router'
 
 import App from './App.tsx'
 import RequireAuth from './auth/RequireAuth.tsx'
-import CreateOrganizationPage from './routes/CreateOrganizationPage.tsx'
 import LoginPage from './routes/LoginPage.tsx'
 import OrganizationPage from './routes/OrganizationPage.tsx'
+import OrganizationsPage from './routes/OrganizationsPage.tsx'
 import SetupPage from './routes/SetupPage.tsx'
 import './index.css'
 
@@ -29,7 +29,7 @@ const router = createBrowserRouter([
       {
         element: <RequireAuth />,
         children: [
-          { index: true, element: <CreateOrganizationPage /> },
+          { index: true, element: <OrganizationsPage /> },
           { path: 'organizations/:organizationId', element: <OrganizationPage /> },
         ],
       },

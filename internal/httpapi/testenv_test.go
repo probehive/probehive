@@ -422,6 +422,27 @@ func (store *memoryOrganizationStore) FindProject(_ context.Context, organizatio
 	}
 	return project, true, nil
 }
+func (store *memoryOrganizationStore) List(_ context.Context) ([]organization.Details, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	values := []organization.Details{}
+	for _, value := range store.byID {
+		for _, project := range store.projects {
+			if project.OrganizationID == value.ID && project.IsDefault {
+				values = append(values, organization.Details{Organization: value, DefaultProject: project})
+				break
+			}
+		}
+	}
+	sort.Slice(values, func(i, j int) bool {
+		if values[i].Organization.CreatedAt.Equal(values[j].Organization.CreatedAt) {
+			return values[i].Organization.ID < values[j].Organization.ID
+		}
+		return values[i].Organization.CreatedAt.Before(values[j].Organization.CreatedAt)
+	})
+	return values, nil
+}
+
 func (store *memoryOrganizationStore) Create(_ context.Context, value organization.Organization, project organization.Project) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()

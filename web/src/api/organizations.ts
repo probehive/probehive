@@ -37,6 +37,11 @@ export async function createOrganization(request: CreateOrganizationRequest): Pr
   }
 }
 
+/** The Organizations the caller can see, in creation order. */
+export function listOrganizations(): Promise<OrganizationResponse[]> {
+  return getJson<OrganizationResponse[]>('/api/v1/organizations')
+}
+
 export function getOrganization(organizationId: string): Promise<OrganizationResponse> {
   return getJson<OrganizationResponse>(`/api/v1/organizations/${encodeURIComponent(organizationId)}`)
 }

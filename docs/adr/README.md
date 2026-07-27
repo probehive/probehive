@@ -33,3 +33,4 @@ Every record below is `Accepted` unless its entry says otherwise.
 - [0015: Frontend dependency and tooling baseline](0015-frontend-dependency-and-tooling-baseline.md), which clarifies ADR 0002
 - [0016: Monitor Project movement and default Project lifecycle](0016-monitor-project-movement-and-default-project-lifecycle.md), which clarifies ADR 0003 and ADR 0014
 - [0017: Organization membership and authorization](0017-organization-membership-and-authorization.md), which amends ADR 0013
+- [0018: First-run Organization provisioning](0018-first-run-organization-provisioning.md), which amends ADR 0013 and clarifies ADR 0012

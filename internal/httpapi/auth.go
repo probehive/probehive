@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	api "github.com/probehive/probehive/internal/httpapi/v1"
+	"github.com/probehive/probehive/internal/organization"
 	"github.com/probehive/probehive/internal/user"
 )
 
@@ -42,11 +43,25 @@ func (server *Server) setupAdministrator(w http.ResponseWriter, r *http.Request)
 	}
 	switch result.Kind {
 	case user.CreateFirstAdministratorCreated:
+		// Provision before issuing the session: if provisioning fails the operator has an
+		// administrator but no session, signs in normally, and creates an Organization by
+		// hand, which is exactly the pre-ADR-0018 path rather than a half-signed-in state.
+		provisioned, err := server.organizations.ProvisionBootstrap(r.Context())
+		if err != nil {
+			server.internalError(w, r, "provision bootstrap Organization", err)
+			return
+		}
+		if provisioned.Kind != organization.ProvisionCreated && provisioned.Kind != organization.ProvisionReplayed {
+			server.internalError(w, r, "provision bootstrap Organization", errUnexpectedResult)
+			return
+		}
 		if err := server.createSession(w, r, result.User); err != nil {
 			server.internalError(w, r, "create setup session", err)
 			return
 		}
-		writeJSON(w, http.StatusCreated, toUserResponse(result.User))
+		writeJSON(w, http.StatusCreated, api.SetupResponse{
+			User: toUserResponse(result.User), Organization: toOrganizationResponse(provisioned.Details),
+		})
 	case user.CreateFirstAdministratorAlreadyCompleted:
 		writeProblem(w, http.StatusConflict, user.SetupAlreadyCompletedTitle, user.SetupAlreadyCompletedDetail)
 	case user.CreateFirstAdministratorInvalid:

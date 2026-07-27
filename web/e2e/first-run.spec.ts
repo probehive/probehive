@@ -3,9 +3,10 @@ import { expect, test } from '@playwright/test'
 const administratorEmail = 'admin@example.test'
 const administratorPassword = 'a-long-admin-password'
 
-// The first critical journey: a fresh installation is set up, the administrator
-// signs out and back in, and creates the first Organization (ADR 0012, ADR 0013).
-test('first run: setup, sign in, and create the first organization', async ({ page }) => {
+// The first critical journey: a fresh installation is set up and is immediately
+// usable, the administrator signs out and back in, and provisions a second
+// Organization (ADR 0012, ADR 0013, ADR 0018).
+test('first run: setup lands on a provisioned Organization, then sign in and add another', async ({ page }) => {
   // A fresh installation routes every visitor to first-administrator setup.
   await page.goto('/')
   await expect(page).toHaveURL(/\/setup$/)
@@ -16,8 +17,11 @@ test('first run: setup, sign in, and create the first organization', async ({ pa
   await page.getByLabel('Password').fill(administratorPassword)
   await page.getByRole('button', { name: 'Create administrator' }).click()
 
-  // Setup signs the administrator in and lands on the app.
-  await expect(page.getByRole('heading', { name: 'Create an Organization' })).toBeVisible()
+  // Setup signs the administrator in and provisions the installation Organization,
+  // so the journey lands on it instead of a create-an-Organization step.
+  await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/)
+  await expect(page.getByRole('heading', { name: 'Default', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Default Project' })).toBeVisible()
   await expect(page.getByText(administratorEmail)).toBeVisible()
 
   // Sign out to exercise the login journey with the created credentials.
@@ -28,8 +32,11 @@ test('first run: setup, sign in, and create the first organization', async ({ pa
   await page.getByLabel('Password').fill(administratorPassword)
   await page.getByRole('button', { name: 'Sign in' }).click()
 
-  // Create the first Organization and follow the link to its details.
-  await expect(page.getByRole('heading', { name: 'Create an Organization' })).toBeVisible()
+  // Signing in lands on the Organization list, which already holds the provisioned one.
+  await expect(page.getByRole('heading', { name: 'Organizations' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Default' })).toBeVisible()
+
+  // Provisioning an additional Organization is still reachable from that page.
   await page.getByLabel('Slug').fill('acme')
   await page.getByLabel('Display name').fill('Acme Monitoring')
   await page.getByRole('button', { name: 'Create', exact: true }).click()

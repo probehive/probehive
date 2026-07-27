@@ -2,9 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router'
 
-import { createFirstAdministrator, getSetupStatus, type UserResponse } from '../api/auth'
+import { createFirstAdministrator, getSetupStatus, type SetupResponse } from '../api/auth'
 import { ApiError } from '../api/http'
 import { sessionQueryKey } from '../auth/useSession'
+import { organizationsQueryKey } from './useOrganizations'
 
 function fieldErrors(error: unknown, field: string): string[] {
   if (error instanceof ApiError && error.status === 400) {
@@ -20,13 +21,16 @@ export default function SetupPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const setupStatus = useQuery({ queryKey: ['setup-status'], queryFn: getSetupStatus })
-  const mutation = useMutation<UserResponse, unknown, void>({
+  const mutation = useMutation<SetupResponse, unknown, void>({
     mutationFn: () => createFirstAdministrator({ email, displayName, password }),
-    onSuccess: async () => {
-      // Setup signs the administrator in; drop cached state and land on the app.
+    onSuccess: async (result) => {
+      // Setup signs the administrator in and provisions the installation
+      // Organization (ADR 0018), so land directly on it rather than on a
+      // create-an-Organization step the operator no longer needs.
       await queryClient.invalidateQueries({ queryKey: sessionQueryKey })
       await queryClient.invalidateQueries({ queryKey: ['setup-status'] })
-      await navigate('/')
+      await queryClient.invalidateQueries({ queryKey: organizationsQueryKey })
+      await navigate(`/organizations/${result.organization.id}`)
     },
   })
 
@@ -44,7 +48,10 @@ export default function SetupPage() {
   return (
     <section>
       <h1>Set up ProbeHive</h1>
-      <p>Create the first administrator account for this installation.</p>
+      <p>
+        Create the first administrator account for this installation. Its Organization is created
+        at the same time, so you can add a Monitor immediately.
+      </p>
       <form onSubmit={onSubmit} aria-label="Create first administrator">
         <label>
           Email

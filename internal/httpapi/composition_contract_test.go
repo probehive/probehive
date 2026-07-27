@@ -116,8 +116,10 @@ func TestOriginNullIsRejectedAndMissingOriginSucceeds(t *testing.T) {
 func TestOrganizationReplayAndGetExactWireShape(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	token := environment.bootstrapAdministrator(t)
-	const organizationID = "00000000-0000-7000-8000-000000000002"
-	const projectID = "00000000-0000-7000-8000-000000000003"
+	// Setup consumes 0001 for the administrator and 0002/0003 for the bootstrap
+	// Organization and its default Project (ADR 0018), so this one starts at 0004.
+	const organizationID = "00000000-0000-7000-8000-000000000004"
+	const projectID = "00000000-0000-7000-8000-000000000005"
 	const organizationBody = `{"slug":"acme","displayName":"Acme"}`
 	wantBody := `{"id":"` + organizationID + `","slug":"acme","displayName":"Acme","createdAt":"2026-07-24T00:00:00Z","defaultProject":{"id":"` +
 		projectID + `","organizationId":"` + organizationID + `","name":"Default","isDefault":true,"createdAt":"2026-07-24T00:00:00Z"}}` + "\n"
@@ -148,12 +150,61 @@ func TestOrganizationReplayAndGetExactWireShape(t *testing.T) {
 
 	environment.organizations.mu.Lock()
 	defer environment.organizations.mu.Unlock()
-	if len(environment.organizations.byID) != 1 || len(environment.organizations.projects) != 1 {
+	// The bootstrap Organization plus this one; the replay must not add a third.
+	if len(environment.organizations.byID) != 2 || len(environment.organizations.projects) != 2 {
 		t.Fatalf(
 			"idempotent replay retained %d Organizations and %d Projects",
 			len(environment.organizations.byID), len(environment.organizations.projects),
 		)
 	}
+}
+
+func TestSetupProvisionsBootstrapOrganizationAndListsIt(t *testing.T) {
+	environment := newTestEnvironment(t, true, 0)
+	token, _ := environment.getAntiforgery(t)
+	response := environment.request(
+		t, environment.client, http.MethodPost, "/api/v1/setup/admin",
+		`{"email":"admin@example.test","displayName":"Admin","password":"password-123"}`,
+		environment.server.URL, token.RequestToken,
+	)
+
+	const userID = "00000000-0000-7000-8000-000000000001"
+	const organizationID = "00000000-0000-7000-8000-000000000002"
+	const projectID = "00000000-0000-7000-8000-000000000003"
+	wantOrganization := `{"id":"` + organizationID + `","slug":"default","displayName":"Default",` +
+		`"createdAt":"2026-07-24T00:00:00Z","defaultProject":{"id":"` + projectID +
+		`","organizationId":"` + organizationID + `","name":"Default","isDefault":true,` +
+		`"createdAt":"2026-07-24T00:00:00Z"}}`
+	wantSetup := `{"user":{"id":"` + userID + `","email":"admin@example.test","displayName":"Admin",` +
+		`"role":"Administrator","createdAt":"2026-07-24T00:00:00Z"},"organization":` + wantOrganization + "}\n"
+	assertExactJSON(t, response, http.StatusCreated, wantSetup)
+
+	// Setup signs the administrator in, so the Organization is reachable immediately.
+	if findCookie(t, response, sessionCookieName).Value == "" {
+		t.Fatal("setup did not issue a session cookie")
+	}
+	if location := response.Header.Get("Location"); location != "" {
+		t.Fatalf("setup Location = %q, want empty", location)
+	}
+
+	listed := environment.request(t, environment.client, http.MethodGet, "/api/v1/organizations", "", "", "")
+	assertExactJSON(t, listed, http.StatusOK, "["+wantOrganization+"]\n")
+}
+
+func TestOrganizationListIsEmptyArrayAndRequiresAdministrator(t *testing.T) {
+	environment := newTestEnvironment(t, true, 0)
+	anonymous := environment.request(t, environment.client, http.MethodGet, "/api/v1/organizations", "", "", "")
+	assertProblem(t, anonymous, http.StatusUnauthorized, "Unauthorized", "")
+
+	environment.bootstrapAdministrator(t)
+	environment.organizations.mu.Lock()
+	clear(environment.organizations.byID)
+	clear(environment.organizations.projects)
+	clear(environment.organizations.bySlug)
+	environment.organizations.mu.Unlock()
+
+	empty := environment.request(t, environment.client, http.MethodGet, "/api/v1/organizations", "", "", "")
+	assertExactJSON(t, empty, http.StatusOK, "[]\n")
 }
 
 func TestReadinessFailureReturnsPlainTextServiceUnavailable(t *testing.T) {

@@ -111,6 +111,82 @@ func TestFailedMigrationRollsBackOnlyItsSchemaAndVersionRecord(t *testing.T) {
 	}
 }
 
+func TestOrganizationListJoinsDefaultProjectsInCreationOrder(t *testing.T) {
+	database := newIntegrationDatabase(t, true)
+	store := database.Organizations()
+	base := testTime()
+
+	// Deliberately provision out of order and give two of them the same instant so the
+	// Organization id tie-breaker is exercised rather than assumed.
+	seeds := []struct {
+		slug      string
+		name      string
+		createdAt time.Time
+	}{
+		{"third-tenant", "Third Tenant", base.Add(time.Hour)},
+		{"second-tenant", "Second Tenant", base},
+		{"first-tenant", "First Tenant", base},
+	}
+	for index, seed := range seeds {
+		value, err := organization.NewOrganization(
+			organization.ID(testUUID(index*2+1)), seed.slug, seed.name, seed.createdAt,
+		)
+		if err != nil {
+			t.Fatalf("NewOrganization() error = %v", err)
+		}
+		project, err := organization.NewDefaultProject(
+			organization.ProjectID(testUUID(index*2+2)), value.ID, seed.createdAt,
+		)
+		if err != nil {
+			t.Fatalf("NewDefaultProject() error = %v", err)
+		}
+		if err := store.Create(t.Context(), value, project); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+	}
+
+	listed, err := store.List(t.Context())
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(listed) != 3 {
+		t.Fatalf("List() returned %d Organizations, want 3", len(listed))
+	}
+	// Both same-instant Organizations sort before the later one, and between them the
+	// id decides: second-tenant is testUUID(3) and first-tenant is testUUID(5).
+	wantSlugs := []string{"second-tenant", "first-tenant", "third-tenant"}
+	for index, want := range wantSlugs {
+		if listed[index].Organization.Slug != want {
+			t.Fatalf("List()[%d].Slug = %q, want %q", index, listed[index].Organization.Slug, want)
+		}
+		project := listed[index].DefaultProject
+		if !project.IsDefault || project.OrganizationID != listed[index].Organization.ID {
+			t.Fatalf("List()[%d] default Project = %#v", index, project)
+		}
+		if project.CreatedAt.Location() != time.UTC {
+			t.Fatalf("List()[%d] default Project timestamp is not UTC: %v", index, project.CreatedAt)
+		}
+	}
+
+	// A non-default Project must not add a second row for its Organization.
+	extra, err := organization.NewDefaultProject(organization.ProjectID(testUUID(99)), listed[0].Organization.ID, base)
+	if err != nil {
+		t.Fatalf("NewDefaultProject() error = %v", err)
+	}
+	if _, err := database.pool.Exec(t.Context(), `
+INSERT INTO projects (id, organization_id, name, is_default, created_at)
+VALUES ($1, $2, 'Secondary', false, $3)`, string(extra.ID), string(extra.OrganizationID), base); err != nil {
+		t.Fatalf("insert non-default Project: %v", err)
+	}
+	after, err := store.List(t.Context())
+	if err != nil {
+		t.Fatalf("List() after extra Project error = %v", err)
+	}
+	if len(after) != 3 {
+		t.Fatalf("List() returned %d Organizations after a non-default Project, want 3", len(after))
+	}
+}
+
 func TestOrganizationProvisioningRereadsDuplicateRaceWinner(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	delegate := database.Organizations()

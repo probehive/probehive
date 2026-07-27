@@ -1,8 +1,9 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 
 import { ApiError, createOrganization, type CreateOrganizationOutcome } from '../api/organizations'
+import { organizationsQueryKey } from './useOrganizations'
 
 function fieldErrors(error: unknown, field: string): string[] {
   if (error instanceof ApiError && error.status === 400) {
@@ -11,11 +12,19 @@ function fieldErrors(error: unknown, field: string): string[] {
   return []
 }
 
-export default function CreateOrganizationPage() {
+/**
+ * Creates an additional Organization. Setup already provisions the first one
+ * (ADR 0018), so this is never on the path to a first Monitor.
+ */
+export default function CreateOrganizationForm() {
   const [slug, setSlug] = useState('')
   const [displayName, setDisplayName] = useState('')
+  const queryClient = useQueryClient()
   const mutation = useMutation<CreateOrganizationOutcome, unknown, void>({
     mutationFn: () => createOrganization({ slug, displayName }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: organizationsQueryKey })
+    },
   })
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -28,7 +37,7 @@ export default function CreateOrganizationPage() {
 
   return (
     <section>
-      <h1>Create an Organization</h1>
+      <h2>Create an Organization</h2>
       <form onSubmit={onSubmit} aria-label="Create organization">
         <label>
           Slug

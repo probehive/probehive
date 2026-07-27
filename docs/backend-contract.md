@@ -76,6 +76,7 @@ All response fields below are required and non-null.
 | Type | Exact JSON fields |
 | --- | --- |
 | `SetupStatusResponse` | `setupComplete: boolean` |
+| `SetupResponse` | `user: UserResponse`, `organization: OrganizationResponse` |
 | `AntiforgeryTokenResponse` | `headerName: string`, `requestToken: string` |
 | `SessionResponse` | `userId: UUID string`, `email: string`, `displayName: string`, `role: string` |
 | `UserResponse` | `id: UUID string`, `email: string`, `displayName: string`, `role: string`, `createdAt: UTC timestamp string` |
@@ -109,11 +110,12 @@ session carrying the instance role `Administrator`; a non-administrator session 
 | Method and path | Access | Success | Other application results |
 | --- | --- | --- | --- |
 | `GET /api/v1/setup/status` | Anonymous | `200 SetupStatusResponse` | none |
-| `POST /api/v1/setup/admin` | Anonymous, unsafe, credential rate limit | `201 UserResponse`, signs in and sets a new session cookie; no `Location` | `400` validation; `409` completed; `429` |
+| `POST /api/v1/setup/admin` | Anonymous, unsafe, credential rate limit | `201 SetupResponse`, provisions the installation Organization, signs in and sets a new session cookie; no `Location` | `400` validation; `409` completed; `429` |
 | `GET /api/v1/auth/antiforgery` | Anonymous | `200 AntiforgeryTokenResponse`, stores antiforgery cookie | none |
 | `POST /api/v1/auth/login` | Anonymous, unsafe, credential rate limit | `200 SessionResponse`, sets a fresh session cookie | `401` generic invalid credentials; `429` |
 | `POST /api/v1/auth/logout` | Authenticated, unsafe | `204` empty body, invalidates session and expires cookie | `401` |
 | `GET /api/v1/auth/session` | Authenticated | `200 SessionResponse` | `401` |
+| `GET /api/v1/organizations` | Administrator | `200 OrganizationResponse[]` in creation order, UUID as tie-breaker; `[]` when none exist | `401`, `403` |
 | `POST /api/v1/organizations` | Administrator, unsafe | first create: `201 OrganizationResponse` and `Location: /api/v1/organizations/{id}`; identical replay: `200 OrganizationResponse` without creating state | `400`, `409`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}` | Administrator | `200 OrganizationResponse` | `404`, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | Administrator, unsafe | `201 MonitorResponse` and canonical monitor `Location` | `400`, `404`, `401`, `403` |
@@ -269,6 +271,14 @@ A successful user has role `Administrator`, the normalized email, trimmed displa
 name, and one UTC creation instant. Once a user exists, setup returns `409` with title
 `Setup already completed` and detail
 `The instance already has at least one user; sign in instead.`
+
+Setup then provisions the installation Organization through the same idempotent use case
+as `POST /api/v1/organizations`, with slug exactly `default` and display name exactly
+`Default`. Setup accepts no Organization fields. The two writes are not one transaction
+and run in this order: create the administrator, provision the Organization, issue the
+session cookie. If provisioning fails the response is `500`, the administrator exists,
+and no session was issued, so the operator signs in and creates an Organization manually
+as before. `SetupResponse` carries both the created user and that Organization.
 
 Organization provisioning rules are:
 
@@ -472,7 +482,8 @@ The current React client makes exactly these calls:
 | refresh antiforgery | `GET /api/v1/auth/antiforgery`; parse `headerName` and `requestToken` and cache them in memory |
 | setup status | `GET /api/v1/setup/status`; parse `SetupStatusResponse` |
 | current session | `GET /api/v1/auth/session`; return `null` only for `401`, otherwise parse `SessionResponse` or throw `ApiError` |
-| setup admin | antiforgery-authenticated JSON `POST /api/v1/setup/admin`; parse `UserResponse`, then refresh antiforgery |
+| setup admin | antiforgery-authenticated JSON `POST /api/v1/setup/admin`; parse `SetupResponse`, then refresh antiforgery, then navigate to the returned Organization |
+| list Organizations | `GET /api/v1/organizations`; parse `OrganizationResponse[]` |
 | login | antiforgery-authenticated JSON `POST /api/v1/auth/login`; parse `SessionResponse`, then refresh antiforgery |
 | logout | antiforgery-authenticated `POST /api/v1/auth/logout` with no body; then refresh antiforgery |
 | create Organization | antiforgery-authenticated JSON `POST /api/v1/organizations`; parse `OrganizationResponse`; `created` is true only when status is `201`, false for the `200` replay |
@@ -517,9 +528,10 @@ Before launching the API, `web/e2e/start-api.sh` must preserve this reset contra
 4. Build and launch `cmd/probehive` as a fresh process after migration. Keep the
    override names, reset, database name, ports, and readiness gate stable.
 
-The browser journey assumes an empty database, routes `/` to `/setup`, creates and
-signs in the first Administrator, signs out, signs back in, creates slug `acme` with
-display name `Acme Monitoring`, follows the returned Organization, and renders its
-default Project. The journey and `web/src` are contract consumers: either may change,
-but a change that alters observable behavior described here must update this document
-in the same commit.
+The browser journey assumes an empty database, routes `/` to `/setup`, creates and signs
+in the first Administrator, and lands directly on the Organization that setup provisioned,
+rendering its `Default` heading and default Project. It then signs out, signs back in,
+lands on the Organization list containing `Default`, creates slug `acme` with display name
+`Acme Monitoring`, follows the returned Organization, and renders its default Project.
+The journey and `web/src` are contract consumers: either may change, but a change that
+alters observable behavior described here must update this document in the same commit.

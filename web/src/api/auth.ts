@@ -1,4 +1,5 @@
 import { ApiError, getJson, postJson, readProblem, refreshAntiforgery } from './http'
+import type { OrganizationResponse } from './organizations'
 
 export interface SetupStatusResponse {
   setupComplete: boolean
@@ -23,6 +24,12 @@ export interface CreateFirstAdministratorRequest {
   email: string
   displayName: string
   password: string
+}
+
+/** Setup also provisions the installation Organization, so a new install is usable at once. */
+export interface SetupResponse {
+  user: UserResponse
+  organization: OrganizationResponse
 }
 
 export function getSetupStatus(): Promise<SetupStatusResponse> {
@@ -54,10 +61,10 @@ export async function logout(): Promise<void> {
   await refreshAntiforgery()
 }
 
-export async function createFirstAdministrator(request: CreateFirstAdministratorRequest): Promise<UserResponse> {
+export async function createFirstAdministrator(request: CreateFirstAdministratorRequest): Promise<SetupResponse> {
   const response = await postJson('/api/v1/setup/admin', request)
-  const user = (await response.json()) as UserResponse
+  const result = (await response.json()) as SetupResponse
   // Setup signs the new administrator in, which invalidates the anonymous token.
   await refreshAntiforgery()
-  return user
+  return result
 }

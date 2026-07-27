@@ -50,7 +50,7 @@ The supported environment variables are:
 
 ## First Administrator and Sessions
 
-Every `/api/v1` endpoint except setup status, first-administrator creation, login, and antiforgery issuance requires an authenticated browser session. A fresh installation reports `{"setupComplete":false}` at `GET /api/v1/setup/status`. `POST /api/v1/setup/admin` creates the first administrator exactly once and signs it in.
+Every `/api/v1` endpoint except setup status, first-administrator creation, login, and antiforgery issuance requires an authenticated browser session. A fresh installation reports `{"setupComplete":false}` at `GET /api/v1/setup/status`. `POST /api/v1/setup/admin` creates the first administrator exactly once, provisions the installation Organization with slug `default` and its default Project, and signs the administrator in (ADR 0018). It returns both the user and that Organization, so no separate Organization step is needed before creating a Monitor.
 
 Unsafe requests need the token from `GET /api/v1/auth/antiforgery` echoed in the response-named `X-ProbeHive-Antiforgery` header. The token is bound to the current anonymous or authenticated identity, so fetch a fresh token after setup, login, or logout.
 
@@ -63,6 +63,14 @@ curl -s -b "$JAR" -c "$JAR" -X POST http://localhost:5080/api/v1/setup/admin \
   -H 'Content-Type: application/json' -H "X-ProbeHive-Antiforgery: $TOKEN" \
   -d '{"email":"admin@example.test","displayName":"Admin","password":"a-long-admin-password"}'
 TOKEN=$(curl -s -b "$JAR" -c "$JAR" http://localhost:5080/api/v1/auth/antiforgery | jq -r .requestToken)
+curl -s -b "$JAR" http://localhost:5080/api/v1/organizations
+```
+
+The setup response already contains the installation Organization at `.organization`, so
+the listing above is only for inspection. Provision an additional Organization when you
+want one:
+
+```bash
 curl -s -b "$JAR" -X POST http://localhost:5080/api/v1/organizations \
   -H 'Content-Type: application/json' -H "X-ProbeHive-Antiforgery: $TOKEN" \
   -d '{"slug":"acme","displayName":"Acme Monitoring"}'
@@ -74,7 +82,7 @@ The server does not implicitly trust forwarded headers. A TLS-terminating produc
 
 ## Monitors and Revisions
 
-Monitors nest under their Organization and Project. With the session and token from above, and the `id` / `defaultProject.id` values returned by Organization creation:
+Monitors nest under their Organization and Project. With the session and token from above, and the `organization.id` / `organization.defaultProject.id` values that setup returned:
 
 ```bash
 ORG=<organization id>; PROJ=<default project id>

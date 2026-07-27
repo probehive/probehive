@@ -95,7 +95,8 @@
       "post": {
         "tags": ["Setup"],
         "operationId": "createFirstAdministrator",
-        "summary": "Create and sign in the first administrator",
+        "summary": "Create the first administrator and provision the installation Organization",
+        "description": "Creates the first administrator, provisions the installation Organization with slug 'default' and its default Project through the idempotent provisioning use case, then issues a session cookie. A new installation is usable without a separate Organization step.",
         "security": [
           { "antiforgeryCookie": [], "antiforgeryHeader": [] }
         ],
@@ -107,8 +108,8 @@
         },
         "responses": {
           "201": {
-            "description": "The first administrator was created and a session cookie was issued.",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserResponse" } } }
+            "description": "The first administrator and the installation Organization were created and a session cookie was issued.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupResponse" } } }
           },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "403": { "$ref": "#/components/responses/Forbidden" },
@@ -193,6 +194,26 @@
       }
     },
     "/api/v1/organizations": {
+      "get": {
+        "tags": ["Organizations"],
+        "operationId": "listOrganizations",
+        "summary": "List Organizations with their default Projects",
+        "description": "Requires an Administrator session. Returns creation order with the Organization id as a tie-breaker, and a bare empty array when none exist. Once Organization membership exists this list is filtered to the memberships of the caller.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "The Organizations visible to the caller.",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/OrganizationResponse" } }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      },
       "post": {
         "tags": ["Organizations"],
         "operationId": "provisionOrganization",
@@ -615,6 +636,14 @@
           "displayName": { "type": "string" },
           "role": { "type": "string", "const": "Administrator" },
           "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SetupResponse": {
+        "type": "object",
+        "required": ["user", "organization"],
+        "properties": {
+          "user": { "$ref": "#/components/schemas/UserResponse" },
+          "organization": { "$ref": "#/components/schemas/OrganizationResponse" }
         }
       },
       "ProjectResponse": {

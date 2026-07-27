@@ -23,6 +23,9 @@ type Store interface {
 	FindBySlug(context.Context, string) (Organization, bool, error)
 	FindDefaultProject(context.Context, ID) (Project, bool, error)
 	FindProject(context.Context, ID, ProjectID) (Project, bool, error)
+	// List returns every Organization with its default Project in creation order,
+	// using the Organization id as a deterministic tie-breaker.
+	List(context.Context) ([]Details, error)
 	// Create inserts both values in one transaction and returns ErrDuplicateSlug on a uniqueness race.
 	Create(context.Context, Organization, Project) error
 }
@@ -134,6 +137,27 @@ func (service *Service) replayOrConflict(ctx context.Context, existing Organizat
 		return ProvisionResult{}, fmt.Errorf("%w: %s", ErrDefaultProjectMissing, existing.ID)
 	}
 	return ProvisionResult{Kind: ProvisionReplayed, Details: Details{Organization: existing, DefaultProject: project}}, nil
+}
+
+// ProvisionBootstrap creates the Organization that first-administrator setup gives a new
+// installation. It is the same idempotent use case as every other creation path (ADR 0009)
+// with the reserved bootstrap slug and display name, so setup adds no second creation path.
+func (service *Service) ProvisionBootstrap(ctx context.Context) (ProvisionResult, error) {
+	return service.Provision(ctx, ProvisionCommand{Slug: BootstrapSlug, DisplayName: BootstrapDisplayName})
+}
+
+// List returns every Organization with its default Project. It is the caller's
+// Organization list; until membership exists (ADR 0017) an instance Administrator
+// sees every Organization, and that filter is where membership will apply.
+func (service *Service) List(ctx context.Context) ([]Details, error) {
+	values, err := service.store.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if values == nil {
+		values = []Details{}
+	}
+	return values, nil
 }
 
 // Get returns an Organization and its default Project.
