@@ -41,3 +41,4 @@ Every record below is `Accepted` unless its entry says otherwise.
 - [0023: Outbound address classification, overrides, and denial reasons](0023-outbound-policy-classification-and-denial-reasons.md), which clarifies ADR 0007 and ADR 0020
 - [0024: HTTP check execution and Observation content](0024-http-check-execution-and-observation-content.md), which clarifies ADR 0020 and ADR 0021
 - [0025: Run storage schema, partition key, and lease placement](0025-run-storage-schema-and-lease-placement.md), which amends ADR 0021
+- [0026: Execution interval ownership, slot derivation, and the embedded scheduler](0026-execution-interval-and-slot-derivation.md), which amends ADR 0021 and clarifies ADR 0014 and ADR 0020

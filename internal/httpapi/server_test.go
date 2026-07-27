@@ -373,7 +373,7 @@ func TestMonitorCrossScopeIsHiddenAndConcurrencyIsConflict(t *testing.T) {
 	createdAt := environment.clock.Now()
 	value, err := monitor.RestoreMonitor(
 		monitor.ID(monitorID), organizationID, projectID, "API", "http",
-		monitor.StateDraft, 0, createdAt, createdAt, 7,
+		monitor.StateDraft, monitor.DefaultIntervalSeconds, 0, createdAt, createdAt, 7,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -445,3 +445,69 @@ func assertProblem(t *testing.T, response recordedResponse, status int, title, d
 }
 
 var _ organization.Store = (*memoryOrganizationStore)(nil)
+
+// The interval endpoint exists because ADR 0026 makes the interval a Monitor field rather
+// than check configuration, so changing it is an update and never a new revision.
+func TestChangeMonitorIntervalValidatesAndUpdatesWithoutARevision(t *testing.T) {
+	environment := newTestEnvironment(t, true, 0)
+	token := environment.bootstrapAdministrator(t)
+	organizationID := "00000000-0000-7000-8000-000000000101"
+	projectID := "00000000-0000-7000-8000-000000000102"
+	monitorID := "00000000-0000-7000-8000-000000000103"
+	createdAt := environment.clock.Now()
+	value, err := monitor.RestoreMonitor(
+		monitor.ID(monitorID), organizationID, projectID, "API", "http",
+		monitor.StateDraft, monitor.DefaultIntervalSeconds, 0, createdAt, createdAt, 7,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	environment.monitors.seed(value)
+	environment.grantMembership(t, organizationID, organization.RoleAdministrator)
+	path := "/api/v1/organizations/" + organizationID + "/projects/" + projectID +
+		"/monitors/" + monitorID + "/interval"
+
+	accepted := environment.request(
+		t, environment.client, http.MethodPut, path, `{"intervalSeconds":300}`, environment.server.URL, token,
+	)
+	if accepted.StatusCode != http.StatusOK {
+		t.Fatalf("PUT interval status = %d, want 200", accepted.StatusCode)
+	}
+	var updated api.MonitorResponse
+	if err := json.Unmarshal(accepted.Body, &updated); err != nil {
+		t.Fatalf("decode Monitor response: %v; body %s", err, accepted.Body)
+	}
+	if updated.IntervalSeconds != 300 {
+		t.Fatalf("intervalSeconds = %d, want 300", updated.IntervalSeconds)
+	}
+	if updated.LatestRevisionNumber != 0 {
+		t.Fatalf("latestRevisionNumber = %d, want the interval change to append no revision",
+			updated.LatestRevisionNumber)
+	}
+
+	// Below the platform minimum, above the maximum, and a value that is not an integer are
+	// all rejected with the stable interval code (ADR 0019).
+	for _, body := range []string{
+		`{"intervalSeconds":29}`, `{"intervalSeconds":86401}`, `{"intervalSeconds":0}`,
+	} {
+		rejected := environment.request(
+			t, environment.client, http.MethodPut, path, body, environment.server.URL, token,
+		)
+		if rejected.StatusCode != http.StatusBadRequest {
+			t.Fatalf("PUT interval %s status = %d, want 400", body, rejected.StatusCode)
+		}
+		problem := decodeProblem(t, rejected)
+		failures := problem.Errors["intervalSeconds"]
+		if len(failures) != 1 || failures[0].Code != monitor.IntervalInvalidCode {
+			t.Fatalf("PUT interval %s errors = %#v, want the %s code",
+				body, problem.Errors, monitor.IntervalInvalidCode)
+		}
+	}
+
+	notAllowed := environment.request(
+		t, environment.client, http.MethodGet, path, "", environment.server.URL, token,
+	)
+	if notAllowed.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("GET interval status = %d, want 405", notAllowed.StatusCode)
+	}
+}

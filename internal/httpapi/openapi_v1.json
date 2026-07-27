@@ -423,6 +423,37 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/interval": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" }
+      ],
+      "put": {
+        "tags": ["Monitors"],
+        "operationId": "changeMonitorInterval",
+        "summary": "Change how often a Monitor is due",
+        "description": "Requires an Administrator session. Changing the interval appends no revision: a revision snapshots check configuration, and scheduling frequency is not check configuration.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ChangeMonitorIntervalRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Monitor" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions": {
       "parameters": [
         { "$ref": "#/components/parameters/OrganizationID" },
@@ -714,7 +745,7 @@
       },
       "MonitorResponse": {
         "type": "object",
-        "required": ["id", "organizationId", "projectId", "name", "checkType", "state", "latestRevisionNumber", "createdAt", "updatedAt"],
+        "required": ["id", "organizationId", "projectId", "name", "checkType", "state", "intervalSeconds", "latestRevisionNumber", "createdAt", "updatedAt"],
         "properties": {
           "id": { "type": "string", "format": "uuid" },
           "organizationId": { "type": "string", "format": "uuid" },
@@ -722,6 +753,7 @@
           "name": { "type": "string" },
           "checkType": { "type": "string", "const": "http" },
           "state": { "type": "string", "enum": ["draft", "active", "paused", "archived"] },
+          "intervalSeconds": { "type": "integer", "minimum": 30, "maximum": 86400 },
           "latestRevisionNumber": { "type": "integer", "minimum": 0 },
           "createdAt": { "type": "string", "format": "date-time" },
           "updatedAt": { "type": "string", "format": "date-time" }
@@ -778,7 +810,8 @@
         "required": ["name", "checkType"],
         "properties": {
           "name": { "type": ["string", "null"] },
-          "checkType": { "type": ["string", "null"] }
+          "checkType": { "type": ["string", "null"] },
+          "intervalSeconds": { "type": "integer", "minimum": 30, "maximum": 86400, "default": 60 }
         }
       },
       "RenameOrganizationRequest": {
@@ -801,6 +834,15 @@
         "required": ["state"],
         "properties": {
           "state": { "type": ["string", "null"], "enum": ["active", "paused", "archived", null] }
+        }
+      },
+      "ChangeMonitorIntervalRequest": {
+        "type": "object",
+        "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown.",
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "required": ["intervalSeconds"],
+        "properties": {
+          "intervalSeconds": { "type": "integer", "minimum": 30, "maximum": 86400 }
         }
       },
       "CreateMonitorRevisionRequest": {

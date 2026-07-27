@@ -48,6 +48,38 @@ The supported environment variables are:
 | `PROBEHIVE_CREDENTIAL_ATTEMPTS_PER_MINUTE` | shared setup/login permits per client address in each fixed minute | `10` |
 | `PROBEHIVE_PUBLIC_ORIGIN` | exact external `http://host` or `https://host` origin used behind a gateway | request scheme and Host |
 
+The embedded worker executes checks inside the same process (ADR 0020) and is configured
+separately. Every value below is an operator ceiling or floor; user configuration may be
+stricter but never looser:
+
+| Variable | Meaning | Default |
+| --- | --- | --- |
+| `PROBEHIVE_WORKER_ENABLED` | run the embedded scheduler and executor; `false` gives an API-only replica | `true` |
+| `PROBEHIVE_PROBE_LOCATION` | Probe Location identifier every Run this process claims carries | `local` |
+| `PROBEHIVE_MINIMUM_INTERVAL_SECONDS` | operator floor on execution interval; may be raised but never lowered below 30 | `30` |
+| `PROBEHIVE_EXECUTION_CEILING_SECONDS` | operator ceiling on one whole execution, and the basis of the lease duration | `60` |
+| `PROBEHIVE_SCHEDULER_TICK_SECONDS` | how often due slots are looked for | `5` |
+| `PROBEHIVE_WORKER_CONCURRENCY` | in-flight executions | `8` |
+| `PROBEHIVE_RETENTION_DAYS` | raw Run and Observation retention; whole partitions are dropped, so effective retention exceeds this by up to a month | `30` |
+| `PROBEHIVE_OUTBOUND_PROFILE` | `managed` or `private`; `operator` is rejected here because it is never tenant-reachable | `private` |
+| `PROBEHIVE_OUTBOUND_ALLOWED_CIDRS` | comma-separated prefixes the `private` profile opts back in; metadata endpoints stay denied | empty |
+| `PROBEHIVE_OUTBOUND_ALLOWED_PORTS` | comma-separated destination port ceiling | `80,443` |
+| `PROBEHIVE_OUTBOUND_RESOLVERS` | comma-separated `address:port` resolvers every query is confined to | the host resolver |
+| `PROBEHIVE_RESOLVER_TIMEOUT_SECONDS` | bound on one resolver query connection | `5` |
+| `PROBEHIVE_CONNECT_TIMEOUT_SECONDS` | bound on one connection attempt | `10` |
+| `PROBEHIVE_PROBE_ROOT_CA_FILE` | PEM roots trusted for probe TLS instead of the host's, for an internal certificate authority | host roots |
+
+There is no setting that disables TLS verification (ADR 0024). Leaving
+`PROBEHIVE_OUTBOUND_RESOLVERS` unset uses the host's resolver, which is operator-controlled
+only in the sense that the operator controls the machine; an installation that wants an
+auditable answer path names its resolvers explicitly.
+
+A Monitor becomes due on a series derived from its identifier and interval, so slot instants
+are reproducible without coordination and Monitors sharing an interval do not all fire in the
+same second (ADR 0026). Partition maintenance runs at startup and every six hours; an
+installation whose worker never runs eventually cannot insert a Run, because there is no
+default partition to fall back on.
+
 ## First Administrator and Sessions
 
 Every `/api/v1` endpoint except setup status, first-administrator creation, login, and antiforgery issuance requires an authenticated browser session. A fresh installation reports `{"setupComplete":false}` at `GET /api/v1/setup/status`. `POST /api/v1/setup/admin` creates the first administrator exactly once, provisions the installation Organization with slug `default` and its default Project, and signs the administrator in (ADR 0018). It returns both the user and that Organization, so no separate Organization step is needed before creating a Monitor. Setup also makes that administrator the Organization's first member, which is what grants access: every endpoint under `/api/v1/organizations/{id}/` resolves membership and checks a permission, and a non-member receives `404` rather than `403` (ADR 0017). The instance `Administrator` role alone grants no access to an Organization's monitoring data.

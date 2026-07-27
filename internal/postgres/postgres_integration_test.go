@@ -340,7 +340,8 @@ func TestCompositeTenantForeignKeysRejectCrossTenantRows(t *testing.T) {
 	now := testTime()
 
 	wrongProject, err := monitor.NewMonitor(
-		monitor.ID(testUUID(30)), string(organizationA.ID), string(projectB.ID), "Wrong Project", "http", now,
+		monitor.ID(testUUID(30)), string(organizationA.ID), string(projectB.ID), "Wrong Project", "http",
+		monitor.DefaultIntervalSeconds, now,
 	)
 	if err != nil {
 		t.Fatalf("NewMonitor() error = %v", err)
@@ -984,7 +985,7 @@ func seedMonitor(
 	t.Helper()
 	value, err := monitor.NewMonitor(
 		monitor.ID(testUUID(id)), string(organizationValue.ID), string(project.ID),
-		fmt.Sprintf("Monitor %d", id), "http", createdAt,
+		fmt.Sprintf("Monitor %d", id), "http", monitor.DefaultIntervalSeconds, createdAt,
 	)
 	if err != nil {
 		t.Fatalf("NewMonitor() error = %v", err)

@@ -44,6 +44,7 @@ func TestOpenAPIDocumentDescribesEveryRoute(t *testing.T) {
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}":                            {"get"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/name":                       {"put"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/state":                      {"put"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/interval":                   {"put"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions":                  {"get", "post"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}": {"get"},
 	}

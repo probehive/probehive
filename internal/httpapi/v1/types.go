@@ -62,6 +62,7 @@ type MonitorResponse struct {
 	Name                 string    `json:"name"`
 	CheckType            string    `json:"checkType"`
 	State                string    `json:"state"`
+	IntervalSeconds      int       `json:"intervalSeconds"`
 	LatestRevisionNumber int       `json:"latestRevisionNumber"`
 	CreatedAt            time.Time `json:"createdAt"`
 	UpdatedAt            time.Time `json:"updatedAt"`
@@ -100,6 +101,14 @@ type RenameOrganizationRequest struct {
 type CreateMonitorRequest struct {
 	Name      *string `json:"name"`
 	CheckType *string `json:"checkType"`
+	// IntervalSeconds is optional. Omitting it takes the product default; a Monitor is
+	// created in Draft and cannot run before it has a revision, so the frequency is not a
+	// decision the caller has to make up front (ADR 0026).
+	IntervalSeconds *Integer `json:"intervalSeconds"`
+}
+
+type ChangeMonitorIntervalRequest struct {
+	IntervalSeconds Integer `json:"intervalSeconds"`
 }
 
 type RenameMonitorRequest struct {

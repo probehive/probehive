@@ -14,6 +14,7 @@ import (
 // it is documentation and may be reworded freely.
 const (
 	NameInvalidCode               = "monitor.name.invalid"
+	IntervalInvalidCode           = "monitor.interval.invalid"
 	CheckTypeInvalidCode          = "monitor.checkType.invalid"
 	CheckTypeUnsupportedCode      = "monitor.checkType.unsupported"
 	TargetStateInvalidCode        = "monitor.state.invalidTarget"
@@ -26,14 +27,29 @@ const (
 // Current English text for the codes above. Not contract; clients translate the code.
 const (
 	NameValidationMessage           = "A Monitor name is 1 to 100 characters after trimming."
+	IntervalValidationMessage       = "An execution interval is a whole number of seconds from 30 through 86400."
 	CheckTypeValidationMessage      = "A check type is 1 to 50 characters of lowercase ASCII letters and digits with single interior hyphens, starting with a letter."
 	TargetStateValidationMessage    = "The target state must be one of: active, paused, archived."
 	ConcurrentUpdateDetail          = "The Monitor was modified concurrently; retry against its current state."
 	ArchivedReadOnlyDetail          = "An archived Monitor is read-only."
 	ActivationWithoutRevisionDetail = "A Monitor cannot be activated before it has a revision."
 	RenameRejectedTitle             = "Monitor rename rejected"
+	IntervalRejectedTitle           = "Monitor interval rejected"
 	StateTransitionRejectedTitle    = "Monitor state transition rejected"
 	RevisionRejectedTitle           = "Monitor revision rejected"
+)
+
+// Execution interval bounds, in whole seconds (ADR 0026). The interval is a Monitor field
+// rather than check configuration: the scheduler must read it without decoding a
+// check-type-specific document, and every check type would otherwise repeat it.
+//
+// An operator may raise the effective minimum for an installation but never lower it past
+// MinIntervalSeconds. Unlike the timeout ceilings of ADR 0024 this is a floor, because a
+// shorter interval is more load rather than less.
+const (
+	MinIntervalSeconds     = 30
+	MaxIntervalSeconds     = 86400
+	DefaultIntervalSeconds = 60
 )
 
 // ID identifies a Monitor.
@@ -54,12 +70,16 @@ const (
 
 // Monitor is the long-lived check identity owned by one Organization and Project.
 type Monitor struct {
-	ID                   ID
-	OrganizationID       string
-	ProjectID            string
-	Name                 string
-	CheckType            string
-	State                State
+	ID             ID
+	OrganizationID string
+	ProjectID      string
+	Name           string
+	CheckType      string
+	State          State
+	// IntervalSeconds is how often the Monitor is due. Changing it is an ordinary mutable
+	// update and appends no Revision: a Revision snapshots check configuration, and how
+	// often a check runs is scheduling policy rather than check semantics (ADR 0026).
+	IntervalSeconds      int
 	LatestRevisionNumber int
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
@@ -68,8 +88,8 @@ type Monitor struct {
 }
 
 // NewMonitor creates a draft Monitor with no revisions.
-func NewMonitor(id ID, organizationID, projectID, name, checkType string, createdAt time.Time) (Monitor, error) {
-	return RestoreMonitor(id, organizationID, projectID, name, checkType, StateDraft, 0, createdAt, createdAt, 0)
+func NewMonitor(id ID, organizationID, projectID, name, checkType string, intervalSeconds int, createdAt time.Time) (Monitor, error) {
+	return RestoreMonitor(id, organizationID, projectID, name, checkType, StateDraft, intervalSeconds, 0, createdAt, createdAt, 0)
 }
 
 // RestoreMonitor validates a Monitor loaded from persistence.
@@ -77,6 +97,7 @@ func RestoreMonitor(
 	id ID,
 	organizationID, projectID, name, checkType string,
 	state State,
+	intervalSeconds int,
 	latestRevisionNumber int,
 	createdAt, updatedAt time.Time,
 	version uint32,
@@ -93,6 +114,9 @@ func RestoreMonitor(
 	if !validState(state) {
 		return Monitor{}, errors.New("unknown Monitor state")
 	}
+	if _, ok := ValidateIntervalSeconds(intervalSeconds); !ok {
+		return Monitor{}, errors.New("invalid execution interval")
+	}
 	if latestRevisionNumber < 0 {
 		return Monitor{}, errors.New("latest revision number cannot be negative")
 	}
@@ -105,6 +129,7 @@ func RestoreMonitor(
 	return Monitor{
 		ID: id, OrganizationID: organizationID, ProjectID: projectID,
 		Name: name, CheckType: checkType, State: state,
+		IntervalSeconds:      intervalSeconds,
 		LatestRevisionNumber: latestRevisionNumber,
 		CreatedAt:            createdAt, UpdatedAt: updatedAt, Version: version,
 	}, nil
@@ -122,6 +147,24 @@ func (value *Monitor) Rename(name string, now time.Time) error {
 		return errors.New("persisted timestamps must be UTC")
 	}
 	value.Name = name
+	value.UpdatedAt = now
+	return nil
+}
+
+// ChangeInterval sets how often a non-archived Monitor is due. It appends no Revision and
+// never changes lifecycle state (ADR 0026).
+func (value *Monitor) ChangeInterval(intervalSeconds int, now time.Time) error {
+	if value.State == StateArchived {
+		return errors.New(ArchivedReadOnlyDetail)
+	}
+	validated, ok := ValidateIntervalSeconds(intervalSeconds)
+	if !ok {
+		return errors.New("invalid execution interval")
+	}
+	if !isUTC(now) {
+		return errors.New("persisted timestamps must be UTC")
+	}
+	value.IntervalSeconds = validated
 	value.UpdatedAt = now
 	return nil
 }
@@ -255,6 +298,17 @@ func NormalizeName(candidate string) (string, bool) {
 		return "", false
 	}
 	return normalized, true
+}
+
+// ValidateIntervalSeconds validates a whole-second execution interval against the platform
+// bounds. An operator floor is applied at scheduling time rather than here, so raising an
+// installation's minimum does not silently rewrite Monitors already configured below it
+// (ADR 0026).
+func ValidateIntervalSeconds(candidate int) (int, bool) {
+	if candidate < MinIntervalSeconds || candidate > MaxIntervalSeconds {
+		return 0, false
+	}
+	return candidate, true
 }
 
 // ValidateCheckType validates a stable lowercase check-category identifier.

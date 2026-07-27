@@ -101,7 +101,7 @@ func newService(store *fakeStore, checks *fakeChecks, now time.Time, ids ...stri
 	return NewService(store, checks, fixedClock{now}, &sequenceUUIDs{values: ids})
 }
 func draftMonitor(revisions int) Monitor {
-	value, _ := RestoreMonitor("monitor", "org", "project", "API", "http", StateDraft, revisions, testTime(), testTime(), 42)
+	value, _ := RestoreMonitor("monitor", "org", "project", "API", "http", StateDraft, DefaultIntervalSeconds, revisions, testTime(), testTime(), 42)
 	return value
 }
 
@@ -109,13 +109,14 @@ func TestCreateValidatesAllFieldsBeforeProjectLookup(t *testing.T) {
 	t.Parallel()
 	store := &fakeStore{}
 	checks := &fakeChecks{supported: false}
-	result, err := newService(store, checks, testTime(), "id").Create(context.Background(), CreateCommand{Name: " ", CheckType: "Bad-"})
+	result, err := newService(store, checks, testTime(), "id").Create(context.Background(), CreateCommand{Name: " ", CheckType: "Bad-", IntervalSeconds: 5})
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := []ValidationFailure{
 		{Code: NameInvalidCode, Field: "name", Message: NameValidationMessage},
 		{Code: CheckTypeInvalidCode, Field: "checkType", Message: CheckTypeValidationMessage},
+		{Code: IntervalInvalidCode, Field: "intervalSeconds", Message: IntervalValidationMessage},
 	}
 	if result.Kind != CreateInvalid || !reflect.DeepEqual(result.Failures, want) {
 		t.Fatalf("result = %#v", result)
@@ -127,7 +128,7 @@ func TestCreateValidatesAllFieldsBeforeProjectLookup(t *testing.T) {
 
 func TestCreateRejectsWellFormedUnsupportedCheckType(t *testing.T) {
 	t.Parallel()
-	result, err := newService(&fakeStore{}, &fakeChecks{}, testTime(), "id").Create(context.Background(), CreateCommand{Name: "API", CheckType: "dns"})
+	result, err := newService(&fakeStore{}, &fakeChecks{}, testTime(), "id").Create(context.Background(), CreateCommand{Name: "API", CheckType: "dns", IntervalSeconds: DefaultIntervalSeconds})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,11 +144,11 @@ func TestCreateChecksScopedProjectThenCreatesDraftAtUTCInstant(t *testing.T) {
 	store := &fakeStore{projectExists: true}
 	checks := &fakeChecks{supported: true}
 	ctx := context.WithValue(context.Background(), contextKey{}, "kept")
-	result, err := newService(store, checks, local, "monitor-id").Create(ctx, CreateCommand{OrganizationID: "org", ProjectID: "project", Name: " API ", CheckType: "http"})
+	result, err := newService(store, checks, local, "monitor-id").Create(ctx, CreateCommand{OrganizationID: "org", ProjectID: "project", Name: " API ", CheckType: "http", IntervalSeconds: 120})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Kind != CreateCreated || result.Monitor.ID != "monitor-id" || result.Monitor.Name != "API" || result.Monitor.State != StateDraft || result.Monitor.CreatedAt != local.UTC() {
+	if result.Kind != CreateCreated || result.Monitor.ID != "monitor-id" || result.Monitor.Name != "API" || result.Monitor.State != StateDraft || result.Monitor.CreatedAt != local.UTC() || result.Monitor.IntervalSeconds != 120 {
 		t.Fatalf("result = %#v", result)
 	}
 	if store.contextValue != "kept" || len(store.created) != 1 {
@@ -159,7 +160,7 @@ func TestCreateReturnsProjectNotFoundWithoutClockOrUUID(t *testing.T) {
 	t.Parallel()
 	ids := &sequenceUUIDs{values: []string{"unused"}}
 	service := NewService(&fakeStore{}, &fakeChecks{supported: true}, fixedClock{testTime()}, ids)
-	result, err := service.Create(context.Background(), CreateCommand{OrganizationID: "org", ProjectID: "other", Name: "API", CheckType: "http"})
+	result, err := service.Create(context.Background(), CreateCommand{OrganizationID: "org", ProjectID: "other", Name: "API", CheckType: "http", IntervalSeconds: DefaultIntervalSeconds})
 	if err != nil || result.Kind != CreateProjectNotFound || len(ids.times) != 0 {
 		t.Fatalf("result = %#v, error %v", result, err)
 	}

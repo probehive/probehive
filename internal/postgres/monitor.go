@@ -43,7 +43,7 @@ SELECT EXISTS (
 // FindMonitor loads a Monitor only through its complete tenant scope.
 func (store *MonitorStore) FindMonitor(ctx context.Context, scope monitor.Scope) (monitor.Monitor, bool, error) {
 	return scanMonitor(store.pool.QueryRow(ctx, `
-SELECT id, organization_id, project_id, name, check_type, state,
+SELECT id, organization_id, project_id, name, check_type, state, interval_seconds,
        latest_revision_number, created_at, updated_at, (xmin::text)::bigint
 FROM monitors
 WHERE id = $1 AND project_id = $2 AND organization_id = $3`,
@@ -53,7 +53,7 @@ WHERE id = $1 AND project_id = $2 AND organization_id = $3`,
 // ListMonitors returns creation order with UUID as a deterministic tie-breaker.
 func (store *MonitorStore) ListMonitors(ctx context.Context, organizationID, projectID string) ([]monitor.Monitor, error) {
 	rows, err := store.pool.Query(ctx, `
-SELECT id, organization_id, project_id, name, check_type, state,
+SELECT id, organization_id, project_id, name, check_type, state, interval_seconds,
        latest_revision_number, created_at, updated_at, (xmin::text)::bigint
 FROM monitors
 WHERE project_id = $1 AND organization_id = $2
@@ -81,11 +81,12 @@ ORDER BY created_at, id`, projectID, organizationID)
 func (store *MonitorStore) CreateMonitor(ctx context.Context, value monitor.Monitor) error {
 	if _, err := store.pool.Exec(ctx, `
 INSERT INTO monitors (
-    id, organization_id, project_id, name, check_type, state,
+    id, organization_id, project_id, name, check_type, state, interval_seconds,
     latest_revision_number, created_at, updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
 		string(value.ID), value.OrganizationID, value.ProjectID, value.Name, value.CheckType,
-		string(value.State), value.LatestRevisionNumber, value.CreatedAt.UTC(), value.UpdatedAt.UTC()); err != nil {
+		string(value.State), value.IntervalSeconds, value.LatestRevisionNumber,
+		value.CreatedAt.UTC(), value.UpdatedAt.UTC()); err != nil {
 		return fmt.Errorf("insert Monitor: %w", err)
 	}
 	return nil
@@ -95,11 +96,12 @@ INSERT INTO monitors (
 func (store *MonitorStore) UpdateMonitor(ctx context.Context, value monitor.Monitor, expectedVersion uint32) error {
 	result, err := store.pool.Exec(ctx, `
 UPDATE monitors
-SET name = $1, state = $2, latest_revision_number = $3, updated_at = $4
-WHERE id = $5 AND organization_id = $6 AND project_id = $7
-  AND (xmin::text)::bigint = $8`,
-		value.Name, string(value.State), value.LatestRevisionNumber, value.UpdatedAt.UTC(),
-		string(value.ID), value.OrganizationID, value.ProjectID, uint64(expectedVersion))
+SET name = $1, state = $2, interval_seconds = $3, latest_revision_number = $4, updated_at = $5
+WHERE id = $6 AND organization_id = $7 AND project_id = $8
+  AND (xmin::text)::bigint = $9`,
+		value.Name, string(value.State), value.IntervalSeconds, value.LatestRevisionNumber,
+		value.UpdatedAt.UTC(), string(value.ID), value.OrganizationID, value.ProjectID,
+		uint64(expectedVersion))
 	if err != nil {
 		return fmt.Errorf("update Monitor: %w", err)
 	}
@@ -204,13 +206,14 @@ func scanMonitor(row rowScanner) (monitor.Monitor, bool, error) {
 		name                 string
 		checkType            string
 		state                string
+		intervalSeconds      int
 		latestRevisionNumber int
 		createdAt            time.Time
 		updatedAt            time.Time
 		version              uint64
 	)
 	if err := row.Scan(
-		&id, &organizationID, &projectID, &name, &checkType, &state,
+		&id, &organizationID, &projectID, &name, &checkType, &state, &intervalSeconds,
 		&latestRevisionNumber, &createdAt, &updatedAt, &version,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -223,7 +226,7 @@ func scanMonitor(row rowScanner) (monitor.Monitor, bool, error) {
 	}
 	value, err := monitor.RestoreMonitor(
 		monitor.ID(id), organizationID, projectID, name, checkType, monitor.State(state),
-		latestRevisionNumber, createdAt.UTC(), updatedAt.UTC(), uint32(version),
+		intervalSeconds, latestRevisionNumber, createdAt.UTC(), updatedAt.UTC(), uint32(version),
 	)
 	if err != nil {
 		return monitor.Monitor{}, false, fmt.Errorf("restore Monitor: %w", err)

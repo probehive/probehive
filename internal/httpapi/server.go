@@ -131,6 +131,7 @@ func (server *Server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}", server.monitorItem)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/name", server.renameMonitor)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/state", server.changeMonitorState)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/interval", server.changeMonitorInterval)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions", server.monitorRevisions)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}", server.monitorRevisionItem)
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) { writeStatusProblem(w, http.StatusNotFound) })

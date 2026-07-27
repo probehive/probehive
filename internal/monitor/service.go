@@ -64,6 +64,11 @@ type CreateCommand struct {
 	ProjectID      string
 	Name           string
 	CheckType      string
+	// IntervalSeconds is validated like every other field. Substituting the default for an
+	// absent value is the transport's job, because only the transport can tell "omitted"
+	// from "explicitly zero", and a use case that reads zero as "no preference" would accept
+	// a caller that asked for an interval of zero seconds.
+	IntervalSeconds int
 }
 
 // CreateResult is an expected Monitor creation outcome.
@@ -141,6 +146,10 @@ func (service *Service) Create(ctx context.Context, command CreateCommand) (Crea
 	} else if !service.checks.IsSupported(checkType) {
 		failures = append(failures, ValidationFailure{Code: CheckTypeUnsupportedCode, Field: "checkType", Message: UnsupportedCheckTypeMessage(checkType)})
 	}
+	intervalSeconds := command.IntervalSeconds
+	if _, valid := ValidateIntervalSeconds(intervalSeconds); !valid {
+		failures = append(failures, ValidationFailure{Code: IntervalInvalidCode, Field: "intervalSeconds", Message: IntervalValidationMessage})
+	}
 	if len(failures) != 0 {
 		return CreateResult{Kind: CreateInvalid, Failures: failures}, nil
 	}
@@ -158,7 +167,7 @@ func (service *Service) Create(ctx context.Context, command CreateCommand) (Crea
 	if err != nil {
 		return CreateResult{}, fmt.Errorf("generate Monitor id: %w", err)
 	}
-	created, err := NewMonitor(ID(id), command.OrganizationID, command.ProjectID, name, checkType, now)
+	created, err := NewMonitor(ID(id), command.OrganizationID, command.ProjectID, name, checkType, intervalSeconds, now)
 	if err != nil {
 		return CreateResult{}, err
 	}
@@ -209,6 +218,38 @@ func (service *Service) Rename(ctx context.Context, scope Scope, requestedName s
 	}
 	expectedVersion := value.Version
 	if err = value.Rename(name, service.clock.Now().UTC()); err != nil {
+		return UpdateResult{}, err
+	}
+	if err = service.store.UpdateMonitor(ctx, value, expectedVersion); err != nil {
+		if errors.Is(err, ErrConcurrentUpdate) {
+			return UpdateResult{Kind: UpdateConflict, Code: ConcurrentUpdateCode, Detail: ConcurrentUpdateDetail}, nil
+		}
+		return UpdateResult{}, err
+	}
+	return UpdateResult{Kind: UpdateUpdated, Monitor: value}, nil
+}
+
+// ChangeInterval validates before lookup, then applies an optimistic mutation. It follows
+// Rename rather than CreateRevision because an interval is scheduling policy and appends no
+// revision history (ADR 0026).
+func (service *Service) ChangeInterval(ctx context.Context, scope Scope, intervalSeconds int) (UpdateResult, error) {
+	if _, valid := ValidateIntervalSeconds(intervalSeconds); !valid {
+		return UpdateResult{Kind: UpdateInvalid, Failures: []ValidationFailure{
+			{Code: IntervalInvalidCode, Field: "intervalSeconds", Message: IntervalValidationMessage},
+		}}, nil
+	}
+	value, found, err := service.store.FindMonitor(ctx, scope)
+	if err != nil {
+		return UpdateResult{}, err
+	}
+	if !found {
+		return UpdateResult{Kind: UpdateNotFound}, nil
+	}
+	if value.State == StateArchived {
+		return UpdateResult{Kind: UpdateConflict, Code: ArchivedReadOnlyCode, Detail: ArchivedReadOnlyDetail}, nil
+	}
+	expectedVersion := value.Version
+	if err = value.ChangeInterval(intervalSeconds, service.clock.Now().UTC()); err != nil {
 		return UpdateResult{}, err
 	}
 	if err = service.store.UpdateMonitor(ctx, value, expectedVersion); err != nil {

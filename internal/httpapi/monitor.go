@@ -66,6 +66,7 @@ func (server *Server) monitorsRoot(w http.ResponseWriter, r *http.Request) {
 		result, err := server.monitors.Create(r.Context(), monitor.CreateCommand{
 			OrganizationID: organizationID, ProjectID: projectID,
 			Name: valueOrEmpty(request.Name), CheckType: valueOrEmpty(request.CheckType),
+			IntervalSeconds: intervalOrDefault(request.IntervalSeconds),
 		})
 		if err != nil {
 			server.internalError(w, r, "create Monitor", err)
@@ -153,6 +154,37 @@ func (server *Server) changeMonitorState(w http.ResponseWriter, r *http.Request)
 	}
 	result, err := server.monitors.ChangeState(r.Context(), scope, valueOrEmpty(request.State))
 	server.writeMonitorUpdate(w, r, "change Monitor state", monitor.StateTransitionRejectedTitle, result, err)
+}
+
+func (server *Server) changeMonitorInterval(w http.ResponseWriter, r *http.Request) {
+	scope, ok := monitorScope(r)
+	if !ok {
+		writeStatusProblem(w, http.StatusNotFound)
+		return
+	}
+	if r.Method != http.MethodPut {
+		methodNotAllowed(w, http.MethodPut)
+		return
+	}
+	if _, ok = server.writeMonitors(w, r, scope.OrganizationID); !ok {
+		return
+	}
+	var request api.ChangeMonitorIntervalRequest
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	result, err := server.monitors.ChangeInterval(r.Context(), scope, int(request.IntervalSeconds))
+	server.writeMonitorUpdate(w, r, "change Monitor interval", monitor.IntervalRejectedTitle, result, err)
+}
+
+// intervalOrDefault treats an omitted interval as the product default. An explicit zero is
+// left alone so it reaches the validator and is rejected with the interval code, rather than
+// being silently read as "no preference".
+func intervalOrDefault(value *api.Integer) int {
+	if value == nil {
+		return monitor.DefaultIntervalSeconds
+	}
+	return int(*value)
 }
 
 func (server *Server) writeMonitorUpdate(
@@ -288,6 +320,7 @@ func toMonitorResponse(value monitor.Monitor) api.MonitorResponse {
 	return api.MonitorResponse{
 		ID: string(value.ID), OrganizationID: value.OrganizationID, ProjectID: value.ProjectID,
 		Name: value.Name, CheckType: value.CheckType, State: string(value.State),
+		IntervalSeconds:      value.IntervalSeconds,
 		LatestRevisionNumber: value.LatestRevisionNumber,
 		CreatedAt:            value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}

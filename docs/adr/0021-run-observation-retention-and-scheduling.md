@@ -6,6 +6,8 @@
 - Clarified by: [ADR 0024](0024-http-check-execution-and-observation-content.md)
 - Amended by: [ADR 0025](0025-run-storage-schema-and-lease-placement.md), which replaces the
   `started_at` partition key below with `scheduled_for`
+- Amended by: [ADR 0026](0026-execution-interval-and-slot-derivation.md), which replaces the
+  `FOR UPDATE SKIP LOCKED` claiming mechanism below and bounds misfire recording
 
 ## Context
 
@@ -51,10 +53,10 @@ Deleting an Organization is still not an operation (ADR 0016). When it becomes o
 
 Scheduling uses PostgreSQL leases as ADR 0005 chose, with these semantics fixed:
 
-- A due slot is claimed by a worker taking a lease with an explicit expiry. Claiming uses `FOR UPDATE SKIP LOCKED` so workers do not queue behind each other.
+- A due slot is claimed by a worker taking a lease with an explicit expiry. Claiming uses `FOR UPDATE SKIP LOCKED` so workers do not queue behind each other. ADR 0026 replaces this mechanism: slots are derived rather than stored, so there is no pending-slot row to lock, and the claim is the insert of the Run guarded by the uniqueness rule below.
 - A lease has a bounded duration derived from the effective execution ceiling plus a margin, and the holder renews it while executing. A lease that expires is reclaimable by any worker; the original holder discovers it lost the lease when it tries to record its result, and discards that result rather than writing it.
 - The run-identity uniqueness rule above is the backstop: if a lease is lost and both workers finish, only one row exists.
-- Misfire policy after downtime is *skip and record*. A slot whose scheduled instant is older than one interval is recorded as a `skipped` Run rather than executed late. Running a backlog of stale checks produces alerts about the past, and silently dropping them makes gaps invisible.
+- Misfire policy after downtime is *skip and record*. A slot whose scheduled instant is older than one interval is recorded as a `skipped` Run rather than executed late. Running a backlog of stale checks produces alerts about the past, and silently dropping them makes gaps invisible. ADR 0026 bounds how many missed slots are recorded per Monitor per tick, so a long outage leaves an unmarked gap after that bound rather than writing a row per missed slot.
 - Cancellation and graceful shutdown release the lease explicitly, so a restart does not wait for expiry.
 
 ### Outbox

@@ -15,6 +15,8 @@ import (
 // partitionAdvisoryLockKey serializes partition maintenance the way the migration runner
 // serializes migrations. Two workers running maintenance concurrently would otherwise race
 // between "does this partition exist" and "create it" (ADR 0025).
+var _ run.Store = (*RunStore)(nil)
+
 const partitionAdvisoryLockKey int64 = 7355608015
 
 // runColumns is the projection every Run read shares.

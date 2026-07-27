@@ -40,7 +40,7 @@ func TestValidateCheckType(t *testing.T) {
 func TestNewMonitorStartsDraftWithIdenticalTimestamps(t *testing.T) {
 	t.Parallel()
 	now := testTime()
-	value, err := NewMonitor("monitor", "org", "project", "API", "http", now)
+	value, err := NewMonitor("monitor", "org", "project", "API", "http", DefaultIntervalSeconds, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestTransitionLifecycle(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			value, err := RestoreMonitor("monitor", "org", "project", "API", "http", test.state, test.revisions, now, now, 1)
+			value, err := RestoreMonitor("monitor", "org", "project", "API", "http", test.state, DefaultIntervalSeconds, test.revisions, now, now, 1)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -91,7 +91,7 @@ func TestTransitionLifecycle(t *testing.T) {
 func TestRenameAndRecordRevisionRespectArchivedAndSequence(t *testing.T) {
 	t.Parallel()
 	now := testTime()
-	value, _ := NewMonitor("monitor", "org", "project", "API", "http", now)
+	value, _ := NewMonitor("monitor", "org", "project", "API", "http", DefaultIntervalSeconds, now)
 	if err := value.Rename("Renamed", now.Add(time.Minute)); err != nil || value.Name != "Renamed" || value.State != StateDraft {
 		t.Fatalf("Rename = %#v, %v", value, err)
 	}
@@ -136,13 +136,13 @@ func TestRevisionCopiesConfigurationAndEnforcesInvariants(t *testing.T) {
 func TestRestoreMonitorRejectsImpossiblePersistedState(t *testing.T) {
 	t.Parallel()
 	now := testTime()
-	if _, err := RestoreMonitor("monitor", "org", "project", "API", "http", StateActive, 0, now, now, 1); err == nil {
+	if _, err := RestoreMonitor("monitor", "org", "project", "API", "http", StateActive, DefaultIntervalSeconds, 0, now, now, 1); err == nil {
 		t.Fatal("RestoreMonitor accepted active without a revision")
 	}
-	if _, err := RestoreMonitor("monitor", "org", "project", "API", "http", "unknown", 0, now, now, 1); err == nil {
+	if _, err := RestoreMonitor("monitor", "org", "project", "API", "http", "unknown", DefaultIntervalSeconds, 0, now, now, 1); err == nil {
 		t.Fatal("RestoreMonitor accepted an unknown state")
 	}
-	if _, err := RestoreMonitor("monitor", "org", "project", "API", "http", StateDraft, 0, now.In(time.FixedZone("offset", 3600)), now, 1); err == nil {
+	if _, err := RestoreMonitor("monitor", "org", "project", "API", "http", StateDraft, DefaultIntervalSeconds, 0, now.In(time.FixedZone("offset", 3600)), now, 1); err == nil {
 		t.Fatal("RestoreMonitor accepted a non-UTC timestamp")
 	}
 }

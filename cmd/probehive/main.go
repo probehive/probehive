@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -33,13 +34,15 @@ const (
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	if err := run(os.Args[1:], logger); err != nil {
+	if err := launch(os.Args[1:], logger); err != nil {
 		logger.Error("ProbeHive stopped", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(arguments []string, logger *slog.Logger) error {
+// launch is named around the run package rather than shadowing it: the composition root
+// imports internal/run, and an entry point called run() would make that import unusable.
+func launch(arguments []string, logger *slog.Logger) error {
 	if len(arguments) != 0 {
 		return errors.New("usage: probehive")
 	}
@@ -60,6 +63,12 @@ func serve(logger *slog.Logger) error {
 		address = defaultHTTPAddress
 	}
 	development := strings.EqualFold(strings.TrimSpace(os.Getenv("PROBEHIVE_ENVIRONMENT")), "Development")
+	// Worker configuration is read before anything opens, so an installation with a
+	// misconfigured outbound policy fails at startup rather than at its first check.
+	workerConfiguration, err := readWorkerSettings()
+	if err != nil {
+		return err
+	}
 
 	startupContext, cancelStartup := context.WithTimeout(context.Background(), startupTimeout)
 	defer cancelStartup()
@@ -106,6 +115,32 @@ func serve(logger *slog.Logger) error {
 
 	stopContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// The embedded worker shares this process (ADR 0020) and can be switched off so an
+	// operator can run an API-only replica. Its goroutines stop on the same signal the HTTP
+	// server does, and serve() waits for them before returning.
+	var workers sync.WaitGroup
+	if workerConfiguration.enabled {
+		scheduler, err := newScheduler(database, workerConfiguration, systemClock, identifiers, logger)
+		if err != nil {
+			return err
+		}
+		workers.Add(2)
+		go func() {
+			defer workers.Done()
+			serveMaintenance(stopContext, database.Runs(), workerConfiguration, systemClock, logger)
+		}()
+		go func() {
+			defer workers.Done()
+			if err := scheduler.Serve(stopContext); err != nil {
+				logger.Error("scheduler stopped", "error", err)
+			}
+		}()
+	} else {
+		logger.Info("ProbeHive embedded worker is disabled")
+	}
+	defer workers.Wait()
+
 	serveErrors := make(chan error, 1)
 	go func() {
 		logger.Info("ProbeHive listening", "address", address, "development", development)

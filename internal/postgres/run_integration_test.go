@@ -1,12 +1,15 @@
 package postgres
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/probehive/probehive/internal/monitor"
 	"github.com/probehive/probehive/internal/run"
 )
 
@@ -663,4 +666,177 @@ func countRows(t *testing.T, database *DB, query string) int {
 		t.Fatalf("count rows: %v", err)
 	}
 	return count
+}
+
+// The scheduler's whole tick is this one read (ADR 0026), so it must return exactly the
+// Monitors that should run, joined to the revision a new Run would execute.
+func TestListSchedulableReturnsActiveMonitorsWithTheirLatestRevision(t *testing.T) {
+	database := newIntegrationDatabase(t, true)
+	store := database.Runs()
+	organizationValue, project := seedTenant(t, database, 400, "schedulable-tenant")
+
+	// Active with two revisions: the latest one is what a new Run executes.
+	active := seedMonitor(t, database, 410, organizationValue, project, testTime())
+	active = appendTestRevision(t, database, active, 1, `{"url":"https://one.example.test"}`)
+	active = appendTestRevision(t, database, active, 2, `{"url":"https://two.example.test"}`)
+	activateMonitor(t, database, &active)
+
+	// A Draft Monitor has configuration but has never been activated.
+	draft := seedMonitor(t, database, 420, organizationValue, project, testTime())
+	appendTestRevision(t, database, draft, 1, `{"url":"https://draft.example.test"}`)
+
+	// A Paused Monitor is deliberately not running.
+	paused := seedMonitor(t, database, 430, organizationValue, project, testTime())
+	paused = appendTestRevision(t, database, paused, 1, `{"url":"https://paused.example.test"}`)
+	activateMonitor(t, database, &paused)
+	transitionMonitor(t, database, &paused, monitor.StatePaused)
+
+	schedulable, err := store.ListSchedulable(t.Context())
+	if err != nil {
+		t.Fatalf("ListSchedulable() error = %v", err)
+	}
+	if len(schedulable) != 1 {
+		t.Fatalf("ListSchedulable() = %d Monitors, want only the active one", len(schedulable))
+	}
+
+	value := schedulable[0]
+	if value.MonitorID != string(active.ID) || value.OrganizationID != string(organizationValue.ID) {
+		t.Fatalf("ListSchedulable()[0] identity = %s/%s, want %s/%s",
+			value.OrganizationID, value.MonitorID, organizationValue.ID, active.ID)
+	}
+	if value.RevisionNumber != 2 {
+		t.Fatalf("revision = %d, want the latest revision 2", value.RevisionNumber)
+	}
+	if !bytes.Contains(value.CheckConfiguration, []byte("two.example.test")) {
+		t.Fatalf("configuration = %s, want the latest revision's document", value.CheckConfiguration)
+	}
+	if value.CheckType != "http" || value.CheckSchemaVersion != 1 {
+		t.Fatalf("check type/version = %s/%d, want http/1", value.CheckType, value.CheckSchemaVersion)
+	}
+	if value.Interval != time.Duration(monitor.DefaultIntervalSeconds)*time.Second {
+		t.Fatalf("interval = %v, want the Monitor's %d seconds", value.Interval, monitor.DefaultIntervalSeconds)
+	}
+	if err := value.Validate(); err != nil {
+		t.Fatalf("ListSchedulable() returned an unschedulable projection: %v", err)
+	}
+}
+
+// The interval round-trips through persistence, and changing it is an ordinary update that
+// leaves the revision counter alone (ADR 0026).
+func TestMonitorIntervalRoundTripsAndChangesWithoutARevision(t *testing.T) {
+	database := newIntegrationDatabase(t, true)
+	organizationValue, project := seedTenant(t, database, 440, "interval-tenant")
+	created, err := monitor.NewMonitor(
+		monitor.ID(testUUID(450)), string(organizationValue.ID), string(project.ID),
+		"Interval Monitor", "http", 300, testTime(),
+	)
+	if err != nil {
+		t.Fatalf("NewMonitor() error = %v", err)
+	}
+	if err := database.Monitors().CreateMonitor(t.Context(), created); err != nil {
+		t.Fatalf("CreateMonitor() error = %v", err)
+	}
+
+	stored, found, err := database.Monitors().FindMonitor(t.Context(), monitor.Scope{
+		OrganizationID: string(organizationValue.ID), ProjectID: string(project.ID), MonitorID: created.ID,
+	})
+	if err != nil || !found {
+		t.Fatalf("FindMonitor() = found %v (err %v), want the Monitor", found, err)
+	}
+	if stored.IntervalSeconds != 300 {
+		t.Fatalf("stored interval = %d, want 300", stored.IntervalSeconds)
+	}
+
+	changed := stored
+	if err := changed.ChangeInterval(600, testTime().Add(time.Minute)); err != nil {
+		t.Fatalf("ChangeInterval() error = %v", err)
+	}
+	if err := database.Monitors().UpdateMonitor(t.Context(), changed, stored.Version); err != nil {
+		t.Fatalf("UpdateMonitor() error = %v", err)
+	}
+	reread, _, err := database.Monitors().FindMonitor(t.Context(), monitor.Scope{
+		OrganizationID: string(organizationValue.ID), ProjectID: string(project.ID), MonitorID: created.ID,
+	})
+	if err != nil {
+		t.Fatalf("FindMonitor() error = %v", err)
+	}
+	if reread.IntervalSeconds != 600 || reread.LatestRevisionNumber != 0 {
+		t.Fatalf("after ChangeInterval: interval %d, revisions %d; want 600 and 0",
+			reread.IntervalSeconds, reread.LatestRevisionNumber)
+	}
+}
+
+// The check constraint is what keeps a hand-written row from scheduling a Monitor every
+// second, whatever the application validator did.
+func TestMonitorIntervalCheckConstraint(t *testing.T) {
+	database := newIntegrationDatabase(t, true)
+	organizationValue, project := seedTenant(t, database, 460, "interval-constraint-tenant")
+	for _, seconds := range []int{29, 0, -1, 86401} {
+		_, err := database.pool.Exec(t.Context(), `
+INSERT INTO monitors (
+    id, organization_id, project_id, name, check_type, state, interval_seconds,
+    latest_revision_number, created_at, updated_at
+) VALUES ($1, $2, $3, 'Bad Interval', 'http', 'draft', $4, 0, $5, $5)`,
+			testUUID(470+seconds), string(organizationValue.ID), string(project.ID), seconds, testTime())
+		requireConstraint(t, err, checkViolation, "ck_monitors_interval_seconds")
+	}
+}
+
+// testRevisionIDs hands out distinct revision identifiers. Deriving them from the Monitor
+// and revision number collided across Monitors that differ only in their number.
+var testRevisionIDs = func() *atomic.Int64 {
+	counter := &atomic.Int64{}
+	counter.Store(5000)
+	return counter
+}()
+
+func appendTestRevision(t *testing.T, database *DB, value monitor.Monitor, number int, configuration string) monitor.Monitor {
+	t.Helper()
+	revision, err := monitor.NewRevision(
+		monitor.RevisionID(testUUID(int(testRevisionIDs.Add(1)))), value.ID, value.OrganizationID,
+		number, value.CheckType, 1, json.RawMessage(configuration), testTime(),
+	)
+	if err != nil {
+		t.Fatalf("NewRevision() error = %v", err)
+	}
+	current := reloadMonitor(t, database, value)
+	advanced := current
+	if err := advanced.RecordRevision(number, testTime()); err != nil {
+		t.Fatalf("RecordRevision() error = %v", err)
+	}
+	if err := database.Monitors().AppendRevision(t.Context(), advanced, revision, current.Version); err != nil {
+		t.Fatalf("AppendRevision() error = %v", err)
+	}
+	return reloadMonitor(t, database, advanced)
+}
+
+func activateMonitor(t *testing.T, database *DB, value *monitor.Monitor) {
+	t.Helper()
+	transitionMonitor(t, database, value, monitor.StateActive)
+}
+
+func transitionMonitor(t *testing.T, database *DB, value *monitor.Monitor, target monitor.State) {
+	t.Helper()
+	current := reloadMonitor(t, database, *value)
+	updated := current
+	if err := updated.TransitionTo(target, testTime()); err != nil {
+		t.Fatalf("TransitionTo(%s) error = %v", target, err)
+	}
+	if err := database.Monitors().UpdateMonitor(t.Context(), updated, current.Version); err != nil {
+		t.Fatalf("UpdateMonitor() error = %v", err)
+	}
+	*value = reloadMonitor(t, database, updated)
+}
+
+// reloadMonitor rereads a Monitor so its xmin matches the row, which the in-memory value
+// from a constructor never does.
+func reloadMonitor(t *testing.T, database *DB, value monitor.Monitor) monitor.Monitor {
+	t.Helper()
+	stored, found, err := database.Monitors().FindMonitor(t.Context(), monitor.Scope{
+		OrganizationID: value.OrganizationID, ProjectID: value.ProjectID, MonitorID: value.ID,
+	})
+	if err != nil || !found {
+		t.Fatalf("reload Monitor = found %v (err %v)", found, err)
+	}
+	return stored
 }
