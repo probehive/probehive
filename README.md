@@ -1,14 +1,56 @@
-# ProbeHive
+<p align="center">
+  <img src="docs/brand/probehive-logo.svg" alt="ProbeHive logo" width="120">
+</p>
 
-ProbeHive is an open-source distributed synthetic monitoring and availability platform. It runs reliable checks from the networks that matter, turns observations into trustworthy incidents, and communicates service health clearly.
+<h1 align="center">ProbeHive</h1>
 
-This repository contains the complete self-hosted product. It is designed to remain secure, useful, and operable without a ProbeHive Cloud account.
+<p align="center">
+  <strong>Distributed synthetic monitoring from every network that matters.</strong>
+</p>
 
-## Status
+<p align="center">
+  Monitor websites, APIs, networks, jobs, and critical services from public regions and private networks with one open platform.
+</p>
 
-ProbeHive is in its foundation phase. The Go backend implements the initial vertical slice: idempotent Organization provisioning with a transactional default Project; first-administrator setup; PostgreSQL-backed browser sessions with antiforgery, origin validation, fixed expiry, and deny-by-default authorization; and Monitors with immutable revisions and strict `http` check configuration validation. The React application and its Playwright journey cover setup, sign-in, sign-out, and Organization creation.
+<p align="center">
+  <a href="https://github.com/probehive/probehive/actions/workflows/ci.yml"><img src="https://github.com/probehive/probehive/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-4c7bd9.svg" alt="Apache 2.0 license"></a>
+  <img src="https://img.shields.io/badge/status-pre--alpha-d89b2b.svg" alt="Project status: pre-alpha">
+</p>
 
-No public release exists yet. Unreleased source may change while the first vertical slice is built. Once an API, schema, event, package, generated client, Agent protocol, or OCI artifact is published, its explicit compatibility contract applies; breaking changes do not silently replace a released `/api/v1` or schema version.
+> [!IMPORTANT]
+> ProbeHive is in active pre-alpha development and does not have a stable public release yet. The current source is intended for development and evaluation, and unreleased interfaces may change.
+
+ProbeHive is an open-source distributed synthetic monitoring and availability platform. The public repository is the home of the complete self-hosted product and does not require a ProbeHive Cloud account.
+
+## Why ProbeHive
+
+- **Monitor from the networks that matter.** Combine public probe locations with private Agents deployed close to internal services and infrastructure.
+- **Keep self-hosting independent.** Operate the control plane, data, retention, authentication, and probe locations without a hosted-service dependency.
+- **Turn observations into operational truth.** Keep checks, observations, evaluated health, incidents, alerts, and status communication precise and auditable.
+- **Use one open platform.** Bring websites, APIs, networks, jobs, certificates, and critical services under one versioned monitoring model.
+
+## What Works Today
+
+The current foundation implements:
+
+- Idempotent Organization provisioning with a transactional default Project.
+- First-administrator setup and PostgreSQL-backed browser sessions with antiforgery, origin validation, fixed expiry, and deny-by-default authorization.
+- Monitors with immutable revisions and strict HTTP check configuration validation.
+- A React first-run experience covering setup, sign-in, sign-out, and Organization creation, with a Playwright browser journey.
+
+Check execution, scheduling, incidents, alert delivery, status pages, Agents, and packaged releases remain under development.
+
+## Get Started
+
+ProbeHive does not yet publish installation artifacts. To run the current foundation locally, start with the [local development guide](docs/development.md).
+
+Useful project references:
+
+- [Backend contract](docs/backend-contract.md)
+- [Architecture decisions](docs/adr/README.md)
+- [Contributing guide](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
 
 ## Planned Capabilities
 
@@ -39,8 +81,6 @@ deploy/
 Feature packages and `internal/check` use only the Go standard library. `internal/postgres` implements feature-owned persistence interfaces with pgx and embedded SQL migrations. `internal/httpapi` owns HTTP routing, browser security, versioned wire types, and Problem Details. The frontend remains a separately deployable API client and owns no authoritative authorization or business rules.
 
 The backend uses Go 1.26.5 and PostgreSQL. First-party web applications use React, strict TypeScript, Vite, and React Router and build to static assets. The public API begins at `/api/v1`.
-
-Architecture decisions are recorded in [docs/adr](docs/adr/README.md). The exact backend contract is recorded in [docs/backend-contract.md](docs/backend-contract.md), and the local development loop is documented in [docs/development.md](docs/development.md).
 
 ## ProbeHive Cloud
 
