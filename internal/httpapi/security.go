@@ -28,6 +28,8 @@ const (
 	anonymousMACPurpose      = "probehive/anonymous-antiforgery/v1\x00"
 	antiforgeryInvalidTitle  = "Antiforgery token missing or invalid"
 	antiforgeryInvalidDetail = "Unsafe requests require the antiforgery request token in the custom header; obtain it from GET /api/v1/auth/antiforgery."
+	antiforgeryInvalidCode   = "request.antiforgery.invalid"
+	originRejectedCode       = "request.origin.rejected"
 	originRejectedTitle      = "Browser origin rejected"
 	originRejectedDetail     = "The Origin or Referer of this request does not match the expected browser origin."
 )
@@ -113,7 +115,7 @@ func (server *Server) protectUnsafe(w http.ResponseWriter, r *http.Request, admi
 		return nil, false
 	}
 	if !server.acceptableBrowserOrigin(r) {
-		writeProblem(w, http.StatusForbidden, originRejectedTitle, originRejectedDetail)
+		writeCodedProblem(w, http.StatusForbidden, originRejectedCode, originRejectedTitle, originRejectedDetail)
 		return nil, false
 	}
 	valid, err := server.validAntiforgery(r, principal)
@@ -122,7 +124,7 @@ func (server *Server) protectUnsafe(w http.ResponseWriter, r *http.Request, admi
 		return nil, false
 	}
 	if !valid {
-		writeProblem(w, http.StatusBadRequest, antiforgeryInvalidTitle, antiforgeryInvalidDetail)
+		writeCodedProblem(w, http.StatusBadRequest, antiforgeryInvalidCode, antiforgeryInvalidTitle, antiforgeryInvalidDetail)
 		return nil, false
 	}
 	return principal, true
@@ -139,7 +141,7 @@ func (server *Server) prepareCredentialUnsafe(w http.ResponseWriter, r *http.Req
 		return nil, false
 	}
 	if !server.acceptableBrowserOrigin(r) {
-		writeProblem(w, http.StatusForbidden, originRejectedTitle, originRejectedDetail)
+		writeCodedProblem(w, http.StatusForbidden, originRejectedCode, originRejectedTitle, originRejectedDetail)
 		return nil, false
 	}
 	valid, err := server.validAntiforgery(r, principal)
@@ -148,7 +150,7 @@ func (server *Server) prepareCredentialUnsafe(w http.ResponseWriter, r *http.Req
 		return nil, false
 	}
 	if !valid {
-		writeProblem(w, http.StatusBadRequest, antiforgeryInvalidTitle, antiforgeryInvalidDetail)
+		writeCodedProblem(w, http.StatusBadRequest, antiforgeryInvalidCode, antiforgeryInvalidTitle, antiforgeryInvalidDetail)
 		return nil, false
 	}
 	return principal, true

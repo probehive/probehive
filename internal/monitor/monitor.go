@@ -10,25 +10,30 @@ import (
 	"unicode/utf16"
 )
 
+// Stable error codes. A code is contract under ADR 0019; the English text beside
+// it is documentation and may be reworded freely.
 const (
-	// NameValidationMessage is the exact public Monitor-name validation message.
-	NameValidationMessage = "A Monitor name is 1 to 100 characters after trimming."
-	// CheckTypeValidationMessage is the exact public check-type format message.
-	CheckTypeValidationMessage = "A check type is 1 to 50 characters of lowercase ASCII letters and digits with single interior hyphens, starting with a letter."
-	// TargetStateValidationMessage is the exact public state-target validation message.
-	TargetStateValidationMessage = "The target state must be one of: active, paused, archived."
-	// ConcurrentUpdateDetail is returned for every lost optimistic-concurrency race.
-	ConcurrentUpdateDetail = "The Monitor was modified concurrently; retry against its current state."
-	// ArchivedReadOnlyDetail is returned for every mutation of an archived Monitor.
-	ArchivedReadOnlyDetail = "An archived Monitor is read-only."
-	// ActivationWithoutRevisionDetail rejects activation before configuration exists.
+	NameInvalidCode               = "monitor.name.invalid"
+	CheckTypeInvalidCode          = "monitor.checkType.invalid"
+	CheckTypeUnsupportedCode      = "monitor.checkType.unsupported"
+	TargetStateInvalidCode        = "monitor.state.invalidTarget"
+	ConcurrentUpdateCode          = "monitor.concurrentUpdate"
+	ArchivedReadOnlyCode          = "monitor.archived.readOnly"
+	ActivationWithoutRevisionCode = "monitor.state.activationWithoutRevision"
+	StateTransitionNotAllowedCode = "monitor.state.transitionNotAllowed"
+)
+
+// Current English text for the codes above. Not contract; clients translate the code.
+const (
+	NameValidationMessage           = "A Monitor name is 1 to 100 characters after trimming."
+	CheckTypeValidationMessage      = "A check type is 1 to 50 characters of lowercase ASCII letters and digits with single interior hyphens, starting with a letter."
+	TargetStateValidationMessage    = "The target state must be one of: active, paused, archived."
+	ConcurrentUpdateDetail          = "The Monitor was modified concurrently; retry against its current state."
+	ArchivedReadOnlyDetail          = "An archived Monitor is read-only."
 	ActivationWithoutRevisionDetail = "A Monitor cannot be activated before it has a revision."
-	// RenameRejectedTitle is the public rename conflict title.
-	RenameRejectedTitle = "Monitor rename rejected"
-	// StateTransitionRejectedTitle is the public lifecycle conflict title.
-	StateTransitionRejectedTitle = "Monitor state transition rejected"
-	// RevisionRejectedTitle is the public revision conflict title.
-	RevisionRejectedTitle = "Monitor revision rejected"
+	RenameRejectedTitle             = "Monitor rename rejected"
+	StateTransitionRejectedTitle    = "Monitor state transition rejected"
+	RevisionRejectedTitle           = "Monitor revision rejected"
 )
 
 // ID identifies a Monitor.
@@ -121,20 +126,32 @@ func (value *Monitor) Rename(name string, now time.Time) error {
 	return nil
 }
 
-// TransitionTo applies the Monitor lifecycle state machine.
+// LifecycleError is a rejected lifecycle transition. It carries the stable code
+// clients localize from (ADR 0019) alongside the current English message.
+type LifecycleError struct {
+	Code    string
+	Message string
+}
+
+func (failure *LifecycleError) Error() string { return failure.Message }
+
+// TransitionTo applies the Monitor lifecycle state machine. A rejection that the
+// API surfaces as 409 is always a *LifecycleError; other errors are programming faults.
 func (value *Monitor) TransitionTo(target State, now time.Time) error {
 	if !isUTC(now) {
 		return errors.New("persisted timestamps must be UTC")
 	}
 	if value.State == StateArchived {
-		return errors.New(ArchivedReadOnlyDetail)
+		return &LifecycleError{Code: ArchivedReadOnlyCode, Message: ArchivedReadOnlyDetail}
 	}
 	valid := false
 	switch target {
 	case StateActive:
 		if value.State == StateDraft || value.State == StatePaused {
 			if value.LatestRevisionNumber == 0 {
-				return errors.New(ActivationWithoutRevisionDetail)
+				return &LifecycleError{
+					Code: ActivationWithoutRevisionCode, Message: ActivationWithoutRevisionDetail,
+				}
 			}
 			valid = true
 		}
@@ -144,7 +161,12 @@ func (value *Monitor) TransitionTo(target State, now time.Time) error {
 		valid = value.State == StateDraft || value.State == StateActive || value.State == StatePaused
 	}
 	if !valid {
-		return fmt.Errorf("A Monitor cannot move from '%s' to '%s'.", displayState(value.State), displayState(target))
+		return &LifecycleError{
+			Code: StateTransitionNotAllowedCode,
+			Message: fmt.Sprintf(
+				"A Monitor cannot move from '%s' to '%s'.", displayState(value.State), displayState(target),
+			),
+		}
 	}
 	value.State = target
 	value.UpdatedAt = now
@@ -217,8 +239,10 @@ func NewRevision(
 	}, nil
 }
 
-// ValidationFailure is one field-level use-case validation failure.
+// ValidationFailure is one field-level use-case validation failure. Code is the
+// stable contract identifier (ADR 0019); Message is current English documentation.
 type ValidationFailure struct {
+	Code    string
 	Field   string
 	Message string
 }

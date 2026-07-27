@@ -590,17 +590,35 @@
       }
     },
     "schemas": {
+      "ValidationError": {
+        "type": "object",
+        "required": ["code", "message"],
+        "description": "One field-level failure. 'code' is the stable contract identifier clients localize from; 'message' is current English documentation and may be reworded without a compatibility event.",
+        "properties": {
+          "code": { "type": "string", "examples": ["organization.slug.invalid"] },
+          "message": { "type": "string" }
+        }
+      },
       "ProblemDetails": {
         "type": "object",
         "required": ["type", "title", "status"],
+        "description": "RFC 9457 Problem Details. Prose is always English; clients localize from 'code' and from the 'code' of each validation error.",
         "properties": {
           "type": { "type": "string" },
           "title": { "type": "string" },
           "status": { "type": "integer" },
+          "code": {
+            "type": "string",
+            "description": "Stable identifier for a non-validation problem. Absent on validation problems, where each entry of 'errors' carries its own code.",
+            "examples": ["user.credentials.invalid"]
+          },
           "detail": { "type": "string" },
           "errors": {
             "type": "object",
-            "additionalProperties": { "type": "array", "items": { "type": "string" } }
+            "additionalProperties": {
+              "type": "array",
+              "items": { "$ref": "#/components/schemas/ValidationError" }
+            }
           }
         }
       },

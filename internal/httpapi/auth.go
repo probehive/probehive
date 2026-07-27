@@ -63,7 +63,7 @@ func (server *Server) setupAdministrator(w http.ResponseWriter, r *http.Request)
 			User: toUserResponse(result.User), Organization: toOrganizationResponse(provisioned.Details),
 		})
 	case user.CreateFirstAdministratorAlreadyCompleted:
-		writeProblem(w, http.StatusConflict, user.SetupAlreadyCompletedTitle, user.SetupAlreadyCompletedDetail)
+		writeCodedProblem(w, http.StatusConflict, user.SetupAlreadyCompletedCode, user.SetupAlreadyCompletedTitle, user.SetupAlreadyCompletedDetail)
 	case user.CreateFirstAdministratorInvalid:
 		writeValidationProblem(w, userFailurePairs(result.Failures))
 	default:
@@ -91,7 +91,7 @@ func (server *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if result.Kind != user.AuthenticateSuccess {
-		writeProblem(w, http.StatusUnauthorized, user.InvalidCredentialsTitle, user.InvalidCredentialsDetail)
+		writeCodedProblem(w, http.StatusUnauthorized, user.InvalidCredentialsCode, user.InvalidCredentialsTitle, user.InvalidCredentialsDetail)
 		return
 	}
 	if err := server.createSession(w, r, result.User); err != nil {
@@ -144,10 +144,10 @@ func toUserResponse(account user.User) api.UserResponse {
 	}
 }
 
-func userFailurePairs(failures []user.ValidationFailure) [][2]string {
-	pairs := make([][2]string, len(failures))
+func userFailurePairs(failures []user.ValidationFailure) [][3]string {
+	triples := make([][3]string, len(failures))
 	for index, failure := range failures {
-		pairs[index] = [2]string{failure.Field, failure.Message}
+		triples[index] = [3]string{failure.Code, failure.Field, failure.Message}
 	}
-	return pairs
+	return triples
 }

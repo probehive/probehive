@@ -99,9 +99,9 @@ func TestCreateFirstAdministratorValidatesAllFieldsBeforeDependencies(t *testing
 		t.Fatal(err)
 	}
 	want := []ValidationFailure{
-		{Field: "email", Message: EmailValidationMessage},
-		{Field: "displayName", Message: DisplayNameValidationMessage},
-		{Field: "password", Message: PasswordValidationMessage},
+		{Code: EmailInvalidCode, Field: "email", Message: EmailValidationMessage},
+		{Code: DisplayNameInvalidCode, Field: "displayName", Message: DisplayNameValidationMessage},
+		{Code: PasswordLengthCode, Field: "password", Message: PasswordValidationMessage},
 	}
 	if result.Kind != CreateFirstAdministratorInvalid || !reflect.DeepEqual(result.Failures, want) {
 		t.Fatalf("result = %#v, want %#v", result, want)

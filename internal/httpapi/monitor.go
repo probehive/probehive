@@ -152,7 +152,7 @@ func (server *Server) writeMonitorUpdate(
 	case monitor.UpdateInvalid:
 		writeValidationProblem(w, monitorFailurePairs(result.Failures))
 	case monitor.UpdateConflict:
-		writeProblem(w, http.StatusConflict, conflictTitle, result.Detail)
+		writeCodedProblem(w, http.StatusConflict, result.Code, conflictTitle, result.Detail)
 	default:
 		server.internalError(w, r, operation, errUnexpectedResult)
 	}
@@ -208,7 +208,7 @@ func (server *Server) monitorRevisions(w http.ResponseWriter, r *http.Request) {
 		case monitor.RevisionInvalid:
 			writeValidationProblem(w, monitorFailurePairs(result.Failures))
 		case monitor.RevisionConflict:
-			writeProblem(w, http.StatusConflict, monitor.RevisionRejectedTitle, result.Detail)
+			writeCodedProblem(w, http.StatusConflict, result.Code, monitor.RevisionRejectedTitle, result.Detail)
 		default:
 			server.internalError(w, r, "create Monitor revision", errUnexpectedResult)
 		}
@@ -282,10 +282,10 @@ func toMonitorRevisionResponse(value monitor.Revision) api.MonitorRevisionRespon
 	}
 }
 
-func monitorFailurePairs(failures []monitor.ValidationFailure) [][2]string {
-	pairs := make([][2]string, len(failures))
+func monitorFailurePairs(failures []monitor.ValidationFailure) [][3]string {
+	triples := make([][3]string, len(failures))
 	for index, failure := range failures {
-		pairs[index] = [2]string{failure.Field, failure.Message}
+		triples[index] = [3]string{failure.Code, failure.Field, failure.Message}
 	}
-	return pairs
+	return triples
 }

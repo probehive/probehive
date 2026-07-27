@@ -91,8 +91,8 @@ func TestProvisionRejectsAllFieldsBeforeIO(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []ValidationFailure{
-		{Field: "slug", Message: SlugValidationMessage},
-		{Field: "displayName", Message: DisplayNameValidationMessage},
+		{Code: SlugInvalidCode, Field: "slug", Message: SlugValidationMessage},
+		{Code: DisplayNameInvalidCode, Field: "displayName", Message: DisplayNameValidationMessage},
 	}
 	if result.Kind != ProvisionInvalid || !reflect.DeepEqual(result.Failures, want) {
 		t.Fatalf("result = %#v, want failures %#v", result, want)

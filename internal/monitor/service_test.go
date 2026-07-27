@@ -28,12 +28,12 @@ func (generator *sequenceUUIDs) NewUUIDv7(at time.Time) (string, error) {
 type fakeChecks struct {
 	supported     bool
 	canonical     json.RawMessage
-	failures      [][2]string
+	failures      [][3]string
 	validateCalls int
 }
 
 func (checks *fakeChecks) IsSupported(string) bool { return checks.supported }
-func (checks *fakeChecks) Validate(_ string, _ int, _ json.RawMessage) (json.RawMessage, [][2]string) {
+func (checks *fakeChecks) Validate(_ string, _ int, _ json.RawMessage) (json.RawMessage, [][3]string) {
 	checks.validateCalls++
 	return checks.canonical, checks.failures
 }
@@ -113,7 +113,10 @@ func TestCreateValidatesAllFieldsBeforeProjectLookup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []ValidationFailure{{Field: "name", Message: NameValidationMessage}, {Field: "checkType", Message: CheckTypeValidationMessage}}
+	want := []ValidationFailure{
+		{Code: NameInvalidCode, Field: "name", Message: NameValidationMessage},
+		{Code: CheckTypeInvalidCode, Field: "checkType", Message: CheckTypeValidationMessage},
+	}
 	if result.Kind != CreateInvalid || !reflect.DeepEqual(result.Failures, want) {
 		t.Fatalf("result = %#v", result)
 	}
@@ -129,7 +132,7 @@ func TestCreateRejectsWellFormedUnsupportedCheckType(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := UnsupportedCheckTypeMessage("dns")
-	if result.Kind != CreateInvalid || len(result.Failures) != 1 || result.Failures[0] != (ValidationFailure{Field: "checkType", Message: want}) {
+	if result.Kind != CreateInvalid || len(result.Failures) != 1 || result.Failures[0] != (ValidationFailure{Code: CheckTypeUnsupportedCode, Field: "checkType", Message: want}) {
 		t.Fatalf("result = %#v", result)
 	}
 }
@@ -224,10 +227,18 @@ func TestCreateRevisionOrderingValidationCanonicalizationAndAtomicAdvance(t *tes
 	configuration := json.RawMessage(` { "url": "https://example.test" } `)
 	canonical := json.RawMessage(`{"url":"https://example.test"}`)
 
-	checks := &fakeChecks{supported: true, canonical: canonical, failures: [][2]string{{"checkSchemaVersion", "bad version"}, {"checkConfiguration.url", "bad URL"}}}
+	// The port carries code, field, message; the use case maps them straight through.
+	checks := &fakeChecks{supported: true, canonical: canonical, failures: [][3]string{
+		{"check.schemaVersion.unsupported", "checkSchemaVersion", "bad version"},
+		{"check.http.url.scheme", "checkConfiguration.url", "bad URL"},
+	}}
 	store := &fakeStore{monitor: draftMonitor(0), monitorFound: true}
 	invalid, err := newService(store, checks, now, "revision").CreateRevision(context.Background(), scope, 2, configuration)
-	if err != nil || invalid.Kind != RevisionInvalid || !reflect.DeepEqual(invalid.Failures, []ValidationFailure{{"checkSchemaVersion", "bad version"}, {"checkConfiguration.url", "bad URL"}}) || len(store.appended) != 0 {
+	wantFailures := []ValidationFailure{
+		{Code: "check.schemaVersion.unsupported", Field: "checkSchemaVersion", Message: "bad version"},
+		{Code: "check.http.url.scheme", Field: "checkConfiguration.url", Message: "bad URL"},
+	}
+	if err != nil || invalid.Kind != RevisionInvalid || !reflect.DeepEqual(invalid.Failures, wantFailures) || len(store.appended) != 0 {
 		t.Fatalf("invalid = %#v, error %v", invalid, err)
 	}
 

@@ -51,6 +51,7 @@ type ProvisionResult struct {
 	Kind     ProvisionKind
 	Details  Details
 	Failures []ValidationFailure
+	Code     string
 	Detail   string
 }
 
@@ -74,11 +75,11 @@ func (service *Service) Provision(ctx context.Context, command ProvisionCommand)
 	var failures []ValidationFailure
 	slug, validSlug := ValidateSlug(command.Slug)
 	if !validSlug {
-		failures = append(failures, ValidationFailure{Field: "slug", Message: SlugValidationMessage})
+		failures = append(failures, ValidationFailure{Code: SlugInvalidCode, Field: "slug", Message: SlugValidationMessage})
 	}
 	displayName, validDisplayName := NormalizeDisplayName(command.DisplayName)
 	if !validDisplayName {
-		failures = append(failures, ValidationFailure{Field: "displayName", Message: DisplayNameValidationMessage})
+		failures = append(failures, ValidationFailure{Code: DisplayNameInvalidCode, Field: "displayName", Message: DisplayNameValidationMessage})
 	}
 	if len(failures) != 0 {
 		return ProvisionResult{Kind: ProvisionInvalid, Failures: failures}, nil
@@ -127,7 +128,7 @@ func (service *Service) Provision(ctx context.Context, command ProvisionCommand)
 
 func (service *Service) replayOrConflict(ctx context.Context, existing Organization, displayName string) (ProvisionResult, error) {
 	if existing.DisplayName != displayName {
-		return ProvisionResult{Kind: ProvisionSlugConflict, Detail: SlugConflictDetail(existing.Slug)}, nil
+		return ProvisionResult{Kind: ProvisionSlugConflict, Code: SlugConflictCode, Detail: SlugConflictDetail(existing.Slug)}, nil
 	}
 	project, found, err := service.store.FindDefaultProject(ctx, existing.ID)
 	if err != nil {

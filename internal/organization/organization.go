@@ -18,12 +18,21 @@ const (
 	// BootstrapDisplayName is the display name of that Organization. Setup accepts no
 	// Organization input; renaming is the separate future operation named in ADR 0012.
 	BootstrapDisplayName = "Default"
-	// SlugValidationMessage is the public validation message for Organization slugs.
-	SlugValidationMessage = "A slug is 3 to 63 characters of lowercase ASCII letters and digits with single interior hyphens, starting and ending with a letter or digit."
-	// DisplayNameValidationMessage is the public validation message for display names.
+)
+
+// Stable error codes. A code is contract under ADR 0019; the English text beside
+// it is documentation and may be reworded freely.
+const (
+	SlugInvalidCode        = "organization.slug.invalid"
+	DisplayNameInvalidCode = "organization.displayName.invalid"
+	SlugConflictCode       = "organization.slug.conflict"
+)
+
+// Current English text for the codes above. Not contract; clients translate the code.
+const (
+	SlugValidationMessage        = "A slug is 3 to 63 characters of lowercase ASCII letters and digits with single interior hyphens, starting and ending with a letter or digit."
 	DisplayNameValidationMessage = "A display name is 1 to 100 characters after trimming."
-	// SlugConflictTitle is the public title for a non-idempotent slug collision.
-	SlugConflictTitle = "Organization slug already in use"
+	SlugConflictTitle            = "Organization slug already in use"
 )
 
 var (
@@ -93,8 +102,10 @@ type Details struct {
 	DefaultProject Project
 }
 
-// ValidationFailure is one field-level use-case validation failure.
+// ValidationFailure is one field-level use-case validation failure. Code is the
+// stable contract identifier (ADR 0019); Message is current English documentation.
 type ValidationFailure struct {
+	Code    string
 	Field   string
 	Message string
 }

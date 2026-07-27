@@ -15,11 +15,15 @@ func NewCatalog() Catalog { return Catalog{} }
 // IsSupported reports whether this build contains a check type.
 func (Catalog) IsSupported(checkType string) bool { return checkType == HTTPCheckType }
 
-// Validate validates and compacts a versioned check configuration. Each failure pair
-// contains field path at index 0 and exact message at index 1 in encounter order.
-func (Catalog) Validate(checkType string, schemaVersion int, configuration json.RawMessage) (json.RawMessage, [][2]string) {
+// Validate validates and compacts a versioned check configuration. Each failure triple
+// contains stable code at index 0, field path at index 1, and current English message at
+// index 2 (ADR 0019), in encounter order.
+func (Catalog) Validate(checkType string, schemaVersion int, configuration json.RawMessage) (json.RawMessage, [][3]string) {
 	if checkType != HTTPCheckType {
-		return nil, [][2]string{{"checkType", fmt.Sprintf("The check type '%s' is not supported by this build.", checkType)}}
+		return nil, [][3]string{{
+			CheckTypeUnsupportedCode, "checkType",
+			fmt.Sprintf("The check type '%s' is not supported by this build.", checkType),
+		}}
 	}
 	_, canonical, failures := ValidateHTTP(schemaVersion, configuration)
 	return canonical, failures

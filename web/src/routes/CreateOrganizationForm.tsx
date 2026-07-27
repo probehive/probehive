@@ -7,7 +7,7 @@ import { organizationsQueryKey } from './useOrganizations'
 
 function fieldErrors(error: unknown, field: string): string[] {
   if (error instanceof ApiError && error.status === 400) {
-    return error.problem.errors?.[field] ?? []
+    return (error.problem.errors?.[field] ?? []).map((entry) => entry.message)
   }
   return []
 }

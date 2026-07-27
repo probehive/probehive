@@ -18,11 +18,12 @@ type UUIDGenerator interface {
 	NewUUIDv7(time.Time) (string, error)
 }
 
-// CheckValidator is the narrow port consumed by Monitor use cases. Each failure pair
-// contains field path at index 0 and exact message at index 1, preserving encounter order.
+// CheckValidator is the narrow port consumed by Monitor use cases. Each failure triple
+// contains stable code at index 0, field path at index 1, and current English message at
+// index 2 (ADR 0019), preserving encounter order.
 type CheckValidator interface {
 	IsSupported(string) bool
-	Validate(string, int, json.RawMessage) (json.RawMessage, [][2]string)
+	Validate(string, int, json.RawMessage) (json.RawMessage, [][3]string)
 }
 
 // Scope carries explicit tenant and ownership identity for every Monitor lookup.
@@ -87,6 +88,7 @@ type UpdateResult struct {
 	Kind     UpdateKind
 	Monitor  Monitor
 	Failures []ValidationFailure
+	Code     string
 	Detail   string
 }
 
@@ -106,6 +108,7 @@ type RevisionResult struct {
 	Revision Revision
 	Monitor  Monitor
 	Failures []ValidationFailure
+	Code     string
 	Detail   string
 }
 
@@ -130,13 +133,13 @@ func (service *Service) Create(ctx context.Context, command CreateCommand) (Crea
 	var failures []ValidationFailure
 	name, validName := NormalizeName(command.Name)
 	if !validName {
-		failures = append(failures, ValidationFailure{Field: "name", Message: NameValidationMessage})
+		failures = append(failures, ValidationFailure{Code: NameInvalidCode, Field: "name", Message: NameValidationMessage})
 	}
 	checkType, validCheckType := ValidateCheckType(command.CheckType)
 	if !validCheckType {
-		failures = append(failures, ValidationFailure{Field: "checkType", Message: CheckTypeValidationMessage})
+		failures = append(failures, ValidationFailure{Code: CheckTypeInvalidCode, Field: "checkType", Message: CheckTypeValidationMessage})
 	} else if !service.checks.IsSupported(checkType) {
-		failures = append(failures, ValidationFailure{Field: "checkType", Message: UnsupportedCheckTypeMessage(checkType)})
+		failures = append(failures, ValidationFailure{Code: CheckTypeUnsupportedCode, Field: "checkType", Message: UnsupportedCheckTypeMessage(checkType)})
 	}
 	if len(failures) != 0 {
 		return CreateResult{Kind: CreateInvalid, Failures: failures}, nil
@@ -190,7 +193,9 @@ func (service *Service) List(ctx context.Context, organizationID, projectID stri
 func (service *Service) Rename(ctx context.Context, scope Scope, requestedName string) (UpdateResult, error) {
 	name, valid := NormalizeName(requestedName)
 	if !valid {
-		return UpdateResult{Kind: UpdateInvalid, Failures: []ValidationFailure{{Field: "name", Message: NameValidationMessage}}}, nil
+		return UpdateResult{Kind: UpdateInvalid, Failures: []ValidationFailure{
+			{Code: NameInvalidCode, Field: "name", Message: NameValidationMessage},
+		}}, nil
 	}
 	value, found, err := service.store.FindMonitor(ctx, scope)
 	if err != nil {
@@ -200,7 +205,7 @@ func (service *Service) Rename(ctx context.Context, scope Scope, requestedName s
 		return UpdateResult{Kind: UpdateNotFound}, nil
 	}
 	if value.State == StateArchived {
-		return UpdateResult{Kind: UpdateConflict, Detail: ArchivedReadOnlyDetail}, nil
+		return UpdateResult{Kind: UpdateConflict, Code: ArchivedReadOnlyCode, Detail: ArchivedReadOnlyDetail}, nil
 	}
 	expectedVersion := value.Version
 	if err = value.Rename(name, service.clock.Now().UTC()); err != nil {
@@ -208,7 +213,7 @@ func (service *Service) Rename(ctx context.Context, scope Scope, requestedName s
 	}
 	if err = service.store.UpdateMonitor(ctx, value, expectedVersion); err != nil {
 		if errors.Is(err, ErrConcurrentUpdate) {
-			return UpdateResult{Kind: UpdateConflict, Detail: ConcurrentUpdateDetail}, nil
+			return UpdateResult{Kind: UpdateConflict, Code: ConcurrentUpdateCode, Detail: ConcurrentUpdateDetail}, nil
 		}
 		return UpdateResult{}, err
 	}
@@ -219,7 +224,9 @@ func (service *Service) Rename(ctx context.Context, scope Scope, requestedName s
 func (service *Service) ChangeState(ctx context.Context, scope Scope, requestedState string) (UpdateResult, error) {
 	target, valid := targetState(requestedState)
 	if !valid {
-		return UpdateResult{Kind: UpdateInvalid, Failures: []ValidationFailure{{Field: "state", Message: TargetStateValidationMessage}}}, nil
+		return UpdateResult{Kind: UpdateInvalid, Failures: []ValidationFailure{
+			{Code: TargetStateInvalidCode, Field: "state", Message: TargetStateValidationMessage},
+		}}, nil
 	}
 	value, found, err := service.store.FindMonitor(ctx, scope)
 	if err != nil {
@@ -230,11 +237,15 @@ func (service *Service) ChangeState(ctx context.Context, scope Scope, requestedS
 	}
 	expectedVersion := value.Version
 	if transitionErr := value.TransitionTo(target, service.clock.Now().UTC()); transitionErr != nil {
-		return UpdateResult{Kind: UpdateConflict, Detail: transitionErr.Error()}, nil
+		var lifecycle *LifecycleError
+		if !errors.As(transitionErr, &lifecycle) {
+			return UpdateResult{}, transitionErr
+		}
+		return UpdateResult{Kind: UpdateConflict, Code: lifecycle.Code, Detail: lifecycle.Message}, nil
 	}
 	if err = service.store.UpdateMonitor(ctx, value, expectedVersion); err != nil {
 		if errors.Is(err, ErrConcurrentUpdate) {
-			return UpdateResult{Kind: UpdateConflict, Detail: ConcurrentUpdateDetail}, nil
+			return UpdateResult{Kind: UpdateConflict, Code: ConcurrentUpdateCode, Detail: ConcurrentUpdateDetail}, nil
 		}
 		return UpdateResult{}, err
 	}
@@ -256,16 +267,18 @@ func (service *Service) CreateRevision(
 		return RevisionResult{Kind: RevisionMonitorNotFound}, nil
 	}
 	if value.State == StateArchived {
-		return RevisionResult{Kind: RevisionConflict, Detail: ArchivedReadOnlyDetail}, nil
+		return RevisionResult{Kind: RevisionConflict, Code: ArchivedReadOnlyCode, Detail: ArchivedReadOnlyDetail}, nil
 	}
 	if !service.checks.IsSupported(value.CheckType) {
-		return RevisionResult{Kind: RevisionInvalid, Failures: []ValidationFailure{{Field: "checkType", Message: UnsupportedCheckTypeMessage(value.CheckType)}}}, nil
+		return RevisionResult{Kind: RevisionInvalid, Failures: []ValidationFailure{
+			{Code: CheckTypeUnsupportedCode, Field: "checkType", Message: UnsupportedCheckTypeMessage(value.CheckType)},
+		}}, nil
 	}
 	canonical, checkFailures := service.checks.Validate(value.CheckType, checkSchemaVersion, checkConfiguration)
 	if len(checkFailures) != 0 {
 		failures := make([]ValidationFailure, len(checkFailures))
 		for index, failure := range checkFailures {
-			failures[index] = ValidationFailure{Field: failure[0], Message: failure[1]}
+			failures[index] = ValidationFailure{Code: failure[0], Field: failure[1], Message: failure[2]}
 		}
 		return RevisionResult{Kind: RevisionInvalid, Failures: failures}, nil
 	}
@@ -288,7 +301,7 @@ func (service *Service) CreateRevision(
 	}
 	if err = service.store.AppendRevision(ctx, value, revision, expectedVersion); err != nil {
 		if errors.Is(err, ErrConcurrentUpdate) {
-			return RevisionResult{Kind: RevisionConflict, Detail: ConcurrentUpdateDetail}, nil
+			return RevisionResult{Kind: RevisionConflict, Code: ConcurrentUpdateCode, Detail: ConcurrentUpdateDetail}, nil
 		}
 		return RevisionResult{}, err
 	}

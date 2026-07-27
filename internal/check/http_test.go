@@ -14,7 +14,7 @@ func TestCatalogIdentityAndUnsupportedCheck(t *testing.T) {
 		t.Fatal("unexpected catalog support")
 	}
 	_, failures := catalog.Validate("dns", 1, json.RawMessage(`{}`))
-	want := [][2]string{{"checkType", "The check type 'dns' is not supported by this build."}}
+	want := [][2]string{{CheckTypeUnsupportedCode, "checkType"}}
 	assertFailures(t, failures, want)
 }
 
@@ -56,13 +56,13 @@ func TestSchemaDocumentAndUnknownFieldFailuresAreExact(t *testing.T) {
 		raw     json.RawMessage
 		want    [][2]string
 	}{
-		{"schema", 2, json.RawMessage(`{"url":"https://example.test"}`), [][2]string{{"checkSchemaVersion", "Check type 'http' supports configuration schema version 1 only."}}},
-		{"array", 1, json.RawMessage(`[]`), [][2]string{{"checkConfiguration", "The configuration must be a JSON object."}}},
-		{"null", 1, json.RawMessage(`null`), [][2]string{{"checkConfiguration", "The configuration must be a JSON object."}}},
-		{"malformed", 1, json.RawMessage(`{`), [][2]string{{"checkConfiguration", "The configuration must be a JSON object."}}},
+		{"schema", 2, json.RawMessage(`{"url":"https://example.test"}`), [][2]string{{SchemaVersionUnsupportedCode, "checkSchemaVersion"}}},
+		{"array", 1, json.RawMessage(`[]`), [][2]string{{ConfigurationNotObjectCode, "checkConfiguration"}}},
+		{"null", 1, json.RawMessage(`null`), [][2]string{{ConfigurationNotObjectCode, "checkConfiguration"}}},
+		{"malformed", 1, json.RawMessage(`{`), [][2]string{{ConfigurationNotObjectCode, "checkConfiguration"}}},
 		{"unknown and missing", 1, json.RawMessage(`{"timeout":5}`), [][2]string{
-			{"checkConfiguration.timeout", "The field is not part of 'http' configuration schema version 1."},
-			{"checkConfiguration.url", "The field is required."},
+			{UnknownFieldCode, "checkConfiguration.timeout"},
+			{URLRequiredCode, "checkConfiguration.url"},
 		}},
 	}
 	for _, test := range tests {
@@ -80,104 +80,103 @@ func TestRawDocumentLimitPrecedesFieldValidation(t *testing.T) {
 	t.Parallel()
 	raw := json.RawMessage(fmt.Sprintf(`{"url":"https://example.test/%s"}`, strings.Repeat("a", MaxDocumentBytes)))
 	_, _, failures := ValidateHTTP(1, raw)
-	assertFailures(t, failures, [][2]string{{"checkConfiguration", "The configuration document must not exceed 16384 bytes."}})
+	assertFailures(t, failures, [][2]string{{ConfigurationTooLargeCode, "checkConfiguration"}})
 }
 
 func TestURLValidationMessages(t *testing.T) {
 	t.Parallel()
-	tests := []struct{ name, value, message string }{
-		{"wrong type", `42`, "The value must be a string."},
-		{"relative", `"not a url"`, "The value must be an absolute URL."},
-		{"protocol relative", `"//example.test/health"`, "The URL scheme must be 'http' or 'https'."},
-		{"scheme", `"ftp://example.test/file"`, "The URL scheme must be 'http' or 'https'."},
-		{"userinfo", `"https://user:secret@example.test/"`, "The URL must not carry user information."},
-		{"empty userinfo", `"https://@example.test/"`, "The URL must not carry user information."},
-		{"fragment", `"https://example.test/health#fragment"`, "The URL must not carry a fragment."},
-		{"empty fragment", `"https://example.test/health#"`, "The URL must not carry a fragment."},
-		{"missing host", `"https:/health"`, "The value must be an absolute URL."},
+	tests := []struct{ name, value, code string }{
+		{"wrong type", `42`, URLNotStringCode},
+		{"relative", `"not a url"`, URLNotAbsoluteCode},
+		{"protocol relative", `"//example.test/health"`, URLSchemeCode},
+		{"scheme", `"ftp://example.test/file"`, URLSchemeCode},
+		{"userinfo", `"https://user:secret@example.test/"`, URLUserInfoCode},
+		{"empty userinfo", `"https://@example.test/"`, URLUserInfoCode},
+		{"fragment", `"https://example.test/health#fragment"`, URLFragmentCode},
+		{"empty fragment", `"https://example.test/health#"`, URLFragmentCode},
+		{"missing host", `"https:/health"`, URLNotAbsoluteCode},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			raw := json.RawMessage(`{"url":` + test.value + `}`)
 			_, _, failures := ValidateHTTP(1, raw)
-			assertFailures(t, failures, [][2]string{{"checkConfiguration.url", test.message}})
+			assertFailures(t, failures, [][2]string{{test.code, "checkConfiguration.url"}})
 		})
 	}
 	overlong := json.RawMessage(`{"url":"https://example.test/` + strings.Repeat("a", MaxURLLength) + `"}`)
 	_, _, failures := ValidateHTTP(1, overlong)
-	assertFailures(t, failures, [][2]string{{"checkConfiguration.url", "The URL must not exceed 2048 characters."}})
+	assertFailures(t, failures, [][2]string{{URLTooLongCode, "checkConfiguration.url"}})
 }
 
 func TestMethodAndScalarValidationMessages(t *testing.T) {
 	t.Parallel()
-	tests := []struct{ fragment, field, message string }{
-		{`"method":"get"`, "checkConfiguration.method", "The method must be one of: GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS."},
-		{`"method":1`, "checkConfiguration.method", "The value must be a string."},
-		{`"timeoutSeconds":0`, "checkConfiguration.timeoutSeconds", "The value must be between 1 and 60."},
-		{`"timeoutSeconds":61`, "checkConfiguration.timeoutSeconds", "The value must be between 1 and 60."},
-		{`"timeoutSeconds":30.0`, "checkConfiguration.timeoutSeconds", "The value must be an integer."},
-		{`"timeoutSeconds":2147483648`, "checkConfiguration.timeoutSeconds", "The value must be an integer."},
-		{`"followRedirects":"true"`, "checkConfiguration.followRedirects", "The value must be a boolean."},
-		{`"maxRedirects":-1`, "checkConfiguration.maxRedirects", "The value must be between 0 and 10."},
-		{`"maxRedirects":11`, "checkConfiguration.maxRedirects", "The value must be between 0 and 10."},
+	tests := []struct{ fragment, field, code string }{
+		{`"method":"get"`, "checkConfiguration.method", MethodUnsupportedCode},
+		{`"method":1`, "checkConfiguration.method", MethodNotStringCode},
+		{`"timeoutSeconds":0`, "checkConfiguration.timeoutSeconds", "check.http.timeoutSeconds.outOfRange"},
+		{`"timeoutSeconds":61`, "checkConfiguration.timeoutSeconds", "check.http.timeoutSeconds.outOfRange"},
+		{`"timeoutSeconds":30.0`, "checkConfiguration.timeoutSeconds", "check.http.timeoutSeconds.notInteger"},
+		{`"timeoutSeconds":2147483648`, "checkConfiguration.timeoutSeconds", "check.http.timeoutSeconds.notInteger"},
+		{`"followRedirects":"true"`, "checkConfiguration.followRedirects", FollowRedirectsNotBoolCode},
+		{`"maxRedirects":-1`, "checkConfiguration.maxRedirects", "check.http.maxRedirects.outOfRange"},
+		{`"maxRedirects":11`, "checkConfiguration.maxRedirects", "check.http.maxRedirects.outOfRange"},
 	}
 	for _, test := range tests {
 		t.Run(test.fragment, func(t *testing.T) {
 			_, _, failures := ValidateHTTP(1, withURL(test.fragment))
-			assertFailures(t, failures, [][2]string{{test.field, test.message}})
+			assertFailures(t, failures, [][2]string{{test.code, test.field}})
 		})
 	}
 }
 
 func TestExpectedStatusCodeValidation(t *testing.T) {
 	t.Parallel()
-	tests := []struct{ fragment, field, message string }{
-		{`"expectedStatusCodes":200`, "checkConfiguration.expectedStatusCodes", "The value must be an array of integers."},
-		{`"expectedStatusCodes":[200,"204"]`, "checkConfiguration.expectedStatusCodes[1]", "The value must be an integer."},
-		{`"expectedStatusCodes":[99]`, "checkConfiguration.expectedStatusCodes[0]", "Status codes must be between 100 and 599."},
-		{`"expectedStatusCodes":[600]`, "checkConfiguration.expectedStatusCodes[0]", "Status codes must be between 100 and 599."},
-		{`"expectedStatusCodes":[200,200]`, "checkConfiguration.expectedStatusCodes[1]", "Status code 200 is listed more than once."},
+	tests := []struct{ fragment, field, code string }{
+		{`"expectedStatusCodes":200`, "checkConfiguration.expectedStatusCodes", StatusCodesNotArrayCode},
+		{`"expectedStatusCodes":[200,"204"]`, "checkConfiguration.expectedStatusCodes[1]", StatusCodeNotIntegerCode},
+		{`"expectedStatusCodes":[99]`, "checkConfiguration.expectedStatusCodes[0]", StatusCodeOutOfRangeCode},
+		{`"expectedStatusCodes":[600]`, "checkConfiguration.expectedStatusCodes[0]", StatusCodeOutOfRangeCode},
+		{`"expectedStatusCodes":[200,200]`, "checkConfiguration.expectedStatusCodes[1]", StatusCodeDuplicateCode},
 	}
 	for _, test := range tests {
 		_, _, failures := ValidateHTTP(1, withURL(test.fragment))
-		assertFailures(t, failures, [][2]string{{test.field, test.message}})
+		assertFailures(t, failures, [][2]string{{test.code, test.field}})
 	}
 	codes := make([]string, MaxExpectedStatusCodes+1)
 	for index := range codes {
 		codes[index] = strconvItoa(200 + index)
 	}
 	_, _, failures := ValidateHTTP(1, withURL(`"expectedStatusCodes":[`+strings.Join(codes, ",")+`]`))
-	assertFailures(t, failures, [][2]string{{"checkConfiguration.expectedStatusCodes", "At most 20 status codes are allowed."}})
+	assertFailures(t, failures, [][2]string{{StatusCodesTooManyCode, "checkConfiguration.expectedStatusCodes"}})
 }
 
 func TestHeaderShapeNameValueForbiddenAndDuplicateValidation(t *testing.T) {
 	t.Parallel()
-	tests := []struct{ fragment, field, message string }{
-		{`"headers":{}`, "checkConfiguration.headers", "The value must be an array of name/value objects."},
-		{`"headers":["Accept: json"]`, "checkConfiguration.headers[0]", "Each header must be an object with 'name' and 'value'."},
-		{`"headers":[{"name":"Accept"}]`, "checkConfiguration.headers[0]", "Each header must be an object with 'name' and 'value'."},
-		{`"headers":[{"name":1,"value":"x"}]`, "checkConfiguration.headers[0].name", "The value must be a string."},
-		{`"headers":[{"name":"Accept","value":"x","extra":1}]`, "checkConfiguration.headers[0].extra", "The field is not part of a header entry."},
-		{`"headers":[{"name":"Bad Header","value":"x"}]`, "checkConfiguration.headers[0].name", "Header names must be HTTP tokens of at most 128 characters."},
-		{`"headers":[{"name":"Authorization","value":"x"}]`, "checkConfiguration.headers[0].name", "The header 'Authorization' cannot be set by check configuration."},
-		{`"headers":[{"name":"Accept","value":"x"},{"name":"accept","value":"y"}]`, "checkConfiguration.headers[1].name", "The header 'accept' is listed more than once."},
-		{`"headers":[{"name":"Accept","value":"a\tb"}]`, "checkConfiguration.headers[0].value", "Header values must not contain control characters."},
+	tests := []struct{ fragment, field, code string }{
+		{`"headers":{}`, "checkConfiguration.headers", HeadersNotArrayCode},
+		{`"headers":["Accept: json"]`, "checkConfiguration.headers[0]", HeaderEntryNotObjectCode},
+		{`"headers":[{"name":"Accept"}]`, "checkConfiguration.headers[0]", HeaderEntryNotObjectCode},
+		{`"headers":[{"name":1,"value":"x"}]`, "checkConfiguration.headers[0].name", HeaderNameNotStringCode},
+		{`"headers":[{"name":"Accept","value":"x","extra":1}]`, "checkConfiguration.headers[0].extra", HeaderEntryUnknownFieldCode},
+		{`"headers":[{"name":"Bad Header","value":"x"}]`, "checkConfiguration.headers[0].name", HeaderNameInvalidCode},
+		{`"headers":[{"name":"Authorization","value":"x"}]`, "checkConfiguration.headers[0].name", HeaderNameForbiddenCode},
+		{`"headers":[{"name":"Accept","value":"x"},{"name":"accept","value":"y"}]`, "checkConfiguration.headers[1].name", HeaderNameDuplicateCode},
+		{`"headers":[{"name":"Accept","value":"a\tb"}]`, "checkConfiguration.headers[0].value", HeaderValueControlCharacterCode},
 	}
 	for _, test := range tests {
 		_, _, failures := ValidateHTTP(1, withURL(test.fragment))
-		assertFailures(t, failures, [][2]string{{test.field, test.message}})
+		assertFailures(t, failures, [][2]string{{test.code, test.field}})
 	}
 	longValue := strings.Repeat("v", MaxHeaderValueLength+1)
 	_, _, failures := ValidateHTTP(1, withURL(`"headers":[{"name":"X-Probe","value":"`+longValue+`"}]`))
-	assertFailures(t, failures, [][2]string{{"checkConfiguration.headers[0].value", "Header values must not exceed 1024 characters."}})
+	assertFailures(t, failures, [][2]string{{HeaderValueTooLongCode, "checkConfiguration.headers[0].value"}})
 }
 
 func TestEveryForbiddenHeaderIsCaseInsensitive(t *testing.T) {
 	t.Parallel()
 	for _, name := range []string{"Authorization", "proxy-authorization", "COOKIE", "Host", "Content-Length", "Transfer-Encoding"} {
 		_, _, failures := ValidateHTTP(1, withURL(`"headers":[{"name":"`+name+`","value":"x"}]`))
-		want := fmt.Sprintf("The header '%s' cannot be set by check configuration.", name)
-		assertFailures(t, failures, [][2]string{{"checkConfiguration.headers[0].name", want}})
+		assertFailures(t, failures, [][2]string{{HeaderNameForbiddenCode, "checkConfiguration.headers[0].name"}})
 	}
 }
 
@@ -186,10 +185,10 @@ func TestMultipleFailuresPreserveEncounterOrderAndDuplicateProperties(t *testing
 	raw := json.RawMessage(`{"method":"FETCH","url":1,"timeoutSeconds":0,"url":"https://example.test","unknown":true}`)
 	_, _, failures := ValidateHTTP(1, raw)
 	want := [][2]string{
-		{"checkConfiguration.method", "The method must be one of: GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS."},
-		{"checkConfiguration.url", "The value must be a string."},
-		{"checkConfiguration.timeoutSeconds", "The value must be between 1 and 60."},
-		{"checkConfiguration.unknown", "The field is not part of 'http' configuration schema version 1."},
+		{MethodUnsupportedCode, "checkConfiguration.method"},
+		{URLNotStringCode, "checkConfiguration.url"},
+		{"check.http.timeoutSeconds.outOfRange", "checkConfiguration.timeoutSeconds"},
+		{UnknownFieldCode, "checkConfiguration.unknown"},
 	}
 	assertFailures(t, failures, want)
 }
@@ -207,14 +206,20 @@ func withURL(fragment string) json.RawMessage {
 	return json.RawMessage(`{"url":"https://example.test/health",` + fragment + `}`)
 }
 
-func assertFailures(t *testing.T, got, want [][2]string) {
+// assertFailures compares the stable code and field path of each failure in order.
+// English prose is documentation under ADR 0019 and is deliberately not asserted, so
+// copy edits do not break tests.
+func assertFailures(t *testing.T, got [][3]string, want [][2]string) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Fatalf("failures = %#v, want %#v", got, want)
 	}
 	for index := range want {
-		if got[index] != want[index] {
-			t.Fatalf("failure %d = %#v, want %#v", index, got[index], want[index])
+		if got[index][0] != want[index][0] || got[index][1] != want[index][1] {
+			t.Fatalf(
+				"failure %d = code %q field %q, want code %q field %q",
+				index, got[index][0], got[index][1], want[index][0], want[index][1],
+			)
 		}
 	}
 }

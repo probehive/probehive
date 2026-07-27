@@ -58,7 +58,7 @@ func (server *Server) createOrganization(w http.ResponseWriter, r *http.Request)
 	case organization.ProvisionReplayed:
 		writeJSON(w, http.StatusOK, toOrganizationResponse(result.Details))
 	case organization.ProvisionSlugConflict:
-		writeProblem(w, http.StatusConflict, organization.SlugConflictTitle, result.Detail)
+		writeCodedProblem(w, http.StatusConflict, result.Code, organization.SlugConflictTitle, result.Detail)
 	case organization.ProvisionInvalid:
 		writeValidationProblem(w, organizationFailurePairs(result.Failures))
 	default:
@@ -103,12 +103,12 @@ func toOrganizationResponse(details organization.Details) api.OrganizationRespon
 	}
 }
 
-func organizationFailurePairs(failures []organization.ValidationFailure) [][2]string {
-	pairs := make([][2]string, len(failures))
+func organizationFailurePairs(failures []organization.ValidationFailure) [][3]string {
+	triples := make([][3]string, len(failures))
 	for index, failure := range failures {
-		pairs[index] = [2]string{failure.Field, failure.Message}
+		triples[index] = [3]string{failure.Code, failure.Field, failure.Message}
 	}
-	return pairs
+	return triples
 }
 
 func canonicalUUID(value string) (string, bool) {

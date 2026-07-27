@@ -122,14 +122,14 @@ func (service *Service) CreateFirstAdministrator(ctx context.Context, command Cr
 	var failures []ValidationFailure
 	email, validEmail := NormalizeEmail(command.Email)
 	if !validEmail {
-		failures = append(failures, ValidationFailure{Field: "email", Message: EmailValidationMessage})
+		failures = append(failures, ValidationFailure{Code: EmailInvalidCode, Field: "email", Message: EmailValidationMessage})
 	}
 	displayName, validDisplayName := NormalizeDisplayName(command.DisplayName)
 	if !validDisplayName {
-		failures = append(failures, ValidationFailure{Field: "displayName", Message: DisplayNameValidationMessage})
+		failures = append(failures, ValidationFailure{Code: DisplayNameInvalidCode, Field: "displayName", Message: DisplayNameValidationMessage})
 	}
 	if !ValidPassword(command.Password) {
-		failures = append(failures, ValidationFailure{Field: "password", Message: PasswordValidationMessage})
+		failures = append(failures, ValidationFailure{Code: PasswordLengthCode, Field: "password", Message: PasswordValidationMessage})
 	}
 	if len(failures) != 0 {
 		return CreateFirstAdministratorResult{Kind: CreateFirstAdministratorInvalid, Failures: failures}, nil

@@ -12,20 +12,28 @@ import (
 const (
 	// AdministratorRole is the only current instance role.
 	AdministratorRole = "Administrator"
-	// EmailValidationMessage is the exact first-administrator email validation message.
-	EmailValidationMessage = "An email address contains one '@' with non-empty sides, no whitespace, and at most 254 characters."
-	// DisplayNameValidationMessage is the exact first-administrator display-name validation message.
+)
+
+// Stable error codes. A code is contract under ADR 0019: its spelling, meaning,
+// field path, and HTTP status never change once published. The English text
+// beside it is documentation and may be reworded freely.
+const (
+	EmailInvalidCode          = "user.email.invalid"
+	DisplayNameInvalidCode    = "user.displayName.invalid"
+	PasswordLengthCode        = "user.password.length"
+	SetupAlreadyCompletedCode = "user.setup.alreadyCompleted"
+	InvalidCredentialsCode    = "user.credentials.invalid"
+)
+
+// Current English text for the codes above. Not contract; clients translate the code.
+const (
+	EmailValidationMessage       = "An email address contains one '@' with non-empty sides, no whitespace, and at most 254 characters."
 	DisplayNameValidationMessage = "A display name is 1 to 100 characters after trimming."
-	// PasswordValidationMessage is the exact first-administrator password validation message.
-	PasswordValidationMessage = "A password is 12 to 128 characters."
-	// SetupAlreadyCompletedTitle is the public setup conflict title.
-	SetupAlreadyCompletedTitle = "Setup already completed"
-	// SetupAlreadyCompletedDetail is the public setup conflict detail.
-	SetupAlreadyCompletedDetail = "The instance already has at least one user; sign in instead."
-	// InvalidCredentialsTitle is the generic login failure title.
-	InvalidCredentialsTitle = "Invalid credentials"
-	// InvalidCredentialsDetail is the generic login failure detail.
-	InvalidCredentialsDetail = "The email and password combination did not match a local account."
+	PasswordValidationMessage    = "A password is 12 to 128 characters."
+	SetupAlreadyCompletedTitle   = "Setup already completed"
+	SetupAlreadyCompletedDetail  = "The instance already has at least one user; sign in instead."
+	InvalidCredentialsTitle      = "Invalid credentials"
+	InvalidCredentialsDetail     = "The email and password combination did not match a local account."
 )
 
 // ID identifies a local user.
@@ -76,8 +84,10 @@ func (value *User) ReplacePasswordHash(passwordHash string) error {
 	return nil
 }
 
-// ValidationFailure is one field-level use-case validation failure.
+// ValidationFailure is one field-level use-case validation failure. Code is the
+// stable contract identifier (ADR 0019); Message is current English documentation.
 type ValidationFailure struct {
+	Code    string
 	Field   string
 	Message string
 }

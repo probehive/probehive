@@ -100,8 +100,13 @@ test('shows field-level validation problems', async () => {
             title: 'One or more validation errors occurred.',
             status: 400,
             errors: {
-              slug: ['A slug is 3 to 63 characters.'],
-              displayName: ['A display name is 1 to 100 characters after trimming.'],
+              slug: [{ code: 'organization.slug.invalid', message: 'A slug is 3 to 63 characters.' }],
+              displayName: [
+                {
+                  code: 'organization.displayName.invalid',
+                  message: 'A display name is 1 to 100 characters after trimming.',
+                },
+              ],
             },
           })
         : jsonResponse(200, []),

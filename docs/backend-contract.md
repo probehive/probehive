@@ -4,7 +4,7 @@ Status: working implementation specification for the unreleased initial vertical
 
 This document defines the observable backend behavior of the initial vertical slice. It is maintained with
 the v1 API, check validation, PostgreSQL adapters and migrations, API tests, React
-client, Playwright journey, and ADRs 0012-0014. The web application and browser
+client, Playwright journey, and ADRs 0012-0019. The web application and browser
 journey are contract consumers and remain synchronized with this specification.
 
 ADRs remain normative. Where the current implementation and an ADR differ, this
@@ -46,7 +46,19 @@ Errors use `Content-Type: application/problem+json`. The ordinary shape is:
 }
 ```
 
-Validation errors use this extension:
+Non-validation problems carry a stable `code` beside `title` (ADR 0019):
+
+```json
+{
+  "type": "a standards problem type URI",
+  "title": "Invalid credentials",
+  "status": 401,
+  "code": "user.credentials.invalid",
+  "detail": "Human-readable detail"
+}
+```
+
+Validation errors use this extension, one coded entry per failure:
 
 ```json
 {
@@ -54,20 +66,36 @@ Validation errors use this extension:
   "title": "One or more validation errors occurred.",
   "status": 400,
   "errors": {
-    "field.path": ["One or more messages in validation order."]
+    "field.path": [
+      { "code": "organization.slug.invalid", "message": "One message, in validation order." }
+    ]
   }
 }
 ```
 
-Clients treat `type`, `title`, `status`, `detail`, and `errors` as optional
-and ignore unknown properties. The contract requires the media type, numeric status,
-titles and details explicitly listed in this document, and validation error map.
-A server may add a standards URI or request-id extension.
+**Prose is not contract; codes are.** Every `title`, `detail`, and validation
+`message` in this document is the current English text and may be reworded without a
+compatibility event. Clients must never match on it. What is contract is the `code`:
+its spelling, its meaning, the field path it appears under, and the accompanying HTTP
+status. A code's meaning never changes once published; a new rule gets a new code, and
+adding a code to an existing field is compatible. Clients localize from the code and
+fall back to `message` for a code they do not recognize.
 
-Bare authorization and routing statuses are also Problem Details: unauthenticated is
-`401` with title `Unauthorized`, authenticated but unauthorized is `403` with title
-`Forbidden`, missing resources are `404`, and exhausted rate limits are `429`.
-Authentication never redirects to an HTML login or access-denied page.
+Clients treat `type`, `title`, `status`, `code`, `detail`, and `errors` as optional and
+ignore unknown properties. The contract requires the media type, numeric status, the
+codes listed in this document, and the validation error map. A server may add a
+standards URI or request-id extension.
+
+Bare authorization and routing statuses are also Problem Details and also carry codes:
+unauthenticated is `401` `auth.unauthorized`, authenticated but unauthorized is `403`
+`auth.forbidden`, missing resources are `404` `resource.notFound`, a rejected method is
+`405` `request.methodNotAllowed`, and exhausted rate limits are `429`
+`request.rateLimited`. A malformed body is `400` `request.malformed` and an unexpected
+server failure is `500` `server.internalError`. Authentication never redirects to an
+HTML login or access-denied page.
+
+The remaining transport codes are `request.antiforgery.invalid` for a missing or invalid
+antiforgery token and `request.origin.rejected` for a browser-origin mismatch.
 
 ## 2. Wire Types
 
@@ -535,3 +563,67 @@ lands on the Organization list containing `Default`, creates slug `acme` with di
 `Acme Monitoring`, follows the returned Organization, and renders its default Project.
 The journey and `web/src` are contract consumers: either may change, but a change that
 alters observable behavior described here must update this document in the same commit.
+
+## 13. Error Code Catalog
+
+Every code the current build can emit. A client catalog covers this list; an unknown
+code falls back to the response's English `message` (ADR 0019). Codes are contract;
+the sentences elsewhere in this document are not.
+
+Transport and authorization:
+
+```text
+auth.unauthorized              auth.forbidden               resource.notFound
+request.methodNotAllowed       request.rateLimited          request.malformed
+request.antiforgery.invalid    request.origin.rejected      server.internalError
+```
+
+Users, sessions, and setup:
+
+```text
+user.email.invalid       user.displayName.invalid     user.password.length
+user.credentials.invalid user.setup.alreadyCompleted
+```
+
+Organizations:
+
+```text
+organization.slug.invalid  organization.displayName.invalid  organization.slug.conflict
+```
+
+Monitors:
+
+```text
+monitor.name.invalid       monitor.checkType.invalid      monitor.checkType.unsupported
+monitor.state.invalidTarget monitor.concurrentUpdate      monitor.archived.readOnly
+monitor.state.activationWithoutRevision                    monitor.state.transitionNotAllowed
+```
+
+Check configuration:
+
+```text
+check.checkType.unsupported          check.schemaVersion.unsupported
+check.configuration.notObject        check.configuration.tooLarge
+check.http.field.unknown
+check.http.url.required              check.http.url.notString
+check.http.url.tooLong               check.http.url.notAbsolute
+check.http.url.scheme                check.http.url.userInfo
+check.http.url.fragment
+check.http.method.notString          check.http.method.unsupported
+check.http.expectedStatusCodes.notArray      check.http.expectedStatusCodes.tooMany
+check.http.expectedStatusCodes.notInteger    check.http.expectedStatusCodes.outOfRange
+check.http.expectedStatusCodes.duplicate
+check.http.timeoutSeconds.notInteger check.http.timeoutSeconds.outOfRange
+check.http.maxRedirects.notInteger   check.http.maxRedirects.outOfRange
+check.http.followRedirects.notBoolean
+check.http.headers.notArray          check.http.headers.tooMany
+check.http.headers.entry.notObject   check.http.headers.entry.unknownField
+check.http.headers.name.notString    check.http.headers.name.invalid
+check.http.headers.name.forbidden    check.http.headers.name.duplicate
+check.http.headers.value.notString   check.http.headers.value.tooLong
+check.http.headers.value.controlCharacter
+```
+
+`monitor.checkType.unsupported` and `check.checkType.unsupported` describe the same
+condition at two layers; the Monitor use case screens first, and a catalog may map both
+to one sentence.

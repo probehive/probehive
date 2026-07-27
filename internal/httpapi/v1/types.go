@@ -127,10 +127,18 @@ type CreateMonitorRevisionRequest struct {
 	CheckConfiguration json.RawMessage `json:"checkConfiguration"`
 }
 
+// ValidationError is one field-level failure. Code is the stable contract identifier
+// clients localize from; Message is current English documentation (ADR 0019).
+type ValidationError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
 type ProblemDetails struct {
-	Type   string              `json:"type"`
-	Title  string              `json:"title"`
-	Status int                 `json:"status"`
-	Detail string              `json:"detail,omitempty"`
-	Errors map[string][]string `json:"errors,omitempty"`
+	Type   string                       `json:"type"`
+	Title  string                       `json:"title"`
+	Status int                          `json:"status"`
+	Code   string                       `json:"code,omitempty"`
+	Detail string                       `json:"detail,omitempty"`
+	Errors map[string][]ValidationError `json:"errors,omitempty"`
 }

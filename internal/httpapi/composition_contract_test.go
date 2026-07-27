@@ -159,6 +159,55 @@ func TestOrganizationReplayAndGetExactWireShape(t *testing.T) {
 	}
 }
 
+func TestProblemDetailsCarryStableCodes(t *testing.T) {
+	environment := newTestEnvironment(t, true, 0)
+	token, _ := environment.getAntiforgery(t)
+
+	// A validation problem carries one coded entry per failure, grouped by field path.
+	invalid := environment.request(
+		t, environment.client, http.MethodPost, "/api/v1/setup/admin",
+		`{"email":"nope","displayName":"  ","password":"short"}`,
+		environment.server.URL, token.RequestToken,
+	)
+	problem := decodeProblem(t, invalid)
+	if problem.Status != http.StatusBadRequest || problem.Code != "" {
+		t.Fatalf("validation problem = %#v, want 400 with no top-level code", problem)
+	}
+	wantCodes := map[string]string{
+		"email":       user.EmailInvalidCode,
+		"displayName": user.DisplayNameInvalidCode,
+		"password":    user.PasswordLengthCode,
+	}
+	for field, code := range wantCodes {
+		entries := problem.Errors[field]
+		if len(entries) != 1 || entries[0].Code != code || entries[0].Message == "" {
+			t.Errorf("errors[%q] = %#v, want code %q with a non-empty message", field, entries, code)
+		}
+	}
+
+	// A non-validation problem carries a top-level code instead.
+	environment.bootstrapAdministrator(t)
+	refreshed, _ := environment.getAntiforgery(t)
+	conflict := environment.request(
+		t, environment.client, http.MethodPost, "/api/v1/setup/admin",
+		`{"email":"admin@example.test","displayName":"Admin","password":"password-123"}`,
+		environment.server.URL, refreshed.RequestToken,
+	)
+	conflictProblem := decodeProblem(t, conflict)
+	if conflictProblem.Status != http.StatusConflict ||
+		conflictProblem.Code != user.SetupAlreadyCompletedCode || len(conflictProblem.Errors) != 0 {
+		t.Fatalf("conflict problem = %#v", conflictProblem)
+	}
+
+	// Transport-level problems are coded too, so a client never has to match prose.
+	unauthorized := environment.request(
+		t, environment.client, http.MethodGet, "/api/v1/organizations/not-a-uuid", "", "", "",
+	)
+	if notFound := decodeProblem(t, unauthorized); notFound.Code != notFoundCode {
+		t.Fatalf("routing problem = %#v, want code %q", notFound, notFoundCode)
+	}
+}
+
 func TestSetupProvisionsBootstrapOrganizationAndListsIt(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	token, _ := environment.getAntiforgery(t)

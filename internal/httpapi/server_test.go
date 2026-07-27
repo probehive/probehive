@@ -181,14 +181,16 @@ func TestMalformedUUIDAndValidationProblemDetails(t *testing.T) {
 	if problem.Status != http.StatusBadRequest || problem.Title != "One or more validation errors occurred." {
 		t.Fatalf("validation problem = %#v", problem)
 	}
+	// Codes are contract; the English message beside them is documentation (ADR 0019).
 	want := map[string]string{
-		"email":       user.EmailValidationMessage,
-		"displayName": user.DisplayNameValidationMessage,
-		"password":    user.PasswordValidationMessage,
+		"email":       user.EmailInvalidCode,
+		"displayName": user.DisplayNameInvalidCode,
+		"password":    user.PasswordLengthCode,
 	}
-	for field, message := range want {
-		if values := problem.Errors[field]; len(values) != 1 || values[0] != message {
-			t.Errorf("errors[%q] = %#v, want %q", field, values, message)
+	for field, code := range want {
+		values := problem.Errors[field]
+		if len(values) != 1 || values[0].Code != code || values[0].Message == "" {
+			t.Errorf("errors[%q] = %#v, want code %q with a non-empty message", field, values, code)
 		}
 	}
 }

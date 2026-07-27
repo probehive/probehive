@@ -79,7 +79,7 @@ test('shows field-level validation problems', async () => {
         title: 'One or more validation errors occurred.',
         status: 400,
         errors: {
-          password: ['A password is 12 to 128 characters.'],
+          password: [{ code: 'user.password.length', message: 'A password is 12 to 128 characters.' }],
         },
       }),
   })

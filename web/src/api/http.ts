@@ -1,9 +1,17 @@
+/** One field-level failure. `code` is contract; `message` is English documentation (ADR 0019). */
+export interface ValidationError {
+  code: string
+  message: string
+}
+
 export interface ProblemDetails {
   type?: string
   title?: string
   status?: number
+  /** Stable code for a non-validation problem. */
+  code?: string
   detail?: string
-  errors?: Record<string, string[]>
+  errors?: Record<string, ValidationError[]>
 }
 
 export class ApiError extends Error {
