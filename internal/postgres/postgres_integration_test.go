@@ -63,10 +63,14 @@ func TestMigrationsAreConcurrentSafeAndIdempotent(t *testing.T) {
 		t.Fatalf("schema migration count = %d, want %d", migrationCount, len(embeddedMigrationVersions(t)))
 	}
 
+	// runs and observations are the partitioned parents only. Their monthly partitions are
+	// created by RunStore.EnsurePartitions rather than by a migration (ADR 0025), so a
+	// freshly migrated schema holds no partition and the count below stays stable.
 	requiredTables := []string{
 		"organizations", "projects", "users", "monitors", "monitor_revisions",
 		"organization_members", "sessions", "antiforgery_tokens",
 		"anonymous_antiforgery_keys", "schema_migrations",
+		"runs", "observations", "outbox_entries",
 	}
 	for _, table := range requiredTables {
 		if !relationExists(t, database, table) {

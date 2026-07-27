@@ -4,6 +4,8 @@
 - Date: 2026-07-27
 - Clarifies: [ADR 0005](0005-postgresql-leases-and-outbox.md), [ADR 0014](0014-monitor-lifecycle-and-revision-immutability.md)
 - Clarified by: [ADR 0024](0024-http-check-execution-and-observation-content.md)
+- Amended by: [ADR 0025](0025-run-storage-schema-and-lease-placement.md), which replaces the
+  `started_at` partition key below with `scheduled_for`
 
 ## Context
 
@@ -36,6 +38,8 @@ Every Observation is bounded before it is stored: response bodies are truncated 
 ### Partitioning and retention
 
 `runs` and `observations` are range-partitioned monthly on `started_at`. Retention is expressed in whole days, is operator-configurable, and defaults to a value small enough that an unattended installation cannot fill its disk with raw rows.
+
+ADR 0025 amends the partition key to `scheduled_for`. PostgreSQL requires a unique constraint on a partitioned table to include every partition-key column, so the idempotent run identity above cannot be enforced alongside a `started_at` key, and a `skipped` Run has no `started_at` to partition on at all. Everything else in this section stands.
 
 Expiry drops whole partitions rather than deleting rows. A partition is dropped once its entire range is older than the retention window, which makes reclaiming space an `O(1)` catalogue operation instead of a bulk delete that leaves bloat behind. A maintenance job creates partitions ahead of time; a missing future partition is an operational alert, not an insert failure discovered at midnight.
 

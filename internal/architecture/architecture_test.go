@@ -23,6 +23,7 @@ var standardLibraryOnlyPackages = []string{
 	"./internal/organization",
 	"./internal/user",
 	"./internal/monitor",
+	"./internal/run",
 	"./internal/check",
 	"./internal/outbound",
 }
