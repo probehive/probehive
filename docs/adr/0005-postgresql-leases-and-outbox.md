@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-22
+- Clarified by: [ADR 0021](0021-run-observation-retention-and-scheduling.md)
 
 ## Context
 

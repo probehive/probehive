@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-24
 - Clarifies: [ADR 0003](0003-organization-project-monitor-ownership.md)
-- Clarified by: [ADR 0016](0016-monitor-project-movement-and-default-project-lifecycle.md)
+- Clarified by: [ADR 0016](0016-monitor-project-movement-and-default-project-lifecycle.md), [ADR 0021](0021-run-observation-retention-and-scheduling.md)
 - Amended by: [ADR 0019](0019-internationalization-and-error-codes.md), which replaces this record's character-exact English messages with stable error codes
 
 ## Context

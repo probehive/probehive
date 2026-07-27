@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-22
-- Clarified by: [ADR 0015](0015-frontend-dependency-and-tooling-baseline.md)
+- Clarified by: [ADR 0015](0015-frontend-dependency-and-tooling-baseline.md), [ADR 0020](0020-check-execution-and-outbound-enforcement.md)
 
 ## Context
 
