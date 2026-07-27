@@ -21,6 +21,28 @@ var featurePackages = []string{
 	"./internal/check",
 }
 
+// forbiddenStandardPackages are standard-library packages ADR 0002 names explicitly:
+// feature packages "import no SQL package, HTTP package, database driver, composition
+// package, or sibling feature implementation". Membership of the standard library is not
+// a licence to reach for transport or persistence, and check execution will be tempted to
+// import net/http into internal/check, so the rule is enforced rather than trusted.
+var forbiddenStandardPackages = []string{
+	"net/http",
+	"net/rpc",
+	"database/sql",
+}
+
+// isForbiddenStandard matches a package and everything beneath it, so net/http/httptest
+// is caught along with net/http while net/url and net/netip stay allowed.
+func isForbiddenStandard(importPath string) bool {
+	for _, forbidden := range forbiddenStandardPackages {
+		if importPath == forbidden || strings.HasPrefix(importPath, forbidden+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 type listedPackage struct {
 	ImportPath string
 	Standard   bool
@@ -47,6 +69,8 @@ func TestFeaturePackagesUseOnlyTheStandardLibrary(t *testing.T) {
 				switch {
 				case isForbiddenAdapter(modulePath, dependency.ImportPath):
 					violations = append(violations, fmt.Sprintf("%s (forbidden adapter)", dependency.ImportPath))
+				case isForbiddenStandard(dependency.ImportPath):
+					violations = append(violations, fmt.Sprintf("%s (transport or persistence package)", dependency.ImportPath))
 				case !dependency.Standard:
 					violations = append(violations, fmt.Sprintf("%s (non-standard-library package)", dependency.ImportPath))
 				}
@@ -163,4 +187,25 @@ func withEnvironment(environment []string, key, value string) []string {
 		}
 	}
 	return append(result, prefix+value)
+}
+
+// TestForbiddenStandardPackageClassification pins the classifier itself. Without it the
+// guard above could silently match nothing and every dependency scan would still pass.
+func TestForbiddenStandardPackageClassification(t *testing.T) {
+	t.Parallel()
+	forbidden := []string{
+		"net/http", "net/http/httptest", "net/http/cookiejar", "database/sql", "database/sql/driver",
+	}
+	allowed := []string{"net", "net/url", "net/netip", "net/textproto", "encoding/json", "strings", "databasex"}
+
+	for _, importPath := range forbidden {
+		if !isForbiddenStandard(importPath) {
+			t.Errorf("isForbiddenStandard(%q) = false, want true", importPath)
+		}
+	}
+	for _, importPath := range allowed {
+		if isForbiddenStandard(importPath) {
+			t.Errorf("isForbiddenStandard(%q) = true, want false", importPath)
+		}
+	}
 }
