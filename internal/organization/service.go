@@ -27,6 +27,8 @@ type Store interface {
 	// Projects, in creation order using the Organization id as a tie-breaker.
 	ListForMember(context.Context, string) ([]Details, error)
 	FindMembership(context.Context, ID, string) (Membership, bool, error)
+	// UpdateDisplayName renames one Organization and reports whether it existed.
+	UpdateDisplayName(context.Context, ID, string) (bool, error)
 	// Create inserts the Organization, its default Project, and the creator's
 	// membership in one transaction, returning ErrDuplicateSlug on a uniqueness race.
 	Create(context.Context, Organization, Project, Membership) error
@@ -195,4 +197,47 @@ func (service *Service) Membership(ctx context.Context, id ID, userID string) (M
 		return Membership{}, false, nil
 	}
 	return service.store.FindMembership(ctx, id, userID)
+}
+
+// RenameKind identifies an Organization rename result.
+type RenameKind uint8
+
+const (
+	RenameInvalid RenameKind = iota + 1
+	RenameRenamed
+	RenameNotFound
+)
+
+// RenameResult is an expected Organization rename outcome.
+type RenameResult struct {
+	Kind     RenameKind
+	Details  Details
+	Failures []ValidationFailure
+}
+
+// Rename changes only an Organization's display name. The slug is immutable because it
+// is the idempotency key for provisioning (ADR 0022), and the rename is last-write-wins
+// because a display name has no dependent state that a lost update could corrupt.
+func (service *Service) Rename(ctx context.Context, id ID, requestedName string) (RenameResult, error) {
+	displayName, valid := NormalizeDisplayName(requestedName)
+	if !valid {
+		return RenameResult{Kind: RenameInvalid, Failures: []ValidationFailure{
+			{Code: DisplayNameInvalidCode, Field: "displayName", Message: DisplayNameValidationMessage},
+		}}, nil
+	}
+	found, err := service.store.UpdateDisplayName(ctx, id, displayName)
+	if err != nil {
+		return RenameResult{}, err
+	}
+	if !found {
+		return RenameResult{Kind: RenameNotFound}, nil
+	}
+	details, found, err := service.Get(ctx, id)
+	if err != nil {
+		return RenameResult{}, err
+	}
+	if !found {
+		return RenameResult{Kind: RenameNotFound}, nil
+	}
+	return RenameResult{Kind: RenameRenamed, Details: details}, nil
 }

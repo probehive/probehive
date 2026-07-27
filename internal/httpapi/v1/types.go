@@ -93,6 +93,10 @@ type CreateOrganizationRequest struct {
 	DisplayName *string `json:"displayName"`
 }
 
+type RenameOrganizationRequest struct {
+	DisplayName *string `json:"displayName"`
+}
+
 type CreateMonitorRequest struct {
 	Name      *string `json:"name"`
 	CheckType *string `json:"checkType"`

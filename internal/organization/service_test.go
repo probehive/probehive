@@ -37,6 +37,9 @@ type fakeStore struct {
 	defaultFound       bool
 	listed             []Details
 	listErr            error
+	renamedTo          []string
+	renameFound        bool
+	renameErr          error
 	membership         Membership
 	membershipFound    bool
 	createdMemberships []Membership
@@ -72,6 +75,11 @@ func (*fakeStore) FindProject(context.Context, ID, ProjectID) (Project, bool, er
 func (store *fakeStore) ListForMember(ctx context.Context, _ string) ([]Details, error) {
 	store.lastContextValue = ctx.Value(contextKey{})
 	return store.listed, store.listErr
+}
+func (store *fakeStore) UpdateDisplayName(ctx context.Context, _ ID, displayName string) (bool, error) {
+	store.lastContextValue = ctx.Value(contextKey{})
+	store.renamedTo = append(store.renamedTo, displayName)
+	return store.renameFound, store.renameErr
 }
 func (store *fakeStore) FindMembership(ctx context.Context, _ ID, _ string) (Membership, bool, error) {
 	store.lastContextValue = ctx.Value(contextKey{})
@@ -223,5 +231,50 @@ func TestGetDistinguishesNotFoundAndBrokenInvariant(t *testing.T) {
 	service = NewService(&fakeStore{byID: existing, byIDFound: true}, fixedClock{now}, &sequenceUUIDs{})
 	if _, _, err := service.Get(context.Background(), existing.ID); !errors.Is(err, ErrDefaultProjectMissing) {
 		t.Fatalf("error = %v, want ErrDefaultProjectMissing", err)
+	}
+}
+
+func TestRenameValidatesBeforeTouchingTheStoreAndNeverChangesTheSlug(t *testing.T) {
+	t.Parallel()
+	store := &fakeStore{}
+	service := NewService(store, fixedClock{time.Now()}, &sequenceUUIDs{})
+
+	invalid, err := service.Rename(context.Background(), "org", "   ")
+	if err != nil || invalid.Kind != RenameInvalid {
+		t.Fatalf("invalid rename = %#v, error %v", invalid, err)
+	}
+	want := []ValidationFailure{
+		{Code: DisplayNameInvalidCode, Field: "displayName", Message: DisplayNameValidationMessage},
+	}
+	if !reflect.DeepEqual(invalid.Failures, want) {
+		t.Fatalf("failures = %#v, want %#v", invalid.Failures, want)
+	}
+	if len(store.renamedTo) != 0 {
+		t.Fatal("an invalid rename reached the store")
+	}
+
+	missing, err := service.Rename(context.Background(), "org", "Acme")
+	if err != nil || missing.Kind != RenameNotFound {
+		t.Fatalf("missing rename = %#v, error %v", missing, err)
+	}
+
+	now := time.Date(2026, 7, 27, 0, 0, 0, 0, time.UTC)
+	existing, _ := NewOrganization("org", "acme", "Renamed", now)
+	project, _ := NewDefaultProject("project", existing.ID, now)
+	store = &fakeStore{
+		renameFound: true, byID: existing, byIDFound: true,
+		defaultProject: project, defaultFound: true,
+	}
+	renamed, err := NewService(store, fixedClock{now}, &sequenceUUIDs{}).
+		Rename(context.Background(), "org", "  Renamed  ")
+	if err != nil || renamed.Kind != RenameRenamed {
+		t.Fatalf("rename = %#v, error %v", renamed, err)
+	}
+	// The trimmed name reaches the store and the slug is not among the arguments.
+	if !reflect.DeepEqual(store.renamedTo, []string{"Renamed"}) {
+		t.Fatalf("store received %#v, want the trimmed display name only", store.renamedTo)
+	}
+	if renamed.Details.Organization.Slug != "acme" {
+		t.Fatalf("slug = %q, want it unchanged", renamed.Details.Organization.Slug)
 	}
 }

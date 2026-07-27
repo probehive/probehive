@@ -243,6 +243,32 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/name": {
+      "parameters": [{ "$ref": "#/components/parameters/OrganizationID" }],
+      "put": {
+        "tags": ["Organizations"],
+        "operationId": "renameOrganization",
+        "summary": "Change an Organization's display name",
+        "description": "Requires the organization.write permission. The slug is immutable because it is the idempotency key for provisioning; after a rename, provisioning the same slug with the pre-rename display name conflicts and the current name replays.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/RenameOrganizationRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "$ref": "#/components/responses/Organization" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}": {
       "parameters": [{ "$ref": "#/components/parameters/OrganizationID" }],
       "get": {
@@ -754,6 +780,12 @@
           "name": { "type": ["string", "null"] },
           "checkType": { "type": ["string", "null"] }
         }
+      },
+      "RenameOrganizationRequest": {
+        "type": "object",
+        "required": ["displayName"],
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "properties": { "displayName": { "type": "string" } }
       },
       "RenameMonitorRequest": {
         "type": "object",

@@ -61,6 +61,14 @@ export const en = {
   'organization.defaultProject': 'Default Project',
   'organization.name': 'Name',
 
+  'organization.rename.heading': 'Rename',
+  'organization.rename.form': 'Rename organization',
+  'organization.rename.displayName': 'Display name',
+  'organization.rename.submit': 'Rename',
+  'organization.rename.submitting': 'Renaming…',
+  'organization.rename.done': 'Organization renamed.',
+  'organization.rename.slugNote': 'The slug cannot be changed.',
+
   'error.user.email.invalid':
     "An email address contains one '@' with non-empty sides, no whitespace, and at most 254 characters.",
   'error.user.displayName.invalid': 'A display name is 1 to 100 characters after trimming.',

@@ -126,6 +126,7 @@ func (server *Server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/v1/auth/session", server.session)
 	mux.HandleFunc("/api/v1/organizations", server.organizationsRoot)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}", server.organizationItem)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/name", server.renameOrganization)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors", server.monitorsRoot)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}", server.monitorItem)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/name", server.renameMonitor)

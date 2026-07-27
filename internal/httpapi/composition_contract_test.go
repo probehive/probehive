@@ -204,6 +204,66 @@ func TestOrganizationReplayAndGetExactWireShape(t *testing.T) {
 	}
 }
 
+func TestOrganizationRenameGateAndReplayBoundary(t *testing.T) {
+	environment := newTestEnvironment(t, true, 0)
+	token := environment.bootstrapAdministrator(t)
+	const bootstrapOrganization = "00000000-0000-7000-8000-000000000002"
+	renamePath := "/api/v1/organizations/" + bootstrapOrganization + "/name"
+
+	// organization.write is additive: Administrator gains it by rule, Viewer does not.
+	environment.grantMembership(t, bootstrapOrganization, organization.RoleViewer)
+	forbidden := environment.request(
+		t, environment.client, http.MethodPut, renamePath,
+		`{"displayName":"Acme"}`, environment.server.URL, token,
+	)
+	assertProblem(t, forbidden, http.StatusForbidden, "Forbidden", "")
+
+	environment.grantMembership(t, bootstrapOrganization, organization.RoleAdministrator)
+	renamed := environment.request(
+		t, environment.client, http.MethodPut, renamePath,
+		`{"displayName":"  Acme Monitoring  "}`, environment.server.URL, token,
+	)
+	if renamed.StatusCode != http.StatusOK {
+		t.Fatalf("rename = %d, body %s", renamed.StatusCode, renamed.Body)
+	}
+	var after api.OrganizationResponse
+	if err := json.Unmarshal(renamed.Body, &after); err != nil {
+		t.Fatal(err)
+	}
+	if after.DisplayName != "Acme Monitoring" || after.Slug != "default" {
+		t.Fatalf("after rename = %#v, want the trimmed name and an unchanged slug", after)
+	}
+
+	// ADR 0022: renaming moves the replay boundary. The original display name no longer
+	// replays, and the new one does.
+	stale := environment.request(
+		t, environment.client, http.MethodPost, "/api/v1/organizations",
+		`{"slug":"default","displayName":"Default"}`, environment.server.URL, token,
+	)
+	if problem := decodeProblem(t, stale); stale.StatusCode != http.StatusConflict ||
+		problem.Code != organization.SlugConflictCode {
+		t.Fatalf("provisioning with the pre-rename name = %d, body %s", stale.StatusCode, stale.Body)
+	}
+	replay := environment.request(
+		t, environment.client, http.MethodPost, "/api/v1/organizations",
+		`{"slug":"default","displayName":"Acme Monitoring"}`, environment.server.URL, token,
+	)
+	if replay.StatusCode != http.StatusOK {
+		t.Fatalf("provisioning with the current name = %d, body %s", replay.StatusCode, replay.Body)
+	}
+
+	invalid := environment.request(
+		t, environment.client, http.MethodPut, renamePath,
+		`{"displayName":"   "}`, environment.server.URL, token,
+	)
+	problem := decodeProblem(t, invalid)
+	entries := problem.Errors["displayName"]
+	if invalid.StatusCode != http.StatusBadRequest || len(entries) != 1 ||
+		entries[0].Code != organization.DisplayNameInvalidCode {
+		t.Fatalf("blank rename = %d, body %s", invalid.StatusCode, invalid.Body)
+	}
+}
+
 func TestProblemDetailsCarryStableCodes(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	token, _ := environment.getAntiforgery(t)

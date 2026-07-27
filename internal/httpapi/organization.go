@@ -97,6 +97,46 @@ func (server *Server) organizationItem(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toOrganizationResponse(details))
 }
 
+func (server *Server) renameOrganization(w http.ResponseWriter, r *http.Request) {
+	id, ok := canonicalUUID(r.PathValue("organizationId"))
+	if !ok {
+		writeStatusProblem(w, http.StatusNotFound)
+		return
+	}
+	if r.Method != http.MethodPut {
+		methodNotAllowed(w, http.MethodPut)
+		return
+	}
+	if _, ok = server.protectUnsafe(w, r, func(
+		writer http.ResponseWriter, request *http.Request,
+	) (*authenticatedSession, bool) {
+		return server.requireOrganizationPermission(
+			writer, request, id, organization.PermissionOrganizationWrite,
+		)
+	}); !ok {
+		return
+	}
+	var request api.RenameOrganizationRequest
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	result, err := server.organizations.Rename(r.Context(), organization.ID(id), valueOrEmpty(request.DisplayName))
+	if err != nil {
+		server.internalError(w, r, "rename Organization", err)
+		return
+	}
+	switch result.Kind {
+	case organization.RenameRenamed:
+		writeJSON(w, http.StatusOK, toOrganizationResponse(result.Details))
+	case organization.RenameNotFound:
+		writeStatusProblem(w, http.StatusNotFound)
+	case organization.RenameInvalid:
+		writeValidationProblem(w, organizationFailurePairs(result.Failures))
+	default:
+		server.internalError(w, r, "rename Organization", errUnexpectedResult)
+	}
+}
+
 func toOrganizationResponse(details organization.Details) api.OrganizationResponse {
 	return api.OrganizationResponse{
 		ID: string(details.Organization.ID), Slug: details.Organization.Slug,

@@ -12,11 +12,12 @@ import (
 type Permission string
 
 const (
-	PermissionOrganizationRead Permission = "organization.read"
-	PermissionMonitorRead      Permission = "monitor.read"
-	PermissionMonitorWrite     Permission = "monitor.write"
-	PermissionMemberRead       Permission = "member.read"
-	PermissionMemberWrite      Permission = "member.write"
+	PermissionOrganizationRead  Permission = "organization.read"
+	PermissionOrganizationWrite Permission = "organization.write"
+	PermissionMonitorRead       Permission = "monitor.read"
+	PermissionMonitorWrite      Permission = "monitor.write"
+	PermissionMemberRead        Permission = "member.read"
+	PermissionMemberWrite       Permission = "member.write"
 )
 
 // readSuffix marks a permission as read-only. Built-in roles are defined by rule

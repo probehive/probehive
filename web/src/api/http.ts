@@ -67,13 +67,21 @@ export async function getJson<T>(url: string): Promise<T> {
 }
 
 /** Sends an unsafe request with the antiforgery header; throws ApiError on failure. */
-export async function postJson(url: string, body?: unknown): Promise<Response> {
+export function postJson(url: string, body?: unknown): Promise<Response> {
+  return unsafeRequest('POST', url, body)
+}
+
+export function putJson(url: string, body?: unknown): Promise<Response> {
+  return unsafeRequest('PUT', url, body)
+}
+
+async function unsafeRequest(method: string, url: string, body?: unknown): Promise<Response> {
   if (antiforgery === null) {
     await refreshAntiforgery()
   }
   const token = antiforgery as AntiforgeryToken
   const response = await fetch(url, {
-    method: 'POST',
+    method,
     headers: {
       'Content-Type': 'application/json',
       [token.headerName]: token.requestToken,

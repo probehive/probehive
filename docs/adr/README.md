@@ -37,3 +37,4 @@ Every record below is `Accepted` unless its entry says otherwise.
 - [0019: Internationalization, localization, and stable error codes](0019-internationalization-and-error-codes.md), which amends ADR 0012, ADR 0013, and ADR 0014 by replacing their character-exact English messages with stable codes
 - [0020: Check execution placement and outbound access enforcement](0020-check-execution-and-outbound-enforcement.md), which clarifies ADR 0002 and ADR 0007
 - [0021: Run and Observation model, retention, and scheduling leases](0021-run-observation-retention-and-scheduling.md), which clarifies ADR 0005 and ADR 0014
+- [0022: Organization rename](0022-organization-rename.md), which clarifies ADR 0012 and ADR 0017

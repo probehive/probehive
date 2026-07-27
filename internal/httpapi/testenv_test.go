@@ -502,6 +502,20 @@ func (store *memoryOrganizationStore) Create(
 	return nil
 }
 
+func (store *memoryOrganizationStore) UpdateDisplayName(
+	_ context.Context, id organization.ID, displayName string,
+) (bool, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	value, found := store.byID[id]
+	if !found {
+		return false, nil
+	}
+	value.DisplayName = displayName
+	store.byID[id] = value
+	return true, nil
+}
+
 // setMembership rewrites one membership so a test can demote or remove a member.
 func (store *memoryOrganizationStore) setMembership(
 	organizationID organization.ID, userID string, role organization.Role, present bool,

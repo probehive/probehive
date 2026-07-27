@@ -3,7 +3,7 @@
 - Status: Accepted
 - Date: 2026-07-23
 - Clarifies: [ADR 0009](0009-tenant-scope-default-project-and-telemetry.md)
-- Clarified by: [ADR 0018](0018-first-run-organization-provisioning.md)
+- Clarified by: [ADR 0018](0018-first-run-organization-provisioning.md), [ADR 0022](0022-organization-rename.md)
 - Amended by: [ADR 0019](0019-internationalization-and-error-codes.md), which replaces this record's character-exact English messages with stable error codes
 
 ## Context

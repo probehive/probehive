@@ -24,6 +24,14 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await expect(page.getByRole('heading', { name: 'Default Project' })).toBeVisible()
   await expect(page.getByText(administratorEmail)).toBeVisible()
 
+  // The installation Organization is named Default until it is renamed (ADR 0022).
+  await page.getByRole('textbox', { name: 'Display name' }).fill('My Services')
+  await page.getByRole('button', { name: 'Rename', exact: true }).click()
+  await expect(page.getByText('Organization renamed.')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'My Services' })).toBeVisible()
+  // The slug is immutable, so it still reads default.
+  await expect(page.getByText('default', { exact: true })).toBeVisible()
+
   // Sign out to exercise the login journey with the created credentials.
   await page.getByRole('button', { name: 'Sign out' }).click()
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
@@ -34,7 +42,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
 
   // Signing in lands on the Organization list, which already holds the provisioned one.
   await expect(page.getByRole('heading', { name: 'Organizations' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Default' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'My Services' })).toBeVisible()
 
   // Provisioning an additional Organization is still reachable from that page.
   await page.getByLabel('Slug').fill('acme')

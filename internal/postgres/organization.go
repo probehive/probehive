@@ -219,3 +219,17 @@ WHERE organization_id = $1 AND user_id = $2`,
 	}
 	return value, true, nil
 }
+
+// UpdateDisplayName renames one Organization. The slug is never touched.
+func (store *OrganizationStore) UpdateDisplayName(
+	ctx context.Context, id organization.ID, displayName string,
+) (bool, error) {
+	result, err := store.pool.Exec(ctx, `
+UPDATE organizations
+SET display_name = $2
+WHERE id = $1`, string(id), displayName)
+	if err != nil {
+		return false, fmt.Errorf("rename Organization: %w", err)
+	}
+	return result.RowsAffected() == 1, nil
+}

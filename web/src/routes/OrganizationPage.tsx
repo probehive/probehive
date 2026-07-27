@@ -3,6 +3,7 @@ import { useParams } from 'react-router'
 
 import { ApiError, getOrganization } from '../api/organizations'
 import { useTranslation } from '../i18n/context'
+import RenameOrganizationForm from './RenameOrganizationForm.tsx'
 
 export default function OrganizationPage() {
   const { organizationId } = useParams<'organizationId'>()
@@ -40,6 +41,7 @@ export default function OrganizationPage() {
         <dt>{t('organization.created')}</dt>
         <dd>{formatDateTime(organization.createdAt)}</dd>
       </dl>
+      <RenameOrganizationForm organization={organization} />
       <h2>{t('organization.defaultProject')}</h2>
       <dl>
         <dt>{t('organization.name')}</dt>

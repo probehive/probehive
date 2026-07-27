@@ -54,6 +54,14 @@ export const zhCN: Catalog = {
   'organization.defaultProject': '默认 Project',
   'organization.name': '名称',
 
+  'organization.rename.heading': '重命名',
+  'organization.rename.form': '重命名 Organization',
+  'organization.rename.displayName': '显示名称',
+  'organization.rename.submit': '重命名',
+  'organization.rename.submitting': '正在重命名…',
+  'organization.rename.done': 'Organization 已重命名。',
+  'organization.rename.slugNote': '标识（slug）不可更改。',
+
   'error.user.email.invalid': '邮箱须包含一个 @，两侧均不为空，不含空白字符，且不超过 254 个字符。',
   'error.user.displayName.invalid': '显示名称去除首尾空白后需为 1 到 100 个字符。',
   'error.user.password.length': '密码需为 12 到 128 个字符。',

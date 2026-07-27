@@ -1,4 +1,4 @@
-import { getJson, postJson } from './http'
+import { getJson, postJson, putJson } from './http'
 
 export { ApiError, type ProblemDetails } from './http'
 
@@ -40,6 +40,18 @@ export async function createOrganization(request: CreateOrganizationRequest): Pr
 /** The Organizations the caller can see, in creation order. */
 export function listOrganizations(): Promise<OrganizationResponse[]> {
   return getJson<OrganizationResponse[]>('/api/v1/organizations')
+}
+
+/** Changes only the display name; the slug is immutable (ADR 0022). */
+export async function renameOrganization(
+  organizationId: string,
+  displayName: string,
+): Promise<OrganizationResponse> {
+  const response = await putJson(
+    `/api/v1/organizations/${encodeURIComponent(organizationId)}/name`,
+    { displayName },
+  )
+  return (await response.json()) as OrganizationResponse
 }
 
 export function getOrganization(organizationId: string): Promise<OrganizationResponse> {

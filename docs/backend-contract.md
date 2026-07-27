@@ -121,6 +121,7 @@ Request shapes are:
 | `LoginRequest` | `email`, `password` (nullable strings at decoding boundary) |
 | `CreateOrganizationRequest` | `slug`, `displayName` (nullable strings at decoding boundary; required by validation) |
 | `CreateMonitorRequest` | `name`, `checkType` strings |
+| `RenameOrganizationRequest` | `displayName` (nullable string at decoding boundary; required by validation) |
 | `RenameMonitorRequest` | `name` string |
 | `ChangeMonitorStateRequest` | `state` string |
 | `CreateMonitorRevisionRequest` | `checkSchemaVersion: integer`, `checkConfiguration: JSON value` |
@@ -149,6 +150,7 @@ antiforgery and origin rules in section 5 also apply.
 | `GET /api/v1/organizations` | Authenticated | `200 OrganizationResponse[]` of the caller's memberships in creation order, UUID as tie-breaker; `[]` when none | `401` |
 | `POST /api/v1/organizations` | Instance admin, unsafe | first create: `201 OrganizationResponse` and `Location: /api/v1/organizations/{id}`; identical replay: `200 OrganizationResponse` without creating state | `400`, `409`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}` | `organization.read` | `200 OrganizationResponse` | `404`, `401`, `403` |
+| `PUT /api/v1/organizations/{organizationId}/name` | `organization.write`, unsafe | `200 OrganizationResponse` with the new display name and an unchanged slug | `400`, `404`, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | `monitor.write`, unsafe | `201 MonitorResponse` and canonical monitor `Location` | `400`, `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | `monitor.read` | `200 MonitorResponse[]` in creation order, UUID as tie-breaker | `404` if the Project is not in the Organization; `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}` | `monitor.read` | `200 MonitorResponse` | `404`, `401`, `403` |
@@ -183,6 +185,8 @@ membership of that Organization and checks a permission against its role:
 
 Organization roles and the permissions they carry are `Administrator` (every permission,
 including ones added in later releases) and `Viewer` (every read permission). The
+permissions in use are `organization.read`, `organization.write`, `monitor.read`, and
+`monitor.write`. The
 permission catalog itself is internal and not published; endpoints document the
 permission they require. Provisioning makes the creator an `Administrator` member of the
 new Organization in the same transaction, so no Organization exists without a member.
@@ -345,6 +349,14 @@ Organization provisioning rules are:
   `An Organization with slug '{slug}' already exists with a different display name.`
 - a uniqueness race re-reads the database winner and applies the same replay/conflict
   rule. Organization and default Project are always inserted in one transaction.
+
+Renaming changes only the display name; the slug is immutable because it is the
+idempotency key. `PUT /api/v1/organizations/{organizationId}/name` applies the same
+`displayName` rule as provisioning and is last-write-wins with no version token.
+
+Rename moves the replay boundary, which callers must expect: after a rename, provisioning
+the same slug with the pre-rename display name returns `409`, and the current display name
+is what replays with `200` (ADR 0022).
 
 ## 7. Monitor and Revision Semantics
 
