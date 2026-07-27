@@ -32,4 +32,4 @@ Every record below is `Accepted` unless its entry says otherwise.
 - [0014: Monitor lifecycle, revision immutability, and check configuration versioning](0014-monitor-lifecycle-and-revision-immutability.md), which clarifies ADR 0003
 - [0015: Frontend dependency and tooling baseline](0015-frontend-dependency-and-tooling-baseline.md), which clarifies ADR 0002
 - [0016: Monitor Project movement and default Project lifecycle](0016-monitor-project-movement-and-default-project-lifecycle.md), which clarifies ADR 0003 and ADR 0014
-- [0017: Organization membership and authorization](0017-organization-membership-and-authorization.md) — **Proposed**, awaiting an owner decision; it would amend ADR 0013 and no implementation may depend on it until it is accepted
+- [0017: Organization membership and authorization](0017-organization-membership-and-authorization.md), which amends ADR 0013

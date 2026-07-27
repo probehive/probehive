@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-24
+- Amended by: [ADR 0017](0017-organization-membership-and-authorization.md)
 
 ## Context
 
@@ -11,7 +12,7 @@ The API needs an identity model, first-administrator bootstrap, and exact enforc
 
 ### Instance users and roles
 
-Local accounts are instance-scoped `User` records: identifier, normalized email address, display name, opaque password hash, instance role, and UTC creation instant. Users are a documented exception to the Organization-scoped data rule in ADR 0009 because they exist before and across Organizations; Organization membership and per-Organization roles are a future ADR and are required before non-administrator users can be authorized meaningfully.
+Local accounts are instance-scoped `User` records: identifier, normalized email address, display name, opaque password hash, instance role, and UTC creation instant. Users are a documented exception to the Organization-scoped data rule in ADR 0009 because they exist before and across Organizations; Organization membership and per-Organization roles are decided in [ADR 0017](0017-organization-membership-and-authorization.md) and are required before non-administrator users can be authorized meaningfully.
 
 The only instance role today is `Administrator`. Every `/api/v1` endpoint requires an authenticated session by default via a deny-by-default fallback authorization policy; the explicit anonymous exceptions are the health endpoints, the development-only OpenAPI document, setup status, first-administrator creation, login, and the antiforgery token endpoint. Organization endpoints additionally require the `Administrator` role until Organization membership exists.
 
