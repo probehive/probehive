@@ -18,8 +18,11 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - probehive-dev-postgres:/var/lib/postgresql/data
+    # Probe over TCP, not the default unix socket: during initdb the image runs a
+    # temporary socket-only server that answers pg_isready while TCP clients still
+    # get their connection reset.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U probehive -d probehive"]
+      test: ["CMD-SHELL", "pg_isready -U probehive -d probehive -h 127.0.0.1"]
       interval: 5s
       timeout: 3s
       retries: 12

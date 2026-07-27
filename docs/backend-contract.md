@@ -556,6 +556,7 @@ The current React client makes exactly these calls:
 | login | antiforgery-authenticated JSON `POST /api/v1/auth/login`; parse `SessionResponse`, then refresh antiforgery |
 | logout | antiforgery-authenticated `POST /api/v1/auth/logout` with no body; then refresh antiforgery |
 | create Organization | antiforgery-authenticated JSON `POST /api/v1/organizations`; parse `OrganizationResponse`; `created` is true only when status is `201`, false for the `200` replay |
+| rename Organization | antiforgery-authenticated JSON `PUT /api/v1/organizations/{id}/name`; parse `OrganizationResponse` |
 | get Organization | `GET /api/v1/organizations/{encodeURIComponent(id)}`; parse `OrganizationResponse` |
 
 `GET` calls set no custom headers. Unsafe calls set `Content-Type: application/json`
@@ -602,8 +603,9 @@ Before launching the API, `web/e2e/start-api.sh` must preserve this reset contra
 
 The browser journey assumes an empty database, routes `/` to `/setup`, creates and signs
 in the first Administrator, and lands directly on the Organization that setup provisioned,
-rendering its `Default` heading and default Project. It then signs out, signs back in,
-lands on the Organization list containing `Default`, creates slug `acme` with display name
+rendering its `Default` heading and default Project. It renames that Organization and
+asserts the slug did not move. It then signs out, signs back in,
+lands on the Organization list containing the renamed Organization, creates slug `acme` with display name
 `Acme Monitoring`, follows the returned Organization, and renders its default Project.
 A second journey switches the interface to `zh-CN`, asserts the translated heading and
 the `lang` attribute of the document element, and reloads to confirm the preference

@@ -24,7 +24,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U probehive -d probehive"
+          --health-cmd "pg_isready -U probehive -d probehive -h 127.0.0.1"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 12
@@ -70,7 +70,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U probehive -d probehive"
+          --health-cmd "pg_isready -U probehive -d probehive -h 127.0.0.1"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 12

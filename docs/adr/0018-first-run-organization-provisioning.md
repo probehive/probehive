@@ -30,7 +30,7 @@ The two writes are **not** one transaction, for the reasons above. Provisioning 
 
 ### Setup accepts no Organization input
 
-The setup request keeps its three fields. Adding an Organization name would reintroduce a decision the operator has no basis to make yet. Renaming an Organization is the separate future operation ADR 0012 already names, and it is the way to replace `Default`.
+The setup request keeps its three fields. Adding an Organization name would reintroduce a decision the operator has no basis to make yet. Renaming an Organization is the separate operation ADR 0012 named and [ADR 0022](0022-organization-rename.md) specifies, and it is the way to replace `Default`.
 
 ### Response shape
 
@@ -51,7 +51,7 @@ This decision governs self-hosted first run only. ProbeHive Cloud has no first-a
 ## Consequences
 
 - A self-hosted operator goes from a fresh installation to a Monitor without configuring anything organizational.
-- Every installation has an Organization named `Default` until Organization rename exists, which makes rename a more visible gap than it was.
+- Every installation starts with an Organization named `Default`. That made rename a visible gap, which ADR 0022 then closed.
 - Setup performs two writes that are not atomic; the failure mode is documented above and degrades to the previous behavior rather than to an inconsistent one.
 - The Organization list is a published endpoint whose meaning tightens when membership arrives, from "every Organization" to "the caller's Organizations", without a shape change.
 - The browser journey now asserts that setup lands on a usable Organization, so a regression that reintroduces a manual creation step fails the build.

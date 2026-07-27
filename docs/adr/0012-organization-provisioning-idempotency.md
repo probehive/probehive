@@ -28,5 +28,5 @@ The first HTTP surface for this use case is `POST /api/v1/organizations`. It shi
 
 - Every provisioning path, hosted or self-hosted, can retry safely without duplicate Organizations or duplicate default Projects.
 - Clients need no separate idempotency-key header for provisioning; the slug carries that role.
-- Renaming an Organization is a distinct future update operation and never happens implicitly through provisioning retries.
+- Renaming an Organization is a distinct update operation, specified in [ADR 0022](0022-organization-rename.md), and never happens implicitly through provisioning retries.
 - The platform-wide slug uniqueness rule is recorded as a deliberate exception to Organization-scoped uniqueness.
