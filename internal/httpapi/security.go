@@ -15,6 +15,7 @@ import (
 	"time"
 
 	api "github.com/probehive/probehive/internal/httpapi/v1"
+	"github.com/probehive/probehive/internal/organization"
 	"github.com/probehive/probehive/internal/user"
 )
 
@@ -91,7 +92,10 @@ func (server *Server) requireAuthentication(w http.ResponseWriter, r *http.Reque
 	return principal, true
 }
 
-func (server *Server) requireAdministrator(w http.ResponseWriter, r *http.Request) (*authenticatedSession, bool) {
+// requireInstanceAdministrator gates the narrow set of instance-scoped operations the
+// instance role still owns: bootstrap and creating Organizations (ADR 0017). It grants
+// no access to the monitoring data of any Organization.
+func (server *Server) requireInstanceAdministrator(w http.ResponseWriter, r *http.Request) (*authenticatedSession, bool) {
 	principal, ok := server.requireAuthentication(w, r)
 	if !ok {
 		return nil, false
@@ -103,14 +107,43 @@ func (server *Server) requireAdministrator(w http.ResponseWriter, r *http.Reques
 	return principal, true
 }
 
-func (server *Server) protectUnsafe(w http.ResponseWriter, r *http.Request, administrator bool) (*authenticatedSession, bool) {
-	var principal *authenticatedSession
-	var ok bool
-	if administrator {
-		principal, ok = server.requireAdministrator(w, r)
-	} else {
-		principal, ok = server.requireAuthentication(w, r)
+// requireOrganizationPermission resolves the caller's membership of one Organization and
+// checks a permission against its role. A caller who is not a member gets 404 so a real
+// Organization is indistinguishable from one that does not exist; 403 is reserved for a
+// member whose role is insufficient, where existence is already known (ADR 0017).
+func (server *Server) requireOrganizationPermission(
+	w http.ResponseWriter, r *http.Request, organizationID string, permission organization.Permission,
+) (*authenticatedSession, bool) {
+	principal, ok := server.requireAuthentication(w, r)
+	if !ok {
+		return nil, false
 	}
+	membership, found, err := server.organizations.Membership(
+		r.Context(), organization.ID(organizationID), string(principal.account.ID),
+	)
+	if err != nil {
+		server.internalError(w, r, "resolve Organization membership", err)
+		return nil, false
+	}
+	if !found {
+		writeStatusProblem(w, http.StatusNotFound)
+		return nil, false
+	}
+	if !membership.Role.Permits(permission) {
+		writeStatusProblem(w, http.StatusForbidden)
+		return nil, false
+	}
+	return principal, true
+}
+
+// protectUnsafe applies the browser-security filters to an already-authorized request.
+// Endpoint authorization runs first, so an anonymous or unauthorized caller never
+// reaches the antiforgery check.
+func (server *Server) protectUnsafe(
+	w http.ResponseWriter, r *http.Request,
+	authorize func(http.ResponseWriter, *http.Request) (*authenticatedSession, bool),
+) (*authenticatedSession, bool) {
+	principal, ok := authorize(w, r)
 	if !ok {
 		return nil, false
 	}

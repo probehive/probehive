@@ -131,9 +131,12 @@ exactly lowercase `http`.
 
 ## 3. Endpoint Matrix
 
-`Anonymous` means no session is required. `Administrator` means an authenticated
-session carrying the instance role `Administrator`; a non-administrator session gets
-`403`. `Unsafe` means the antiforgery and origin rules in section 5 also apply.
+`Anonymous` means no session is required. `Authenticated` means any valid session.
+`Instance admin` means a session carrying the instance role `Administrator`.
+A permission such as `monitor.write` means the caller must be a member of the
+Organization in the route whose role carries that permission; a non-member gets `404`
+and a member with an insufficient role gets `403` (section 4). `Unsafe` means the
+antiforgery and origin rules in section 5 also apply.
 
 | Method and path | Access | Success | Other application results |
 | --- | --- | --- | --- |
@@ -143,17 +146,17 @@ session carrying the instance role `Administrator`; a non-administrator session 
 | `POST /api/v1/auth/login` | Anonymous, unsafe, credential rate limit | `200 SessionResponse`, sets a fresh session cookie | `401` generic invalid credentials; `429` |
 | `POST /api/v1/auth/logout` | Authenticated, unsafe | `204` empty body, invalidates session and expires cookie | `401` |
 | `GET /api/v1/auth/session` | Authenticated | `200 SessionResponse` | `401` |
-| `GET /api/v1/organizations` | Administrator | `200 OrganizationResponse[]` in creation order, UUID as tie-breaker; `[]` when none exist | `401`, `403` |
-| `POST /api/v1/organizations` | Administrator, unsafe | first create: `201 OrganizationResponse` and `Location: /api/v1/organizations/{id}`; identical replay: `200 OrganizationResponse` without creating state | `400`, `409`, `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}` | Administrator | `200 OrganizationResponse` | `404`, `401`, `403` |
-| `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | Administrator, unsafe | `201 MonitorResponse` and canonical monitor `Location` | `400`, `404`, `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | Administrator | `200 MonitorResponse[]` in creation order, UUID as tie-breaker | `404` if the Project is not in the Organization; `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}` | Administrator | `200 MonitorResponse` | `404`, `401`, `403` |
-| `PUT /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/name` | Administrator, unsafe | `200 MonitorResponse` | `400`, `404`, `409`, `401`, `403` |
-| `PUT /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/state` | Administrator, unsafe | `200 MonitorResponse` | `400`, `404`, `409`, `401`, `403` |
-| `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions` | Administrator, unsafe | `201 MonitorRevisionResponse` and canonical revision `Location` | `400`, `404`, `409`, `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions` | Administrator | `200 MonitorRevisionResponse[]` in ascending revision number | `404`, `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}` | Administrator | `200 MonitorRevisionResponse` | `404`, `401`, `403` |
+| `GET /api/v1/organizations` | Authenticated | `200 OrganizationResponse[]` of the caller's memberships in creation order, UUID as tie-breaker; `[]` when none | `401` |
+| `POST /api/v1/organizations` | Instance admin, unsafe | first create: `201 OrganizationResponse` and `Location: /api/v1/organizations/{id}`; identical replay: `200 OrganizationResponse` without creating state | `400`, `409`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}` | `organization.read` | `200 OrganizationResponse` | `404`, `401`, `403` |
+| `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | `monitor.write`, unsafe | `201 MonitorResponse` and canonical monitor `Location` | `400`, `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | `monitor.read` | `200 MonitorResponse[]` in creation order, UUID as tie-breaker | `404` if the Project is not in the Organization; `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}` | `monitor.read` | `200 MonitorResponse` | `404`, `401`, `403` |
+| `PUT /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/name` | `monitor.write`, unsafe | `200 MonitorResponse` | `400`, `404`, `409`, `401`, `403` |
+| `PUT /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/state` | `monitor.write`, unsafe | `200 MonitorResponse` | `400`, `404`, `409`, `401`, `403` |
+| `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions` | `monitor.write`, unsafe | `201 MonitorRevisionResponse` and canonical revision `Location` | `400`, `404`, `409`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions` | `monitor.read` | `200 MonitorRevisionResponse[]` in ascending revision number | `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}` | `monitor.read` | `200 MonitorRevisionResponse` | `404`, `401`, `403` |
 
 The canonical revision `Location` ends in `/revisions/{revisionNumber}`. All monitor
 lookups include Organization, Project, and Monitor scope. A real identifier presented
@@ -166,8 +169,23 @@ Development alone exposes anonymous `GET /openapi/v1.json`. There is no OpenAPI 
 
 Authorization is deny by default for every endpoint. Explicit anonymous exceptions
 are `/healthz`, `/readyz`, development OpenAPI, setup status, setup admin, login, and
-antiforgery issuance. Logout and session require authentication. Organization and
-Monitor endpoints additionally require `Administrator`.
+antiforgery issuance. Logout, session, and the Organization list require authentication.
+Creating an Organization requires the instance `Administrator` role.
+
+Every endpoint under `/api/v1/organizations/{organizationId}/` resolves the caller's
+membership of that Organization and checks a permission against its role:
+
+- a caller with no membership gets `404`, byte-identical to the response for an
+  Organization that does not exist, so membership is not disclosed;
+- a member whose role lacks the permission gets `403`;
+- the instance `Administrator` role grants **no** implicit access to the monitoring data
+  of an Organization it is not a member of.
+
+Organization roles and the permissions they carry are `Administrator` (every permission,
+including ones added in later releases) and `Viewer` (every read permission). The
+permission catalog itself is internal and not published; endpoints document the
+permission they require. Provisioning makes the creator an `Administrator` member of the
+new Organization in the same transaction, so no Organization exists without a member.
 
 Endpoint authorization runs before the endpoint antiforgery filter. Consequently an
 anonymous unsafe request to a protected endpoint returns `401` even when it has no
@@ -457,6 +475,12 @@ All listed columns are `NOT NULL` unless marked nullable.
   Unique index `ux_monitor_revisions_monitor_number(monitor_id, revision_number)`;
   index `ix_monitor_revisions_organization_id(organization_id)`; Organization and
   Monitor references cascade as described below.
+- `organization_members`: `organization_id uuid`; `user_id uuid`; `role varchar(50)`;
+  `created_at timestamptz`. Composite primary key `pk_organization_members(organization_id,
+  user_id)` makes a duplicate membership unrepresentable; both foreign keys cascade;
+  index `ix_organization_members_user_id(user_id)` serves the caller's Organization list.
+  Role strings are exactly `Administrator` and `Viewer`. The "at least one Administrator
+  per Organization" rule is a use-case invariant, not a database constraint.
 - `sessions`: a 32-byte `token_hash` primary key, `user_id`,
   `authenticated_at`, and `expires_at`, with a cascading user foreign key and
   indexes for user lookup and expiry cleanup.
@@ -479,6 +503,11 @@ check constraint exists; those invariants remain in feature code.
   versions in `schema_migrations`. A migration version is applied at most once.
 - Password hashes use the versioned Argon2id encoding defined by ADR 0013.
 - Sessions and antiforgery state use the bounded PostgreSQL structures defined above.
+
+Organization, default Project, and the creator's `Administrator` membership are
+inserted in one transaction. Migration `0002` adds `organization_members` and backfills
+every instance Administrator as an Organization Administrator of every pre-existing
+Organization, so an installation that predates membership keeps access to its own data.
 
 Organization plus default Project insertion is one transaction. First administrator
 creation is one transaction that obtains

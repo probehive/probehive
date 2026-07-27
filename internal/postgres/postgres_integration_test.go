@@ -59,13 +59,14 @@ func TestMigrationsAreConcurrentSafeAndIdempotent(t *testing.T) {
 	if err := database.pool.QueryRow(t.Context(), "SELECT count(*) FROM schema_migrations").Scan(&migrationCount); err != nil {
 		t.Fatalf("count schema migrations: %v", err)
 	}
-	if migrationCount != 1 {
-		t.Fatalf("schema migration count = %d, want 1", migrationCount)
+	if migrationCount != len(embeddedMigrationVersions(t)) {
+		t.Fatalf("schema migration count = %d, want %d", migrationCount, len(embeddedMigrationVersions(t)))
 	}
 
 	requiredTables := []string{
 		"organizations", "projects", "users", "monitors", "monitor_revisions",
-		"sessions", "antiforgery_tokens", "anonymous_antiforgery_keys", "schema_migrations",
+		"organization_members", "sessions", "antiforgery_tokens",
+		"anonymous_antiforgery_keys", "schema_migrations",
 	}
 	for _, table := range requiredTables {
 		if !relationExists(t, database, table) {
@@ -114,6 +115,7 @@ func TestFailedMigrationRollsBackOnlyItsSchemaAndVersionRecord(t *testing.T) {
 func TestOrganizationListJoinsDefaultProjectsInCreationOrder(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	store := database.Organizations()
+	creator := seedAdministrator(t, database)
 	base := testTime()
 
 	// Deliberately provision out of order and give two of them the same instant so the
@@ -140,14 +142,20 @@ func TestOrganizationListJoinsDefaultProjectsInCreationOrder(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewDefaultProject() error = %v", err)
 		}
-		if err := store.Create(t.Context(), value, project); err != nil {
+		membership, err := organization.NewMembership(
+			value.ID, creator, organization.RoleAdministrator, seed.createdAt,
+		)
+		if err != nil {
+			t.Fatalf("NewMembership() error = %v", err)
+		}
+		if err := store.Create(t.Context(), value, project, membership); err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
 	}
 
-	listed, err := store.List(t.Context())
+	listed, err := store.ListForMember(t.Context(), creator)
 	if err != nil {
-		t.Fatalf("List() error = %v", err)
+		t.Fatalf("ListForMember() error = %v", err)
 	}
 	if len(listed) != 3 {
 		t.Fatalf("List() returned %d Organizations, want 3", len(listed))
@@ -178,12 +186,22 @@ INSERT INTO projects (id, organization_id, name, is_default, created_at)
 VALUES ($1, $2, 'Secondary', false, $3)`, string(extra.ID), string(extra.OrganizationID), base); err != nil {
 		t.Fatalf("insert non-default Project: %v", err)
 	}
-	after, err := store.List(t.Context())
+	after, err := store.ListForMember(t.Context(), creator)
 	if err != nil {
-		t.Fatalf("List() after extra Project error = %v", err)
+		t.Fatalf("ListForMember() after extra Project error = %v", err)
 	}
 	if len(after) != 3 {
-		t.Fatalf("List() returned %d Organizations after a non-default Project, want 3", len(after))
+		t.Fatalf("ListForMember() returned %d Organizations after a non-default Project, want 3", len(after))
+	}
+
+	// Membership is the filter: a user who belongs to nothing sees nothing, even
+	// though these Organizations exist (ADR 0017).
+	stranger, err := store.ListForMember(t.Context(), testUUID(901))
+	if err != nil {
+		t.Fatalf("ListForMember() for a non-member error = %v", err)
+	}
+	if len(stranger) != 0 {
+		t.Fatalf("a non-member saw %d Organizations, want 0", len(stranger))
 	}
 }
 
@@ -191,6 +209,7 @@ func TestOrganizationProvisioningRereadsDuplicateRaceWinner(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	delegate := database.Organizations()
 	store := &synchronizedOrganizationStore{OrganizationStore: delegate, ready: make(chan struct{})}
+	creator := seedAdministrator(t, database)
 	now := testTime()
 	services := []*organization.Service{
 		organization.NewService(store, fixedClock{now}, &sequenceUUIDs{values: []string{testUUID(1), testUUID(2)}}),
@@ -204,7 +223,7 @@ func TestOrganizationProvisioningRereadsDuplicateRaceWinner(t *testing.T) {
 		go func(service *organization.Service) {
 			<-start
 			result, err := service.Provision(t.Context(), organization.ProvisionCommand{
-				Slug: "race-tenant", DisplayName: "Race Tenant",
+				Slug: "race-tenant", DisplayName: "Race Tenant", CreatorUserID: creator,
 			})
 			results <- result
 			errorsByCall <- err
@@ -285,7 +304,7 @@ func TestOrganizationProvisioningRollsBackWhenDefaultProjectInsertFails(t *testi
 	)
 
 	_, err := service.Provision(t.Context(), organization.ProvisionCommand{
-		Slug: slug, DisplayName: "Rollback Tenant",
+		Slug: slug, DisplayName: "Rollback Tenant", CreatorUserID: seedAdministrator(t, database),
 	})
 	requireConstraint(t, err, uniqueViolation, "pk_projects")
 
@@ -908,9 +927,24 @@ func (generator *sequenceUUIDs) NewUUIDv7(time.Time) (string, error) {
 	return value, nil
 }
 
+// seedAdministrator inserts the instance administrator that provisioning attributes
+// memberships to. It is idempotent so one test can seed several tenants.
+func seedAdministrator(t *testing.T, database *DB) string {
+	t.Helper()
+	id := testUUID(900)
+	if _, err := database.pool.Exec(t.Context(), `
+INSERT INTO users (id, email, display_name, role, password_hash, created_at)
+VALUES ($1, 'seed@example.test', 'Seed Administrator', 'Administrator', 'test:seed', $2)
+ON CONFLICT ON CONSTRAINT pk_users DO NOTHING`, id, testTime()); err != nil {
+		t.Fatalf("seed administrator: %v", err)
+	}
+	return id
+}
+
 func seedTenant(t *testing.T, database *DB, offset int, slug string) (organization.Organization, organization.Project) {
 	t.Helper()
 	now := testTime()
+	creator := seedAdministrator(t, database)
 	organizationValue, err := organization.NewOrganization(
 		organization.ID(testUUID(offset)), slug, "Test Tenant", now,
 	)
@@ -923,7 +957,13 @@ func seedTenant(t *testing.T, database *DB, offset int, slug string) (organizati
 	if err != nil {
 		t.Fatalf("NewDefaultProject() error = %v", err)
 	}
-	if err := database.Organizations().Create(t.Context(), organizationValue, project); err != nil {
+	membership, err := organization.NewMembership(
+		organizationValue.ID, creator, organization.RoleAdministrator, now,
+	)
+	if err != nil {
+		t.Fatalf("NewMembership() error = %v", err)
+	}
+	if err := database.Organizations().Create(t.Context(), organizationValue, project, membership); err != nil {
 		t.Fatalf("OrganizationStore.Create() error = %v", err)
 	}
 	return organizationValue, project
@@ -1004,4 +1044,67 @@ func testTime() time.Time {
 
 func testUUID(value int) string {
 	return fmt.Sprintf("00000000-0000-7000-8000-%012d", value)
+}
+
+func embeddedMigrationVersions(t *testing.T) []migration {
+	t.Helper()
+	items, err := loadMigrations(embeddedMigrations)
+	if err != nil {
+		t.Fatalf("loadMigrations() error = %v", err)
+	}
+	return items
+}
+
+func TestMembershipBackfillGrantsExistingAdministratorsAccess(t *testing.T) {
+	// An installation that predates membership must not lose access to its own data
+	// when enforcement lands (ADR 0017), so the backfill runs against pre-existing rows.
+	database := newIntegrationDatabase(t, false)
+	if err := runMigrations(t.Context(), database.pool, onlyFirstMigration(t)); err != nil {
+		t.Fatalf("apply pre-membership schema: %v", err)
+	}
+	now := testTime()
+	if _, err := database.pool.Exec(t.Context(), `
+INSERT INTO users (id, email, display_name, role, password_hash, created_at)
+VALUES ($1, 'legacy@example.test', 'Legacy Administrator', 'Administrator', 'test:legacy', $2)`,
+		testUUID(700), now); err != nil {
+		t.Fatalf("seed legacy administrator: %v", err)
+	}
+	if _, err := database.pool.Exec(t.Context(), `
+INSERT INTO organizations (id, slug, display_name, created_at) VALUES ($1, 'legacy', 'Legacy', $2)`,
+		testUUID(701), now); err != nil {
+		t.Fatalf("seed legacy Organization: %v", err)
+	}
+	if _, err := database.pool.Exec(t.Context(), `
+INSERT INTO projects (id, organization_id, name, is_default, created_at)
+VALUES ($1, $2, 'Default', true, $3)`, testUUID(702), testUUID(701), now); err != nil {
+		t.Fatalf("seed legacy default Project: %v", err)
+	}
+
+	if err := database.Migrate(t.Context()); err != nil {
+		t.Fatalf("Migrate() error = %v", err)
+	}
+
+	membership, found, err := database.Organizations().FindMembership(
+		t.Context(), organization.ID(testUUID(701)), testUUID(700),
+	)
+	if err != nil || !found {
+		t.Fatalf("FindMembership() after backfill found/error = %v/%v, want true/nil", found, err)
+	}
+	if membership.Role != organization.RoleAdministrator {
+		t.Fatalf("backfilled role = %q, want Administrator", membership.Role)
+	}
+
+	// Re-running must not duplicate or fail; the conflict clause carries the upgrade.
+	if err := database.Migrate(t.Context()); err != nil {
+		t.Fatalf("idempotent Migrate() after backfill error = %v", err)
+	}
+}
+
+func onlyFirstMigration(t *testing.T) fstest.MapFS {
+	t.Helper()
+	contents, err := embeddedMigrations.ReadFile("migrations/0001_initial.sql")
+	if err != nil {
+		t.Fatalf("read initial migration: %v", err)
+	}
+	return fstest.MapFS{"migrations/0001_initial.sql": {Data: contents}}
 }

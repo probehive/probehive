@@ -29,21 +29,24 @@ func (generator *sequenceUUIDs) NewUUIDv7(at time.Time) (string, error) {
 }
 
 type fakeStore struct {
-	byID              Organization
-	byIDFound         bool
-	bySlug            Organization
-	bySlugFound       bool
-	defaultProject    Project
-	defaultFound      bool
-	listed            []Details
-	listErr           error
-	createErr         error
-	winnerAfterCreate bool
-	findBySlugErr     error
-	created           []Details
-	findBySlugCalls   int
-	defaultCalls      int
-	lastContextValue  any
+	byID               Organization
+	byIDFound          bool
+	bySlug             Organization
+	bySlugFound        bool
+	defaultProject     Project
+	defaultFound       bool
+	listed             []Details
+	listErr            error
+	membership         Membership
+	membershipFound    bool
+	createdMemberships []Membership
+	createErr          error
+	winnerAfterCreate  bool
+	findBySlugErr      error
+	created            []Details
+	findBySlugCalls    int
+	defaultCalls       int
+	lastContextValue   any
 }
 
 func (store *fakeStore) FindByID(ctx context.Context, _ ID) (Organization, bool, error) {
@@ -66,13 +69,18 @@ func (store *fakeStore) FindDefaultProject(ctx context.Context, _ ID) (Project, 
 func (*fakeStore) FindProject(context.Context, ID, ProjectID) (Project, bool, error) {
 	return Project{}, false, nil
 }
-func (store *fakeStore) List(ctx context.Context) ([]Details, error) {
+func (store *fakeStore) ListForMember(ctx context.Context, _ string) ([]Details, error) {
 	store.lastContextValue = ctx.Value(contextKey{})
 	return store.listed, store.listErr
 }
-func (store *fakeStore) Create(ctx context.Context, organization Organization, project Project) error {
+func (store *fakeStore) FindMembership(ctx context.Context, _ ID, _ string) (Membership, bool, error) {
+	store.lastContextValue = ctx.Value(contextKey{})
+	return store.membership, store.membershipFound, nil
+}
+func (store *fakeStore) Create(ctx context.Context, organization Organization, project Project, membership Membership) error {
 	store.lastContextValue = ctx.Value(contextKey{})
 	store.created = append(store.created, Details{Organization: organization, DefaultProject: project})
+	store.createdMemberships = append(store.createdMemberships, membership)
 	if store.winnerAfterCreate {
 		store.bySlugFound = true
 	}
@@ -109,7 +117,7 @@ func TestProvisionCreatesOrganizationAndDefaultProjectAtOneUTCInstant(t *testing
 	generator := &sequenceUUIDs{values: []string{"org-id", "project-id"}}
 	service := NewService(store, fixedClock{local}, generator)
 	ctx := context.WithValue(context.Background(), contextKey{}, "kept")
-	result, err := service.Provision(ctx, ProvisionCommand{Slug: "acme", DisplayName: "  Acme  "})
+	result, err := service.Provision(ctx, ProvisionCommand{Slug: "acme", DisplayName: "  Acme  ", CreatorUserID: "creator"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +181,7 @@ func TestProvisionRereadsUniquenessRaceWinner(t *testing.T) {
 	project, _ := NewDefaultProject("project", winner.ID, now)
 	store := &fakeStore{bySlug: winner, defaultProject: project, defaultFound: true, createErr: ErrDuplicateSlug, winnerAfterCreate: true}
 	generator := &sequenceUUIDs{values: []string{"loser", "loser-project"}}
-	result, err := NewService(store, fixedClock{now}, generator).Provision(context.Background(), ProvisionCommand{Slug: "acme", DisplayName: "Acme"})
+	result, err := NewService(store, fixedClock{now}, generator).Provision(context.Background(), ProvisionCommand{Slug: "acme", DisplayName: "Acme", CreatorUserID: "creator"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +195,7 @@ func TestProvisionRaceWithoutReadableWinnerFails(t *testing.T) {
 	now := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
 	store := &fakeStore{createErr: ErrDuplicateSlug}
 	generator := &sequenceUUIDs{values: []string{"loser", "loser-project"}}
-	_, err := NewService(store, fixedClock{now}, generator).Provision(context.Background(), ProvisionCommand{Slug: "acme", DisplayName: "Acme"})
+	_, err := NewService(store, fixedClock{now}, generator).Provision(context.Background(), ProvisionCommand{Slug: "acme", DisplayName: "Acme", CreatorUserID: "creator"})
 	if err == nil {
 		t.Fatal("expected an invariant error")
 	}
@@ -198,7 +206,7 @@ func TestProvisionMissingDefaultProjectFailsInvariant(t *testing.T) {
 	now := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
 	existing, _ := NewOrganization("org", "acme", "Acme", now)
 	store := &fakeStore{bySlug: existing, bySlugFound: true}
-	_, err := NewService(store, fixedClock{now}, &sequenceUUIDs{}).Provision(context.Background(), ProvisionCommand{Slug: "acme", DisplayName: "Acme"})
+	_, err := NewService(store, fixedClock{now}, &sequenceUUIDs{}).Provision(context.Background(), ProvisionCommand{Slug: "acme", DisplayName: "Acme", CreatorUserID: "creator"})
 	if !errors.Is(err, ErrDefaultProjectMissing) {
 		t.Fatalf("error = %v, want ErrDefaultProjectMissing", err)
 	}

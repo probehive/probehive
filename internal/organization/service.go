@@ -23,11 +23,13 @@ type Store interface {
 	FindBySlug(context.Context, string) (Organization, bool, error)
 	FindDefaultProject(context.Context, ID) (Project, bool, error)
 	FindProject(context.Context, ID, ProjectID) (Project, bool, error)
-	// List returns every Organization with its default Project in creation order,
-	// using the Organization id as a deterministic tie-breaker.
-	List(context.Context) ([]Details, error)
-	// Create inserts both values in one transaction and returns ErrDuplicateSlug on a uniqueness race.
-	Create(context.Context, Organization, Project) error
+	// ListForMember returns the Organizations a user belongs to, with their default
+	// Projects, in creation order using the Organization id as a tie-breaker.
+	ListForMember(context.Context, string) ([]Details, error)
+	FindMembership(context.Context, ID, string) (Membership, bool, error)
+	// Create inserts the Organization, its default Project, and the creator's
+	// membership in one transaction, returning ErrDuplicateSlug on a uniqueness race.
+	Create(context.Context, Organization, Project, Membership) error
 }
 
 // ProvisionKind identifies an idempotent Organization provisioning result.
@@ -44,6 +46,9 @@ const (
 type ProvisionCommand struct {
 	Slug        string
 	DisplayName string
+	// CreatorUserID becomes the Organization's first Administrator in the same
+	// transaction, so no path can produce an Organization without a member.
+	CreatorUserID string
 }
 
 // ProvisionResult is the complete expected outcome of Organization provisioning.
@@ -110,7 +115,11 @@ func (service *Service) Provision(ctx context.Context, command ProvisionCommand)
 	if err != nil {
 		return ProvisionResult{}, err
 	}
-	if err = service.store.Create(ctx, created, project); err != nil {
+	membership, err := NewMembership(created.ID, command.CreatorUserID, RoleAdministrator, now)
+	if err != nil {
+		return ProvisionResult{}, err
+	}
+	if err = service.store.Create(ctx, created, project, membership); err != nil {
 		if !errors.Is(err, ErrDuplicateSlug) {
 			return ProvisionResult{}, err
 		}
@@ -143,15 +152,16 @@ func (service *Service) replayOrConflict(ctx context.Context, existing Organizat
 // ProvisionBootstrap creates the Organization that first-administrator setup gives a new
 // installation. It is the same idempotent use case as every other creation path (ADR 0009)
 // with the reserved bootstrap slug and display name, so setup adds no second creation path.
-func (service *Service) ProvisionBootstrap(ctx context.Context) (ProvisionResult, error) {
-	return service.Provision(ctx, ProvisionCommand{Slug: BootstrapSlug, DisplayName: BootstrapDisplayName})
+func (service *Service) ProvisionBootstrap(ctx context.Context, creatorUserID string) (ProvisionResult, error) {
+	return service.Provision(ctx, ProvisionCommand{
+		Slug: BootstrapSlug, DisplayName: BootstrapDisplayName, CreatorUserID: creatorUserID,
+	})
 }
 
-// List returns every Organization with its default Project. It is the caller's
-// Organization list; until membership exists (ADR 0017) an instance Administrator
-// sees every Organization, and that filter is where membership will apply.
-func (service *Service) List(ctx context.Context) ([]Details, error) {
-	values, err := service.store.List(ctx)
+// List returns the Organizations the user belongs to. An instance Administrator has
+// no implicit visibility into an Organization it is not a member of (ADR 0017).
+func (service *Service) List(ctx context.Context, userID string) ([]Details, error) {
+	values, err := service.store.ListForMember(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -175,4 +185,14 @@ func (service *Service) Get(ctx context.Context, id ID) (Details, bool, error) {
 		return Details{}, false, fmt.Errorf("%w: %s", ErrDefaultProjectMissing, value.ID)
 	}
 	return Details{Organization: value, DefaultProject: project}, true, nil
+}
+
+// Membership resolves a user's membership of one Organization. Absence is the caller's
+// signal to answer 404 rather than 403, so an Organization the user does not belong to
+// is indistinguishable from one that does not exist (ADR 0017).
+func (service *Service) Membership(ctx context.Context, id ID, userID string) (Membership, bool, error) {
+	if userID == "" {
+		return Membership{}, false, nil
+	}
+	return service.store.FindMembership(ctx, id, userID)
 }

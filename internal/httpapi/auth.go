@@ -46,7 +46,7 @@ func (server *Server) setupAdministrator(w http.ResponseWriter, r *http.Request)
 		// Provision before issuing the session: if provisioning fails the operator has an
 		// administrator but no session, signs in normally, and creates an Organization by
 		// hand, which is exactly the pre-ADR-0018 path rather than a half-signed-in state.
-		provisioned, err := server.organizations.ProvisionBootstrap(r.Context())
+		provisioned, err := server.organizations.ProvisionBootstrap(r.Context(), string(result.User.ID))
 		if err != nil {
 			server.internalError(w, r, "provision bootstrap Organization", err)
 			return
@@ -106,7 +106,7 @@ func (server *Server) logout(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w, http.MethodPost)
 		return
 	}
-	principal, ok := server.protectUnsafe(w, r, false)
+	principal, ok := server.protectUnsafe(w, r, server.requireAuthentication)
 	if !ok {
 		return
 	}

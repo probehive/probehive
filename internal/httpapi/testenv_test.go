@@ -159,6 +159,31 @@ func (environment *testEnvironment) bootstrapAdministrator(t *testing.T) string 
 	return refreshed.RequestToken
 }
 
+// administratorID returns the id of the single bootstrapped user.
+func (environment *testEnvironment) administratorID(t *testing.T) string {
+	t.Helper()
+	environment.users.mu.Lock()
+	defer environment.users.mu.Unlock()
+	if len(environment.users.byID) != 1 {
+		t.Fatalf("user count = %d, want 1", len(environment.users.byID))
+	}
+	for id := range environment.users.byID {
+		return string(id)
+	}
+	return ""
+}
+
+// grantMembership makes the bootstrapped administrator a member of an Organization the
+// test seeded directly, which provisioning would otherwise have done.
+func (environment *testEnvironment) grantMembership(
+	t *testing.T, organizationID string, role organization.Role,
+) {
+	t.Helper()
+	environment.organizations.setMembership(
+		organization.ID(organizationID), environment.administratorID(t), role, true,
+	)
+}
+
 func decodeProblem(t *testing.T, response recordedResponse) api.ProblemDetails {
 	t.Helper()
 	if contentType := response.Header.Get("Content-Type"); contentType != "application/problem+json" {
@@ -376,16 +401,22 @@ func (store *memoryAntiforgeryStore) DeleteSessionAntiforgeryBySelectorHash(_ co
 }
 
 type memoryOrganizationStore struct {
-	mu       sync.Mutex
-	byID     map[organization.ID]organization.Organization
-	bySlug   map[string]organization.ID
-	projects map[organization.ProjectID]organization.Project
+	mu          sync.Mutex
+	byID        map[organization.ID]organization.Organization
+	bySlug      map[string]organization.ID
+	projects    map[organization.ProjectID]organization.Project
+	memberships map[string]organization.Membership
+}
+
+func membershipKey(organizationID organization.ID, userID string) string {
+	return string(organizationID) + "/" + userID
 }
 
 func newMemoryOrganizationStore() *memoryOrganizationStore {
 	return &memoryOrganizationStore{
 		byID: make(map[organization.ID]organization.Organization), bySlug: make(map[string]organization.ID),
-		projects: make(map[organization.ProjectID]organization.Project),
+		projects:    make(map[organization.ProjectID]organization.Project),
+		memberships: make(map[string]organization.Membership),
 	}
 }
 func (store *memoryOrganizationStore) FindByID(_ context.Context, id organization.ID) (organization.Organization, bool, error) {
@@ -422,11 +453,23 @@ func (store *memoryOrganizationStore) FindProject(_ context.Context, organizatio
 	}
 	return project, true, nil
 }
-func (store *memoryOrganizationStore) List(_ context.Context) ([]organization.Details, error) {
+func (store *memoryOrganizationStore) FindMembership(
+	_ context.Context, organizationID organization.ID, userID string,
+) (organization.Membership, bool, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	value, found := store.memberships[membershipKey(organizationID, userID)]
+	return value, found, nil
+}
+
+func (store *memoryOrganizationStore) ListForMember(_ context.Context, userID string) ([]organization.Details, error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	values := []organization.Details{}
 	for _, value := range store.byID {
+		if _, member := store.memberships[membershipKey(value.ID, userID)]; !member {
+			continue
+		}
 		for _, project := range store.projects {
 			if project.OrganizationID == value.ID && project.IsDefault {
 				values = append(values, organization.Details{Organization: value, DefaultProject: project})
@@ -443,14 +486,36 @@ func (store *memoryOrganizationStore) List(_ context.Context) ([]organization.De
 	return values, nil
 }
 
-func (store *memoryOrganizationStore) Create(_ context.Context, value organization.Organization, project organization.Project) error {
+func (store *memoryOrganizationStore) Create(
+	_ context.Context,
+	value organization.Organization,
+	project organization.Project,
+	membership organization.Membership,
+) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	if _, found := store.bySlug[value.Slug]; found {
 		return organization.ErrDuplicateSlug
 	}
 	store.byID[value.ID], store.bySlug[value.Slug], store.projects[project.ID] = value, value.ID, project
+	store.memberships[membershipKey(membership.OrganizationID, membership.UserID)] = membership
 	return nil
+}
+
+// setMembership rewrites one membership so a test can demote or remove a member.
+func (store *memoryOrganizationStore) setMembership(
+	organizationID organization.ID, userID string, role organization.Role, present bool,
+) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	key := membershipKey(organizationID, userID)
+	if !present {
+		delete(store.memberships, key)
+		return
+	}
+	existing := store.memberships[key]
+	existing.OrganizationID, existing.UserID, existing.Role = organizationID, userID, role
+	store.memberships[key] = existing
 }
 
 type memoryMonitorStore struct {

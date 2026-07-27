@@ -198,7 +198,7 @@
         "tags": ["Organizations"],
         "operationId": "listOrganizations",
         "summary": "List Organizations with their default Projects",
-        "description": "Requires an Administrator session. Returns creation order with the Organization id as a tie-breaker, and a bare empty array when none exist. Once Organization membership exists this list is filtered to the memberships of the caller.",
+        "description": "Requires any authenticated session. Returns the caller's Organization memberships in creation order with the Organization id as a tie-breaker, and a bare empty array when none exist.",
         "security": [{ "sessionCookie": [] }],
         "responses": {
           "200": {
@@ -218,7 +218,7 @@
         "tags": ["Organizations"],
         "operationId": "provisionOrganization",
         "summary": "Idempotently provision an Organization and default Project",
-        "description": "Requires an Administrator session. A matching slug and display name replays with 200; a new Organization returns 201.",
+        "description": "Requires the instance Administrator role. The creator becomes the new Organization's Administrator member in the same transaction. A matching slug and display name replays with 200 and writes no membership; a new Organization returns 201.",
         "security": [
           { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
         ],

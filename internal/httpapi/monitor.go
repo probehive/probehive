@@ -7,9 +7,28 @@ import (
 
 	api "github.com/probehive/probehive/internal/httpapi/v1"
 	"github.com/probehive/probehive/internal/monitor"
+	"github.com/probehive/probehive/internal/organization"
 )
 
 var errUnexpectedResult = errors.New("use case returned an unknown result kind")
+
+func (server *Server) readMonitors(
+	w http.ResponseWriter, r *http.Request, organizationID string,
+) (*authenticatedSession, bool) {
+	return server.requireOrganizationPermission(w, r, organizationID, organization.PermissionMonitorRead)
+}
+
+func (server *Server) writeMonitors(
+	w http.ResponseWriter, r *http.Request, organizationID string,
+) (*authenticatedSession, bool) {
+	return server.protectUnsafe(w, r, func(
+		writer http.ResponseWriter, request *http.Request,
+	) (*authenticatedSession, bool) {
+		return server.requireOrganizationPermission(
+			writer, request, organizationID, organization.PermissionMonitorWrite,
+		)
+	})
+}
 
 func (server *Server) monitorsRoot(w http.ResponseWriter, r *http.Request) {
 	organizationID, projectID, ok := projectScope(r)
@@ -19,7 +38,7 @@ func (server *Server) monitorsRoot(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case http.MethodGet:
-		if _, ok := server.requireAdministrator(w, r); !ok {
+		if _, ok := server.readMonitors(w, r, organizationID); !ok {
 			return
 		}
 		values, found, err := server.monitors.List(r.Context(), organizationID, projectID)
@@ -37,7 +56,7 @@ func (server *Server) monitorsRoot(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, responses)
 	case http.MethodPost:
-		if _, ok := server.protectUnsafe(w, r, true); !ok {
+		if _, ok := server.writeMonitors(w, r, organizationID); !ok {
 			return
 		}
 		var request api.CreateMonitorRequest
@@ -79,7 +98,7 @@ func (server *Server) monitorItem(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w, http.MethodGet)
 		return
 	}
-	if _, ok = server.requireAdministrator(w, r); !ok {
+	if _, ok = server.readMonitors(w, r, scope.OrganizationID); !ok {
 		return
 	}
 	value, found, err := server.monitors.Get(r.Context(), scope)
@@ -104,7 +123,7 @@ func (server *Server) renameMonitor(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w, http.MethodPut)
 		return
 	}
-	if _, ok = server.protectUnsafe(w, r, true); !ok {
+	if _, ok = server.writeMonitors(w, r, scope.OrganizationID); !ok {
 		return
 	}
 	var request api.RenameMonitorRequest
@@ -125,7 +144,7 @@ func (server *Server) changeMonitorState(w http.ResponseWriter, r *http.Request)
 		methodNotAllowed(w, http.MethodPut)
 		return
 	}
-	if _, ok = server.protectUnsafe(w, r, true); !ok {
+	if _, ok = server.writeMonitors(w, r, scope.OrganizationID); !ok {
 		return
 	}
 	var request api.ChangeMonitorStateRequest
@@ -166,7 +185,7 @@ func (server *Server) monitorRevisions(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case http.MethodGet:
-		if _, ok := server.requireAdministrator(w, r); !ok {
+		if _, ok := server.readMonitors(w, r, scope.OrganizationID); !ok {
 			return
 		}
 		values, found, err := server.monitors.ListRevisions(r.Context(), scope)
@@ -184,7 +203,7 @@ func (server *Server) monitorRevisions(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, responses)
 	case http.MethodPost:
-		if _, ok := server.protectUnsafe(w, r, true); !ok {
+		if _, ok := server.writeMonitors(w, r, scope.OrganizationID); !ok {
 			return
 		}
 		var request api.CreateMonitorRevisionRequest
@@ -232,7 +251,7 @@ func (server *Server) monitorRevisionItem(w http.ResponseWriter, r *http.Request
 		methodNotAllowed(w, http.MethodGet)
 		return
 	}
-	if _, ok = server.requireAdministrator(w, r); !ok {
+	if _, ok = server.readMonitors(w, r, scope.OrganizationID); !ok {
 		return
 	}
 	value, found, err := server.monitors.GetRevision(r.Context(), scope, int(revisionNumber))

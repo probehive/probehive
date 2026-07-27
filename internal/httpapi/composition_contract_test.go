@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"encoding/json"
+	api "github.com/probehive/probehive/internal/httpapi/v1"
+	"github.com/probehive/probehive/internal/organization"
 	"github.com/probehive/probehive/internal/user"
 )
 
@@ -64,33 +67,75 @@ func TestSessionExpiresAtFixedBoundary(t *testing.T) {
 	}
 }
 
-func TestAuthenticatedNonAdministratorIsForbidden(t *testing.T) {
+func TestMembershipGovernsOrganizationAccess(t *testing.T) {
+	environment := newTestEnvironment(t, true, 0)
+	token := environment.bootstrapAdministrator(t)
+	// Setup provisions the bootstrap Organization and makes its creator a member.
+	const bootstrapOrganization = "00000000-0000-7000-8000-000000000002"
+
+	readable := environment.request(
+		t, environment.client, http.MethodGet, "/api/v1/organizations/"+bootstrapOrganization, "", "", "",
+	)
+	if readable.StatusCode != http.StatusOK {
+		t.Fatalf("member read = %d, body %s", readable.StatusCode, readable.Body)
+	}
+
+	// An instance Administrator who is not a member has no implicit access, and the
+	// Organization must be indistinguishable from one that does not exist (ADR 0017).
+	environment.organizations.setMembership(
+		organization.ID(bootstrapOrganization), environment.administratorID(t), organization.RoleAdministrator, false,
+	)
+	hidden := environment.request(
+		t, environment.client, http.MethodGet, "/api/v1/organizations/"+bootstrapOrganization, "", "", "",
+	)
+	assertProblem(t, hidden, http.StatusNotFound, "Not Found", "")
+	unknown := environment.request(
+		t, environment.client, http.MethodGet,
+		"/api/v1/organizations/00000000-0000-7000-8000-000000000999", "", "", "",
+	)
+	if string(hidden.Body) != string(unknown.Body) {
+		t.Fatalf("non-member body %s differs from unknown-Organization body %s", hidden.Body, unknown.Body)
+	}
+
+	// A member whose role lacks the permission gets 403: existence is already known.
+	environment.grantMembership(t, bootstrapOrganization, organization.RoleViewer)
+	viewerRead := environment.request(
+		t, environment.client, http.MethodGet, "/api/v1/organizations/"+bootstrapOrganization, "", "", "",
+	)
+	if viewerRead.StatusCode != http.StatusOK {
+		t.Fatalf("Viewer read = %d, body %s", viewerRead.StatusCode, viewerRead.Body)
+	}
+	viewerWrite := environment.request(
+		t, environment.client, http.MethodPost,
+		"/api/v1/organizations/"+bootstrapOrganization+
+			"/projects/00000000-0000-7000-8000-000000000003/monitors",
+		`{"name":"Checkout","checkType":"http"}`, environment.server.URL, token,
+	)
+	assertProblem(t, viewerWrite, http.StatusForbidden, "Forbidden", "")
+}
+
+func TestOrganizationListReturnsOnlyMemberships(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	environment.bootstrapAdministrator(t)
+	const bootstrapOrganization = "00000000-0000-7000-8000-000000000002"
 
-	environment.users.mu.Lock()
-	mutated := false
-	for id, account := range environment.users.byID {
-		account.Role = "Viewer"
-		environment.users.byID[id] = account
-		mutated = true
+	listed := environment.request(t, environment.client, http.MethodGet, "/api/v1/organizations", "", "", "")
+	if listed.StatusCode != http.StatusOK {
+		t.Fatalf("list = %d, body %s", listed.StatusCode, listed.Body)
 	}
-	environment.users.mu.Unlock()
-	if !mutated {
-		t.Fatal("setup created no authenticated user")
+	var organizations []api.OrganizationResponse
+	if err := json.Unmarshal(listed.Body, &organizations); err != nil {
+		t.Fatal(err)
+	}
+	if len(organizations) != 1 || organizations[0].ID != bootstrapOrganization {
+		t.Fatalf("list = %#v, want only the bootstrap Organization", organizations)
 	}
 
-	authenticated := environment.request(
-		t, environment.client, http.MethodGet, "/api/v1/auth/session", "", "", "",
+	environment.organizations.setMembership(
+		organization.ID(bootstrapOrganization), environment.administratorID(t), organization.RoleAdministrator, false,
 	)
-	if authenticated.StatusCode != http.StatusOK {
-		t.Fatalf("non-administrator session = %d, body %s", authenticated.StatusCode, authenticated.Body)
-	}
-	forbidden := environment.request(
-		t, environment.client, http.MethodGet,
-		"/api/v1/organizations/00000000-0000-7000-8000-000000000099", "", "", "",
-	)
-	assertProblem(t, forbidden, http.StatusForbidden, "Forbidden", "")
+	empty := environment.request(t, environment.client, http.MethodGet, "/api/v1/organizations", "", "", "")
+	assertExactJSON(t, empty, http.StatusOK, "[]\n")
 }
 
 func TestOriginNullIsRejectedAndMissingOriginSucceeds(t *testing.T) {

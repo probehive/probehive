@@ -379,6 +379,7 @@ func TestMonitorCrossScopeIsHiddenAndConcurrencyIsConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 	environment.monitors.seed(value)
+	environment.grantMembership(t, organizationID, organization.RoleAdministrator)
 
 	wrongOrganization := "00000000-0000-7000-8000-000000000999"
 	crossScope := environment.request(

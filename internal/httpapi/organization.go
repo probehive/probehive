@@ -20,10 +20,12 @@ func (server *Server) organizationsRoot(w http.ResponseWriter, r *http.Request) 
 }
 
 func (server *Server) listOrganizations(w http.ResponseWriter, r *http.Request) {
-	if _, ok := server.requireAdministrator(w, r); !ok {
+	// Any authenticated user may ask; the answer is exactly their memberships.
+	principal, ok := server.requireAuthentication(w, r)
+	if !ok {
 		return
 	}
-	values, err := server.organizations.List(r.Context())
+	values, err := server.organizations.List(r.Context(), string(principal.account.ID))
 	if err != nil {
 		server.internalError(w, r, "list Organizations", err)
 		return
@@ -36,7 +38,10 @@ func (server *Server) listOrganizations(w http.ResponseWriter, r *http.Request) 
 }
 
 func (server *Server) createOrganization(w http.ResponseWriter, r *http.Request) {
-	if _, ok := server.protectUnsafe(w, r, true); !ok {
+	// Creating an Organization stays an instance-scoped operation (ADR 0017); the
+	// creator becomes its first Administrator inside the provisioning transaction.
+	principal, ok := server.protectUnsafe(w, r, server.requireInstanceAdministrator)
+	if !ok {
 		return
 	}
 	var request api.CreateOrganizationRequest
@@ -45,6 +50,7 @@ func (server *Server) createOrganization(w http.ResponseWriter, r *http.Request)
 	}
 	result, err := server.organizations.Provision(r.Context(), organization.ProvisionCommand{
 		Slug: valueOrEmpty(request.Slug), DisplayName: valueOrEmpty(request.DisplayName),
+		CreatorUserID: string(principal.account.ID),
 	})
 	if err != nil {
 		server.internalError(w, r, "provision Organization", err)
@@ -76,7 +82,7 @@ func (server *Server) organizationItem(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w, http.MethodGet)
 		return
 	}
-	if _, ok = server.requireAdministrator(w, r); !ok {
+	if _, ok = server.requireOrganizationPermission(w, r, id, organization.PermissionOrganizationRead); !ok {
 		return
 	}
 	details, found, err := server.organizations.Get(r.Context(), organization.ID(id))

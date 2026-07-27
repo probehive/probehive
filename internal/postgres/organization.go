@@ -54,14 +54,16 @@ FROM projects
 WHERE id = $1 AND organization_id = $2`, string(projectID), string(organizationID)))
 }
 
-// List returns every Organization joined to its default Project in creation order.
-func (store *OrganizationStore) List(ctx context.Context) ([]organization.Details, error) {
+// ListForMember returns the Organizations a user belongs to, joined to their default
+// Projects, in creation order. Membership is the filter; the instance role is not.
+func (store *OrganizationStore) ListForMember(ctx context.Context, userID string) ([]organization.Details, error) {
 	rows, err := store.pool.Query(ctx, `
 SELECT o.id, o.slug, o.display_name, o.created_at,
        p.id, p.organization_id, p.name, p.is_default, p.created_at
 FROM organizations o
 JOIN projects p ON p.organization_id = o.id AND p.is_default
-ORDER BY o.created_at, o.id`)
+JOIN organization_members m ON m.organization_id = o.id AND m.user_id = $1
+ORDER BY o.created_at, o.id`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list Organizations: %w", err)
 	}
@@ -104,7 +106,12 @@ ORDER BY o.created_at, o.id`)
 	return values, nil
 }
 
-func (store *OrganizationStore) Create(ctx context.Context, value organization.Organization, defaultProject organization.Project) error {
+func (store *OrganizationStore) Create(
+	ctx context.Context,
+	value organization.Organization,
+	defaultProject organization.Project,
+	membership organization.Membership,
+) error {
 	transaction, err := store.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin Organization creation: %w", err)
@@ -124,6 +131,12 @@ INSERT INTO projects (id, organization_id, name, is_default, created_at)
 VALUES ($1, $2, $3, $4, $5)`, string(defaultProject.ID), string(defaultProject.OrganizationID), defaultProject.Name,
 		defaultProject.IsDefault, defaultProject.CreatedAt.UTC()); err != nil {
 		return fmt.Errorf("insert default Project: %w", err)
+	}
+	if _, err := transaction.Exec(ctx, `
+INSERT INTO organization_members (organization_id, user_id, role, created_at)
+VALUES ($1, $2, $3, $4)`, string(membership.OrganizationID), membership.UserID,
+		string(membership.Role), membership.CreatedAt.UTC()); err != nil {
+		return fmt.Errorf("insert creator membership: %w", err)
 	}
 	if err := transaction.Commit(ctx); err != nil {
 		if isConstraintViolation(err, uniqueViolation, organizationSlugUniqueIndex) {
@@ -176,4 +189,33 @@ func scanProject(row rowScanner) (organization.Project, bool, error) {
 		ID: organization.ProjectID(id), OrganizationID: organization.ID(organizationID),
 		Name: name, IsDefault: isDefault, CreatedAt: createdAt.UTC(),
 	}, true, nil
+}
+
+// FindMembership resolves one user's membership of one Organization.
+func (store *OrganizationStore) FindMembership(
+	ctx context.Context,
+	organizationID organization.ID,
+	userID string,
+) (organization.Membership, bool, error) {
+	var (
+		role      string
+		createdAt time.Time
+	)
+	if err := store.pool.QueryRow(ctx, `
+SELECT role, created_at
+FROM organization_members
+WHERE organization_id = $1 AND user_id = $2`,
+		string(organizationID), userID).Scan(&role, &createdAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return organization.Membership{}, false, nil
+		}
+		return organization.Membership{}, false, fmt.Errorf("scan membership: %w", err)
+	}
+	value, err := organization.NewMembership(
+		organizationID, userID, organization.Role(role), createdAt.UTC(),
+	)
+	if err != nil {
+		return organization.Membership{}, false, fmt.Errorf("restore membership: %w", err)
+	}
+	return value, true, nil
 }
