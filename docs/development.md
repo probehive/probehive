@@ -50,7 +50,7 @@ The supported environment variables are:
 
 ## First Administrator and Sessions
 
-Every `/api/v1` endpoint except setup status, first-administrator creation, login, and antiforgery issuance requires an authenticated browser session. A fresh installation reports `{"setupComplete":false}` at `GET /api/v1/setup/status`. `POST /api/v1/setup/admin` creates the first administrator exactly once, provisions the installation Organization with slug `default` and its default Project, and signs the administrator in (ADR 0018). It returns both the user and that Organization, so no separate Organization step is needed before creating a Monitor.
+Every `/api/v1` endpoint except setup status, first-administrator creation, login, and antiforgery issuance requires an authenticated browser session. A fresh installation reports `{"setupComplete":false}` at `GET /api/v1/setup/status`. `POST /api/v1/setup/admin` creates the first administrator exactly once, provisions the installation Organization with slug `default` and its default Project, and signs the administrator in (ADR 0018). It returns both the user and that Organization, so no separate Organization step is needed before creating a Monitor. Setup also makes that administrator the Organization's first member, which is what grants access: every endpoint under `/api/v1/organizations/{id}/` resolves membership and checks a permission, and a non-member receives `404` rather than `403` (ADR 0017). The instance `Administrator` role alone grants no access to an Organization's monitoring data.
 
 Unsafe requests need the token from `GET /api/v1/auth/antiforgery` echoed in the response-named `X-ProbeHive-Antiforgery` header. The token is bound to the current anonymous or authenticated identity, so fetch a fresh token after setup, login, or logout.
 
@@ -143,7 +143,7 @@ npm --prefix web run build
 
 ## Browser Journeys
 
-Playwright runs the unchanged browser journey against the real Go API and a dedicated `probehive_e2e` database. It requires the development PostgreSQL service, Go, and Playwright Chromium:
+Playwright runs the browser journeys against the real Go API and a dedicated `probehive_e2e` database: the first-run journey, and a second that switches the interface to `zh-CN` and confirms the preference survives a reload. It requires the development PostgreSQL service, Go, and Playwright Chromium:
 
 ```bash
 npx --prefix web playwright install chromium

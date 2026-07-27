@@ -4,6 +4,7 @@
 - Date: 2026-07-27
 - Amends: [ADR 0013](0013-first-administrator-and-local-authentication.md)
 - Clarifies: [ADR 0012](0012-organization-provisioning-idempotency.md)
+- Amended by: [ADR 0017](0017-organization-membership-and-authorization.md), which makes the Organization list membership-scoped rather than instance-Administrator-gated
 
 ## Context
 
@@ -37,9 +38,9 @@ Setup returns `201` with a `SetupResponse` carrying both the created `user` and 
 
 ### Listing Organizations
 
-`GET /api/v1/organizations` is added, returning each Organization with its default Project in creation order with the Organization id as a tie-breaker, and a bare empty array when none exist. It requires an Administrator session.
+`GET /api/v1/organizations` is added, returning each Organization with its default Project in creation order with the Organization id as a tie-breaker, and a bare empty array when none exist. It requires an authenticated session and returns the caller's memberships; the sentence about an Administrator session in the first draft of this record described the pre-membership build and is superseded by ADR 0017.
 
-Without it, signing back in would land on a create-an-Organization page the operator no longer needs, which would put the removed ceremony straight back into the flow. Until Organization membership exists (ADR 0017) an instance Administrator sees every Organization; that filter is exactly where membership will apply, so the endpoint's contract does not change when membership lands.
+Without it, signing back in would land on a create-an-Organization page the operator no longer needs, which would put the removed ceremony straight back into the flow. In the build that first shipped this endpoint an instance Administrator saw every Organization, because membership did not exist yet. That filter was exactly where membership applied, so implementing ADR 0017 tightened the meaning from "every Organization" to "the caller's" without changing the endpoint's shape.
 
 `POST /api/v1/organizations` is unchanged. Multiple Organizations remain fully supported; provisioning one is now a choice rather than a prerequisite.
 

@@ -565,7 +565,10 @@ Playwright runs from `web/` with:
 - one worker, `fullyParallel: false`, zero retries;
 - browser base URL `http://127.0.0.1:5173`;
 - API readiness URL `http://127.0.0.1:5080/readyz`, 180-second timeout, never reuse;
-- Vite at `127.0.0.1:5173` with `--strictPort`, 120-second timeout, never reuse.
+- Vite at `127.0.0.1:5173` with `--strictPort`, 120-second timeout, never reuse;
+- pinned `locale: 'en-US'` and `timezoneId: 'UTC'`. These are load-bearing, not
+  cosmetic: instants render through `Intl` in the viewer's locale and zone (ADR 0019),
+  so unpinning either makes assertions depend on the machine running them.
 
 Vite proxies `/api` to `http://localhost:5080` without `changeOrigin`, preserving the
 browser Host so same-origin validation succeeds.
@@ -590,7 +593,11 @@ in the first Administrator, and lands directly on the Organization that setup pr
 rendering its `Default` heading and default Project. It then signs out, signs back in,
 lands on the Organization list containing `Default`, creates slug `acme` with display name
 `Acme Monitoring`, follows the returned Organization, and renders its default Project.
-The journey and `web/src` are contract consumers: either may change, but a change that
+A second journey switches the interface to `zh-CN`, asserts the translated heading and
+the `lang` attribute of the document element, and reloads to confirm the preference
+persists rather than renegotiating from the browser.
+
+The journeys and `web/src` are contract consumers: either may change, but a change that
 alters observable behavior described here must update this document in the same commit.
 
 ## 13. Error Code Catalog

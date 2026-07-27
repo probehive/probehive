@@ -34,10 +34,12 @@ ProbeHive is an open-source distributed synthetic monitoring and availability pl
 
 The current foundation implements:
 
-- Idempotent Organization provisioning with a transactional default Project.
-- First-administrator setup and PostgreSQL-backed browser sessions with antiforgery, origin validation, fixed expiry, and deny-by-default authorization.
+- First-administrator setup that also provisions the installation's Organization and default Project, so a fresh install can hold a Monitor without any organizational setup.
+- PostgreSQL-backed browser sessions with antiforgery, origin validation, fixed expiry, and deny-by-default authorization.
+- Organization membership with permission-based authorization: a non-member cannot distinguish an Organization from one that does not exist.
 - Monitors with immutable revisions and strict HTTP check configuration validation.
-- A React first-run experience covering setup, sign-in, sign-out, and Organization creation, with a Playwright browser journey.
+- Stable machine-readable error codes on every API failure, so clients localize without the API ever returning a translated string.
+- A React administration application in English and Simplified Chinese, rendering instants in the viewer's time zone, with Playwright browser journeys.
 
 Check execution, scheduling, incidents, alert delivery, status pages, Agents, and packaged releases remain under development.
 
