@@ -99,7 +99,10 @@ antiforgery token and `request.origin.rejected` for a browser-origin mismatch.
 
 ## 2. Wire Types
 
-All response fields below are required and non-null.
+All response fields below are required and non-null unless explicitly marked nullable.
+Nullable fields are still present in the JSON object: `nextCursor`, `outcome`, `startedAt`,
+`finishedAt`, `leaseExpiresAt`, `http`, `tls`, and `certificateExpiresAt` serialize as
+JSON `null` when absent.
 
 | Type | Exact JSON fields |
 | --- | --- |
@@ -112,6 +115,12 @@ All response fields below are required and non-null.
 | `OrganizationResponse` | `id: UUID string`, `slug: string`, `displayName: string`, `createdAt: UTC timestamp string`, `defaultProject: ProjectResponse` |
 | `MonitorResponse` | `id`, `organizationId`, `projectId` as UUID strings; `name`, `checkType`, `state` as strings; `latestRevisionNumber: integer`; `createdAt`, `updatedAt` as UTC timestamp strings |
 | `MonitorRevisionResponse` | `id`, `monitorId` as UUID strings; `revisionNumber: integer`; `checkType: string`; `checkSchemaVersion: integer`; `checkConfiguration: JSON value`; `createdAt: UTC timestamp string` |
+| `RunPageResponse` | `items: RunResponse[]`; `nextCursor: nullable opaque string` |
+| `RunResponse` | `id`, `organizationId`, `projectId`, `monitorId` as UUID strings; `revisionNumber: integer`; `location`, `kind` as strings; `scheduledFor: UTC timestamp string`; `outcome: nullable string`; `startedAt`, `finishedAt`, `leaseExpiresAt` as nullable UTC timestamp strings |
+| `ObservationResponse` | `runId`, `organizationId` as UUID strings; `scheduledFor: UTC timestamp string`; `failureCode`, `failureClass` as strings; `durationMicroseconds: integer`; `phases: ObservationPhasesResponse`; `http: nullable HTTPObservationResponse` |
+| `ObservationPhasesResponse` | `connectMicroseconds`, `tlsMicroseconds`, `firstByteMicroseconds` as integers |
+| `HTTPObservationResponse` | `statusCode`, `redirectCount`, `bodyBytes` as integers; `protocol: string`; `bodyTruncated: boolean`; `tls: nullable TLSObservationResponse` |
+| `TLSObservationResponse` | `version`, `cipherSuite` as strings; `certificateExpiresAt: nullable UTC timestamp string` |
 
 Request shapes are:
 
@@ -159,11 +168,14 @@ antiforgery and origin rules in section 5 also apply.
 | `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions` | `monitor.write`, unsafe | `201 MonitorRevisionResponse` and canonical revision `Location` | `400`, `404`, `409`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions` | `monitor.read` | `200 MonitorRevisionResponse[]` in ascending revision number | `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}` | `monitor.read` | `200 MonitorRevisionResponse` | `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs` | `monitor.read` | `200 RunPageResponse`, newest first by `(scheduledFor, id)` | `400`, `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}` | `monitor.read` | `200 RunResponse` | `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}/observation` | `monitor.read` | `200 ObservationResponse` for a completed, non-skipped Run | `404`, `401`, `403` |
 
 The canonical revision `Location` ends in `/revisions/{revisionNumber}`. All monitor
-lookups include Organization, Project, and Monitor scope. A real identifier presented
-through the wrong Organization or Project is indistinguishable from an unknown one
-and returns `404`.
+and Run lookups include Organization, Project, and Monitor scope. A real identifier
+presented through the wrong Organization, Project, or Monitor is indistinguishable from
+an unknown one and returns `404`.
 
 Development alone exposes anonymous `GET /openapi/v1.json`. There is no OpenAPI UI.
 
@@ -407,6 +419,37 @@ returns `409` with detail
 `The Monitor was modified concurrently; retry against its current state.` The client
 must GET fresh state and retry its operation. There is no ETag or client-supplied row
 version. The server must never silently reorder or renumber revisions.
+
+### Run and Observation queries
+
+Run history is a bounded, newest-first keyset query ordered by descending `scheduledFor`,
+with descending Run `id` as its tie-breaker. `notBefore` is required exactly once and is
+an inclusive RFC 3339 lower bound;
+requiring it lets PostgreSQL prune retained monthly partitions. `pageSize` is optional,
+defaults to 50, and is an integer from 1 through 500. `cursor`, `outcome`, `kind`, and
+`location` are optional and each may appear at most once with a non-empty value.
+
+`outcome` is exactly one of `passed`, `failed`, `errored`, `timedout`, `cancelled`, or
+`skipped`. `kind` is exactly one of `scheduled`, `confirmation`, or `manual`. `location`
+is 1-63 UTF-8 bytes. A page always returns `items` as an array; an empty page is `[]`.
+`nextCursor` is `null` on the final page and otherwise is an opaque exclusive boundary
+that the client sends back unchanged with the same lower bound and filters.
+
+A Run id is the external identifier; callers do not supply the internal partition key.
+`outcome` is null and only `leaseExpiresAt` is present while the Run is in flight.
+`startedAt` and `finishedAt` are present only after a completed execution. A skipped Run
+has no execution or lease instants. The secret lease-holder token is never part of a
+response.
+
+An Observation exists only for a completed, non-skipped Run. Querying one for an
+in-flight or skipped Run returns `404`. Completion persists the Run and Observation in
+one transaction, so a completed execution missing its Observation is an internal
+integrity error, not an absent resource. Durations and phase timings are non-negative
+integer microseconds; a phase that did not occur is zero. `failureCode` is empty for a
+passed Run and `failureClass` is empty unless an outbound denial names an address class.
+`http` is null when no HTTP response arrived, and `tls` is null when the first hop did not
+complete a TLS handshake. The response never contains headers, a body, target-supplied
+messages, or credentials.
 
 ## 8. HTTP Check Configuration Schema Version 1
 
@@ -672,6 +715,13 @@ check.http.headers.name.notString    check.http.headers.name.invalid
 check.http.headers.name.forbidden    check.http.headers.name.duplicate
 check.http.headers.value.notString   check.http.headers.value.tooLong
 check.http.headers.value.controlCharacter
+```
+
+Run queries:
+
+```text
+run.query.notBefore.invalid  run.query.pageSize.invalid  run.query.cursor.invalid
+run.query.outcome.invalid    run.query.kind.invalid      run.query.location.invalid
 ```
 
 `monitor.checkType.unsupported` and `check.checkType.unsupported` describe the same

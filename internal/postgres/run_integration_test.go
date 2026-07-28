@@ -583,6 +583,108 @@ func TestListRunsForMonitorIsNewestFirstAndBounded(t *testing.T) {
 	}
 }
 
+func TestScopedRunQueryServicePaginatesFiltersAndHidesWrongProject(t *testing.T) {
+	database := newIntegrationDatabase(t, true)
+	store, slot, now := seedRunSlot(t, database, 240)
+	var projectID string
+	if err := database.pool.QueryRow(
+		t.Context(), "SELECT project_id FROM monitors WHERE id = $1", slot.MonitorID,
+	).Scan(&projectID); err != nil {
+		t.Fatalf("load seeded Project id: %v", err)
+	}
+	scope := run.Scope{
+		OrganizationID: slot.OrganizationID,
+		ProjectID:      projectID,
+		MonitorID:      slot.MonitorID,
+	}
+	service := run.NewQueryService(store)
+
+	values := make([]run.Run, 3)
+	for index := range values {
+		current := slot
+		current.ScheduledFor = slot.ScheduledFor.Add(time.Duration(index) * time.Minute)
+		claimed := mustClaim(
+			t, run.ID(testUUID(260+index)), current, run.KindScheduled,
+			"query-worker", now.Add(time.Hour),
+		)
+		stored, err := store.ClaimSlot(t.Context(), claimed, now)
+		if err != nil {
+			t.Fatalf("ClaimSlot() %d error = %v", index, err)
+		}
+		outcome := run.OutcomePassed
+		if index == 1 {
+			outcome = run.OutcomeFailed
+		}
+		if err := stored.Complete(outcome, current.ScheduledFor, current.ScheduledFor.Add(time.Second)); err != nil {
+			t.Fatalf("Complete() %d error = %v", index, err)
+		}
+		if err := store.Complete(
+			t.Context(), stored, "query-worker", observationFor(stored, current), nil,
+		); err != nil {
+			t.Fatalf("store.Complete() %d error = %v", index, err)
+		}
+		values[index] = stored
+	}
+
+	first, found, err := service.List(t.Context(), scope, run.ListQuery{
+		NotBefore: slot.ScheduledFor,
+		PageSize:  2,
+	})
+	if err != nil || !found {
+		t.Fatalf("first List() = found %v, err %v", found, err)
+	}
+	if len(first.Runs) != 2 || first.Runs[0].ID != values[2].ID ||
+		first.Runs[1].ID != values[1].ID || first.NextCursor == nil {
+		t.Fatalf("first List() = %#v", first)
+	}
+
+	second, found, err := service.List(t.Context(), scope, run.ListQuery{
+		NotBefore: slot.ScheduledFor,
+		Cursor:    first.NextCursor,
+		PageSize:  2,
+	})
+	if err != nil || !found || len(second.Runs) != 1 ||
+		second.Runs[0].ID != values[0].ID || second.NextCursor != nil {
+		t.Fatalf("second List() = %#v, found %v, err %v", second, found, err)
+	}
+
+	passed, found, err := service.List(t.Context(), scope, run.ListQuery{
+		NotBefore: slot.ScheduledFor,
+		PageSize:  run.MaxPageSize,
+		Outcome:   run.OutcomePassed,
+		Kind:      run.KindScheduled,
+		Location:  slot.Location,
+	})
+	if err != nil || !found || len(passed.Runs) != 2 {
+		t.Fatalf("filtered List() = %#v, found %v, err %v", passed, found, err)
+	}
+
+	loaded, found, err := service.Get(t.Context(), scope, values[2].ID)
+	if err != nil || !found || loaded.ID != values[2].ID {
+		t.Fatalf("Get() = %#v, found %v, err %v", loaded, found, err)
+	}
+	observation, found, err := service.GetObservation(t.Context(), scope, values[2].ID)
+	if err != nil || !found || observation.RunID != values[2].ID {
+		t.Fatalf("GetObservation() = %#v, found %v, err %v", observation, found, err)
+	}
+
+	wrongProject := scope
+	wrongProject.ProjectID = testUUID(999)
+	if _, found, err := service.List(t.Context(), wrongProject, run.ListQuery{
+		NotBefore: slot.ScheduledFor, PageSize: 10,
+	}); err != nil || found {
+		t.Fatalf("wrong-Project List() = found %v, err %v", found, err)
+	}
+	if _, found, err := service.Get(t.Context(), wrongProject, values[2].ID); err != nil || found {
+		t.Fatalf("wrong-Project Get() = found %v, err %v", found, err)
+	}
+	if _, found, err := service.GetObservation(
+		t.Context(), wrongProject, values[2].ID,
+	); err != nil || found {
+		t.Fatalf("wrong-Project GetObservation() = found %v, err %v", found, err)
+	}
+}
+
 // seedRunSlot builds a tenant, a Monitor with one revision, the partitions the Run will land
 // in, and the slot identity the tests contend over.
 func seedRunSlot(t *testing.T, database *DB, offset int) (*RunStore, run.Slot, time.Time) {

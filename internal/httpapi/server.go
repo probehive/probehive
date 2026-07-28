@@ -14,6 +14,7 @@ import (
 
 	"github.com/probehive/probehive/internal/monitor"
 	"github.com/probehive/probehive/internal/organization"
+	"github.com/probehive/probehive/internal/run"
 	"github.com/probehive/probehive/internal/user"
 )
 
@@ -27,6 +28,7 @@ type Config struct {
 	Organizations               *organization.Service
 	Users                       *user.Service
 	Monitors                    *monitor.Service
+	Runs                        *run.QueryService
 	Sessions                    user.SessionStore
 	Antiforgery                 user.AntiforgeryStore
 	Clock                       Clock
@@ -42,6 +44,7 @@ type Server struct {
 	organizations *organization.Service
 	users         *user.Service
 	monitors      *monitor.Service
+	runs          *run.QueryService
 	sessions      user.SessionStore
 	antiforgery   user.AntiforgeryStore
 	clock         Clock
@@ -55,7 +58,7 @@ type Server struct {
 }
 
 func New(config Config) (*Server, error) {
-	if config.Organizations == nil || config.Users == nil || config.Monitors == nil ||
+	if config.Organizations == nil || config.Users == nil || config.Monitors == nil || config.Runs == nil ||
 		config.Sessions == nil || config.Antiforgery == nil || config.Clock == nil || config.Ready == nil {
 		return nil, errors.New("httpapi requires feature services, security stores, a clock, and readiness check")
 	}
@@ -79,6 +82,7 @@ func New(config Config) (*Server, error) {
 	server := &Server{
 		organizations: config.Organizations, users: config.Users, monitors: config.Monitors,
 		sessions: config.Sessions, antiforgery: config.Antiforgery, clock: config.Clock,
+		runs:  config.Runs,
 		ready: config.Ready, random: config.Random, logger: config.Logger,
 		development:  config.Development,
 		publicOrigin: publicOrigin,
@@ -134,6 +138,9 @@ func (server *Server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/interval", server.changeMonitorInterval)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions", server.monitorRevisions)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}", server.monitorRevisionItem)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs", server.monitorRuns)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}", server.monitorRun)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}/observation", server.monitorRunObservation)
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) { writeStatusProblem(w, http.StatusNotFound) })
 	return mux
 }

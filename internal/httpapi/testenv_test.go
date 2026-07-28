@@ -20,6 +20,7 @@ import (
 	api "github.com/probehive/probehive/internal/httpapi/v1"
 	"github.com/probehive/probehive/internal/monitor"
 	"github.com/probehive/probehive/internal/organization"
+	"github.com/probehive/probehive/internal/run"
 	"github.com/probehive/probehive/internal/user"
 )
 
@@ -32,6 +33,7 @@ type testEnvironment struct {
 	antiforgery   *memoryAntiforgeryStore
 	organizations *memoryOrganizationStore
 	monitors      *memoryMonitorStore
+	runs          *memoryRunStore
 }
 
 func newTestEnvironment(t *testing.T, development bool, credentialLimit int, configure ...func(*Config)) *testEnvironment {
@@ -42,15 +44,18 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 	antiforgery := newMemoryAntiforgeryStore()
 	organizations := newMemoryOrganizationStore()
 	monitors := newMemoryMonitorStore()
+	runs := newMemoryRunStore(monitors)
 	ids := &testUUIDGenerator{}
 
 	organizationService := organization.NewService(organizations, clock, ids)
 	userService := user.NewService(users, testPasswordHasher{}, clock, ids)
 	monitorService := monitor.NewService(monitors, check.NewCatalog(), clock, ids)
+	runService := run.NewQueryService(runs)
 	config := Config{
 		Organizations:               organizationService,
 		Users:                       userService,
 		Monitors:                    monitorService,
+		Runs:                        runService,
 		Sessions:                    sessions,
 		Antiforgery:                 antiforgery,
 		Clock:                       clock,
@@ -77,6 +82,7 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 		server: server, client: &http.Client{Jar: jar}, clock: clock,
 		users: users, sessions: sessions, antiforgery: antiforgery,
 		organizations: organizations, monitors: monitors,
+		runs: runs,
 	}
 	t.Cleanup(server.Close)
 	return environment

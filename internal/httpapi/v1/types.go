@@ -78,6 +78,58 @@ type MonitorRevisionResponse struct {
 	CreatedAt          time.Time       `json:"createdAt"`
 }
 
+type RunPageResponse struct {
+	Items      []RunResponse `json:"items"`
+	NextCursor *string       `json:"nextCursor"`
+}
+
+type RunResponse struct {
+	ID             string     `json:"id"`
+	OrganizationID string     `json:"organizationId"`
+	ProjectID      string     `json:"projectId"`
+	MonitorID      string     `json:"monitorId"`
+	RevisionNumber int        `json:"revisionNumber"`
+	Location       string     `json:"location"`
+	ScheduledFor   time.Time  `json:"scheduledFor"`
+	Kind           string     `json:"kind"`
+	Outcome        *string    `json:"outcome"`
+	StartedAt      *time.Time `json:"startedAt"`
+	FinishedAt     *time.Time `json:"finishedAt"`
+	LeaseExpiresAt *time.Time `json:"leaseExpiresAt"`
+}
+
+type ObservationResponse struct {
+	RunID                string                    `json:"runId"`
+	OrganizationID       string                    `json:"organizationId"`
+	ScheduledFor         time.Time                 `json:"scheduledFor"`
+	FailureCode          string                    `json:"failureCode"`
+	FailureClass         string                    `json:"failureClass"`
+	DurationMicroseconds int64                     `json:"durationMicroseconds"`
+	Phases               ObservationPhasesResponse `json:"phases"`
+	HTTP                 *HTTPObservationResponse  `json:"http"`
+}
+
+type ObservationPhasesResponse struct {
+	ConnectMicroseconds   int64 `json:"connectMicroseconds"`
+	TLSMicroseconds       int64 `json:"tlsMicroseconds"`
+	FirstByteMicroseconds int64 `json:"firstByteMicroseconds"`
+}
+
+type HTTPObservationResponse struct {
+	StatusCode    int                     `json:"statusCode"`
+	Protocol      string                  `json:"protocol"`
+	RedirectCount int                     `json:"redirectCount"`
+	BodyBytes     int64                   `json:"bodyBytes"`
+	BodyTruncated bool                    `json:"bodyTruncated"`
+	TLS           *TLSObservationResponse `json:"tls"`
+}
+
+type TLSObservationResponse struct {
+	Version              string     `json:"version"`
+	CipherSuite          string     `json:"cipherSuite"`
+	CertificateExpiresAt *time.Time `json:"certificateExpiresAt"`
+}
+
 type CreateFirstAdministratorRequest struct {
 	Email       *string `json:"email"`
 	DisplayName *string `json:"displayName"`

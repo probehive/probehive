@@ -39,9 +39,11 @@ The current foundation implements:
 - Organization membership with permission-based authorization: a non-member cannot distinguish an Organization from one that does not exist.
 - Monitors with immutable revisions and strict HTTP check configuration validation.
 - Stable machine-readable error codes on every API failure, so clients localize without the API ever returning a translated string.
+- An embedded scheduler and bounded worker that execute validated HTTP checks through the shared outbound-access policy and persist partitioned Runs and Observations.
+- Fully scoped Run history and Observation query APIs with bounded keyset pagination and stable filters.
 - A React administration application in English and Simplified Chinese, rendering instants in the viewer's time zone, with Playwright browser journeys.
 
-Check execution, scheduling, incidents, alert delivery, status pages, Agents, and packaged releases remain under development.
+Incident evaluation, alert delivery, status pages, Agents, frontend Monitor and Run screens, and packaged releases remain under development.
 
 ## Get Started
 

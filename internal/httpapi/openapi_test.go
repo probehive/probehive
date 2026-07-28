@@ -47,6 +47,9 @@ func TestOpenAPIDocumentDescribesEveryRoute(t *testing.T) {
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/interval":                   {"put"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions":                  {"get", "post"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}": {"get"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs":                       {"get"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}":               {"get"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}/observation":   {"get"},
 	}
 	httpMethods := map[string]struct{}{
 		"get": {}, "put": {}, "post": {}, "delete": {}, "options": {}, "head": {}, "patch": {}, "trace": {},
@@ -79,12 +82,16 @@ func TestOpenAPIDocumentDescribesEveryRoute(t *testing.T) {
 
 func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 	type property struct {
-		Format               string   `json:"format"`
-		Pattern              string   `json:"pattern"`
-		Maximum              int      `json:"maximum"`
-		LengthUnit           string   `json:"x-probehive-length-unit"`
-		UniqueNameComparison string   `json:"x-probehive-unique-name-comparison"`
-		ForbiddenNames       []string `json:"x-probehive-forbidden-names"`
+		Format               string          `json:"format"`
+		Minimum              int             `json:"minimum"`
+		Pattern              string          `json:"pattern"`
+		Maximum              int             `json:"maximum"`
+		Default              json.RawMessage `json:"default"`
+		MinLength            int             `json:"minLength"`
+		MaxBytes             int             `json:"x-probehive-max-bytes"`
+		LengthUnit           string          `json:"x-probehive-length-unit"`
+		UniqueNameComparison string          `json:"x-probehive-unique-name-comparison"`
+		ForbiddenNames       []string        `json:"x-probehive-forbidden-names"`
 	}
 	type schema struct {
 		PropertyNameComparison string              `json:"x-probehive-property-name-comparison"`
@@ -93,7 +100,8 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 	var document struct {
 		Components struct {
 			Parameters map[string]struct {
-				Schema property `json:"schema"`
+				Required bool     `json:"required"`
+				Schema   property `json:"schema"`
 			} `json:"parameters"`
 			Schemas map[string]schema `json:"schemas"`
 		} `json:"components"`
@@ -105,6 +113,24 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 	revision := document.Components.Parameters["RevisionNumber"].Schema
 	if revision.Format != "int32" || revision.Maximum != 2147483647 {
 		t.Fatalf("RevisionNumber schema = %#v", revision)
+	}
+
+	notBefore := document.Components.Parameters["RunNotBefore"]
+	if !notBefore.Required || notBefore.Schema.Format != "date-time" {
+		t.Fatalf("RunNotBefore parameter = %#v", notBefore)
+	}
+	pageSize := document.Components.Parameters["RunPageSize"].Schema
+	if pageSize.Minimum != 1 || pageSize.Maximum != 500 || string(pageSize.Default) != "50" {
+		t.Fatalf("RunPageSize schema = %#v", pageSize)
+	}
+	location := document.Components.Parameters["RunLocation"].Schema
+	if location.MinLength != 1 || location.MaxBytes != 63 {
+		t.Fatalf("RunLocation schema = %#v", location)
+	}
+	for _, name := range []string{"RunPageResponse", "RunResponse", "ObservationResponse", "ObservationPhasesResponse", "HTTPObservationResponse", "TLSObservationResponse"} {
+		if _, found := document.Components.Schemas[name]; !found {
+			t.Errorf("OpenAPI omits %s", name)
+		}
 	}
 
 	requestSchemas := []string{

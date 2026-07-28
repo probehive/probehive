@@ -15,13 +15,20 @@ import (
 // partitionAdvisoryLockKey serializes partition maintenance the way the migration runner
 // serializes migrations. Two workers running maintenance concurrently would otherwise race
 // between "does this partition exist" and "create it" (ADR 0025).
-var _ run.Store = (*RunStore)(nil)
+var (
+	_ run.Store      = (*RunStore)(nil)
+	_ run.QueryStore = (*RunStore)(nil)
+)
 
 const partitionAdvisoryLockKey int64 = 7355608015
 
 // runColumns is the projection every Run read shares.
 const runColumns = `id, organization_id, monitor_id, revision_number, location, scheduled_for,
        kind, outcome, started_at, finished_at, lease_holder, lease_expires_at`
+
+const scopedRunColumns = `r.id, r.organization_id, r.monitor_id, r.revision_number,
+       r.location, r.scheduled_for, r.kind, r.outcome, r.started_at, r.finished_at,
+       r.lease_holder, r.lease_expires_at`
 
 // RunStore persists Runs, Observations, and the outbox that follows a committed Run.
 type RunStore struct {
@@ -242,6 +249,96 @@ DO NOTHING`,
 		return run.ErrSlotHeld
 	}
 	return nil
+}
+
+// MonitorExists verifies the complete ownership path before an empty Run page is returned.
+func (store *RunStore) MonitorExists(ctx context.Context, scope run.Scope) (bool, error) {
+	var exists bool
+	if err := store.pool.QueryRow(ctx, `
+SELECT EXISTS (
+    SELECT 1
+    FROM monitors
+    WHERE id = $1 AND project_id = $2 AND organization_id = $3
+)`, scope.MonitorID, scope.ProjectID, scope.OrganizationID).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check Monitor scope for Run query: %w", err)
+	}
+	return exists, nil
+}
+
+// ListRuns returns a keyset page newest first. Every predicate carries the full ownership
+// path, even after MonitorExists has checked it, so no query relies on a prior check for
+// tenant or Project isolation.
+func (store *RunStore) ListRuns(
+	ctx context.Context,
+	scope run.Scope,
+	query run.ListQuery,
+) ([]run.Run, bool, error) {
+	if query.PageSize < 1 || query.PageSize > run.MaxPageSize {
+		return nil, false, fmt.Errorf("a Run page is 1 to %d rows", run.MaxPageSize)
+	}
+	var cursorTime *time.Time
+	var cursorID *string
+	if query.Cursor != nil {
+		value := query.Cursor.ScheduledFor.UTC()
+		id := string(query.Cursor.ID)
+		cursorTime, cursorID = &value, &id
+	}
+	rows, err := store.pool.Query(ctx, `
+SELECT `+scopedRunColumns+`
+FROM runs AS r
+JOIN monitors AS m
+  ON m.id = r.monitor_id AND m.organization_id = r.organization_id
+WHERE r.monitor_id = $1 AND r.organization_id = $2 AND m.project_id = $3
+  AND r.scheduled_for >= $4
+  AND (
+      $5::timestamptz IS NULL
+      OR (r.scheduled_for, r.id) < ($5::timestamptz, $6::uuid)
+  )
+  AND ($7::text IS NULL OR r.outcome = $7)
+  AND ($8::text IS NULL OR r.kind = $8)
+  AND ($9::text IS NULL OR r.location = $9)
+ORDER BY r.scheduled_for DESC, r.id DESC
+LIMIT $10`,
+		scope.MonitorID, scope.OrganizationID, scope.ProjectID, query.NotBefore.UTC(),
+		cursorTime, cursorID, textPointer(string(query.Outcome)),
+		textPointer(string(query.Kind)), textPointer(query.Location), query.PageSize+1)
+	if err != nil {
+		return nil, false, fmt.Errorf("list Runs: %w", err)
+	}
+	defer rows.Close()
+
+	values := make([]run.Run, 0, query.PageSize+1)
+	for rows.Next() {
+		value, _, scanErr := scanRun(rows)
+		if scanErr != nil {
+			return nil, false, scanErr
+		}
+		values = append(values, value)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, fmt.Errorf("list Runs: %w", err)
+	}
+	more := len(values) > query.PageSize
+	if more {
+		values = values[:query.PageSize]
+	}
+	return values, more, nil
+}
+
+// FindScopedRun loads one external Run identifier through its complete ownership path. The
+// identifier is the external reference (ADR 0021); scheduled_for remains an internal
+// partition key and is recovered here for the exact Observation lookup that follows.
+func (store *RunStore) FindScopedRun(
+	ctx context.Context, scope run.Scope, id run.ID,
+) (run.Run, bool, error) {
+	return scanRun(store.pool.QueryRow(ctx, `
+SELECT `+scopedRunColumns+`
+FROM runs AS r
+JOIN monitors AS m
+  ON m.id = r.monitor_id AND m.organization_id = r.organization_id
+WHERE r.id = $1 AND r.monitor_id = $2 AND r.organization_id = $3 AND m.project_id = $4
+ORDER BY r.scheduled_for DESC
+LIMIT 1`, string(id), scope.MonitorID, scope.OrganizationID, scope.ProjectID))
 }
 
 // FindRun loads one Run under explicit Organization scope.

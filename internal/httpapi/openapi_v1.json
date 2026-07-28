@@ -3,14 +3,15 @@
   "info": {
     "title": "ProbeHive API",
     "version": "v1",
-    "description": "Contract-compatible API for ProbeHive organization bootstrap, local authentication, Monitors, and immutable Monitor revisions."
+    "description": "Contract-compatible API for ProbeHive organization bootstrap, local authentication, Monitors, immutable revisions, Runs, and Observations."
   },
   "tags": [
     { "name": "Health" },
     { "name": "Setup" },
     { "name": "Authentication" },
     { "name": "Organizations" },
-    { "name": "Monitors" }
+    { "name": "Monitors" },
+    { "name": "Runs" }
   ],
   "paths": {
     "/healthz": {
@@ -531,6 +532,85 @@
           "405": { "$ref": "#/components/responses/MethodNotAllowed" }
         }
       }
+    },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" },
+        { "$ref": "#/components/parameters/RunNotBefore" },
+        { "$ref": "#/components/parameters/RunPageSize" },
+        { "$ref": "#/components/parameters/RunCursor" },
+        { "$ref": "#/components/parameters/RunOutcome" },
+        { "$ref": "#/components/parameters/RunKind" },
+        { "$ref": "#/components/parameters/RunLocation" }
+      ],
+      "get": {
+        "tags": ["Runs"],
+        "operationId": "listMonitorRuns",
+        "summary": "List a Monitor's recent Runs",
+        "description": "Requires monitor.read. Returns a bounded newest-first keyset page ordered by scheduledFor and Run id. notBefore is required so PostgreSQL can prune retained monthly partitions. nextCursor is null on the final page and otherwise must be sent back unchanged with the same filters.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "One bounded Run page.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RunPageResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" },
+        { "$ref": "#/components/parameters/RunID" }
+      ],
+      "get": {
+        "tags": ["Runs"],
+        "operationId": "getMonitorRun",
+        "summary": "Return one fully scoped Run",
+        "description": "Requires monitor.read. The lease holder is never exposed. A real Run identifier under the wrong Organization, Project, or Monitor returns 404.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Run" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}/observation": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" },
+        { "$ref": "#/components/parameters/RunID" }
+      ],
+      "get": {
+        "tags": ["Runs"],
+        "operationId": "getRunObservation",
+        "summary": "Return one Run's bounded Observation",
+        "description": "Requires monitor.read. In-flight and skipped Runs have no Observation and return 404. The response contains only the bounded codes, timings, and protocol details persisted under ADR 0024.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Observation" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
     }
   },
   "components": {
@@ -578,6 +658,59 @@
         "in": "path",
         "required": true,
         "schema": { "type": "integer", "format": "int32", "minimum": 1, "maximum": 2147483647 }
+      },
+      "RunID": {
+        "name": "runId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "RunNotBefore": {
+        "name": "notBefore",
+        "in": "query",
+        "required": true,
+        "description": "Inclusive lower scheduledFor bound. Exactly one RFC 3339 timestamp is required.",
+        "schema": { "type": "string", "format": "date-time" }
+      },
+      "RunPageSize": {
+        "name": "pageSize",
+        "in": "query",
+        "description": "Maximum Runs in this page.",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 50 }
+      },
+      "RunCursor": {
+        "name": "cursor",
+        "in": "query",
+        "description": "Opaque nextCursor returned by the preceding page.",
+        "schema": { "type": "string", "minLength": 1 }
+      },
+      "RunOutcome": {
+        "name": "outcome",
+        "in": "query",
+        "description": "Optional exact outcome filter. In-flight Runs have no outcome and are included only when this filter is absent.",
+        "schema": {
+          "type": "string",
+          "enum": ["passed", "failed", "errored", "timedout", "cancelled", "skipped"]
+        }
+      },
+      "RunKind": {
+        "name": "kind",
+        "in": "query",
+        "description": "Optional exact Run kind filter.",
+        "schema": {
+          "type": "string",
+          "enum": ["scheduled", "confirmation", "manual"]
+        }
+      },
+      "RunLocation": {
+        "name": "location",
+        "in": "query",
+        "description": "Optional exact Probe Location identifier, bounded to 63 UTF-8 bytes.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "x-probehive-max-bytes": 63
+        }
       }
     },
     "headers": {
@@ -622,6 +755,14 @@
       "Forbidden": {
         "description": "The principal lacks the required role or the browser origin was rejected.",
         "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/ProblemDetails" } } }
+      },
+      "Run": {
+        "description": "The fully scoped Run without its lease-holder token.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RunResponse" } } }
+      },
+      "Observation": {
+        "description": "The Run's bounded Observation.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ObservationResponse" } } }
       },
       "NotFound": {
         "description": "The route or fully scoped resource was not found.",
@@ -770,6 +911,94 @@
           "checkSchemaVersion": { "type": "integer", "const": 1 },
           "checkConfiguration": { "$ref": "#/components/schemas/HTTPCheckConfigurationV1" },
           "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "RunPageResponse": {
+        "type": "object",
+        "required": ["items", "nextCursor"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/RunResponse" }
+          },
+          "nextCursor": { "type": ["string", "null"], "minLength": 1 }
+        }
+      },
+      "RunResponse": {
+        "type": "object",
+        "required": ["id", "organizationId", "projectId", "monitorId", "revisionNumber", "location", "scheduledFor", "kind", "outcome", "startedAt", "finishedAt", "leaseExpiresAt"],
+        "description": "A Run without its secret lease-holder token. Nullable state fields distinguish in-flight, completed, and skipped Runs.",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "organizationId": { "type": "string", "format": "uuid" },
+          "projectId": { "type": "string", "format": "uuid" },
+          "monitorId": { "type": "string", "format": "uuid" },
+          "revisionNumber": { "type": "integer", "minimum": 1 },
+          "location": { "type": "string", "minLength": 1, "x-probehive-max-bytes": 63 },
+          "scheduledFor": { "type": "string", "format": "date-time" },
+          "kind": { "type": "string", "enum": ["scheduled", "confirmation", "manual"] },
+          "outcome": {
+            "type": ["string", "null"],
+            "enum": ["passed", "failed", "errored", "timedout", "cancelled", "skipped", null]
+          },
+          "startedAt": { "type": ["string", "null"], "format": "date-time" },
+          "finishedAt": { "type": ["string", "null"], "format": "date-time" },
+          "leaseExpiresAt": { "type": ["string", "null"], "format": "date-time" }
+        }
+      },
+      "ObservationResponse": {
+        "type": "object",
+        "required": ["runId", "organizationId", "scheduledFor", "failureCode", "failureClass", "durationMicroseconds", "phases", "http"],
+        "description": "Bounded persisted execution detail. It contains no target-supplied headers, body, message, or lease-holder token.",
+        "properties": {
+          "runId": { "type": "string", "format": "uuid" },
+          "organizationId": { "type": "string", "format": "uuid" },
+          "scheduledFor": { "type": "string", "format": "date-time" },
+          "failureCode": { "type": "string", "x-probehive-max-bytes": 100 },
+          "failureClass": { "type": "string", "x-probehive-max-bytes": 100 },
+          "durationMicroseconds": { "type": "integer", "format": "int64", "minimum": 0 },
+          "phases": { "$ref": "#/components/schemas/ObservationPhasesResponse" },
+          "http": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/HTTPObservationResponse" },
+              { "type": "null" }
+            ]
+          }
+        }
+      },
+      "ObservationPhasesResponse": {
+        "type": "object",
+        "required": ["connectMicroseconds", "tlsMicroseconds", "firstByteMicroseconds"],
+        "properties": {
+          "connectMicroseconds": { "type": "integer", "format": "int64", "minimum": 0 },
+          "tlsMicroseconds": { "type": "integer", "format": "int64", "minimum": 0 },
+          "firstByteMicroseconds": { "type": "integer", "format": "int64", "minimum": 0 }
+        }
+      },
+      "HTTPObservationResponse": {
+        "type": "object",
+        "required": ["statusCode", "protocol", "redirectCount", "bodyBytes", "bodyTruncated", "tls"],
+        "properties": {
+          "statusCode": { "type": "integer", "minimum": 100, "maximum": 599 },
+          "protocol": { "type": "string", "x-probehive-max-bytes": 20 },
+          "redirectCount": { "type": "integer", "minimum": 0 },
+          "bodyBytes": { "type": "integer", "format": "int64", "minimum": 0 },
+          "bodyTruncated": { "type": "boolean" },
+          "tls": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/TLSObservationResponse" },
+              { "type": "null" }
+            ]
+          }
+        }
+      },
+      "TLSObservationResponse": {
+        "type": "object",
+        "required": ["version", "cipherSuite", "certificateExpiresAt"],
+        "properties": {
+          "version": { "type": "string", "x-probehive-max-bytes": 64 },
+          "cipherSuite": { "type": "string", "x-probehive-max-bytes": 64 },
+          "certificateExpiresAt": { "type": ["string", "null"], "format": "date-time" }
         }
       },
       "CreateFirstAdministratorRequest": {
