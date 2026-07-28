@@ -24,11 +24,14 @@ const partitionAdvisoryLockKey int64 = 7355608015
 
 // runColumns is the projection every Run read shares.
 const runColumns = `id, organization_id, monitor_id, revision_number, location, scheduled_for,
-       kind, outcome, started_at, finished_at, lease_holder, lease_expires_at`
+       kind, outcome, started_at, finished_at, lease_holder, lease_expires_at,
+       confirmation_candidate_id, triggering_run_id, triggering_scheduled_for,
+       causation_event_id, policy_version`
 
 const scopedRunColumns = `r.id, r.organization_id, r.monitor_id, r.revision_number,
        r.location, r.scheduled_for, r.kind, r.outcome, r.started_at, r.finished_at,
-       r.lease_holder, r.lease_expires_at`
+       r.lease_holder, r.lease_expires_at, r.confirmation_candidate_id,
+       r.triggering_run_id, r.triggering_scheduled_for, r.causation_event_id, r.policy_version`
 
 // RunStore persists Runs, Observations, and the outbox that follows a committed Run.
 type RunStore struct {
@@ -65,19 +68,24 @@ func (store *RunStore) ClaimSlot(ctx context.Context, value run.Run, now time.Ti
 	// A reclaim transfers the lease and keeps the existing Run identifier, so a slot has one
 	// identity for its whole life however many workers attempt it. The caller executes
 	// against the returned Run rather than the one it proposed.
+	candidateID, triggeringRunID, triggeringScheduledFor, causationEventID, policyVersion :=
+		confirmationDatabaseValues(value)
 	row := store.pool.QueryRow(ctx, `
 INSERT INTO runs (
     id, organization_id, monitor_id, revision_number, location, scheduled_for,
-    kind, outcome, started_at, finished_at, lease_holder, lease_expires_at, created_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, NULL, NULL, $8, $9, $10)
+    kind, outcome, started_at, finished_at, lease_holder, lease_expires_at,
+    confirmation_candidate_id, triggering_run_id, triggering_scheduled_for,
+    causation_event_id, policy_version, created_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,NULL,NULL,NULL,$8,$9,$10,$11,$12,$13,$14,$15)
 ON CONFLICT (monitor_id, revision_number, location, scheduled_for) WHERE kind <> 'manual'
 DO UPDATE SET lease_holder = EXCLUDED.lease_holder,
               lease_expires_at = EXCLUDED.lease_expires_at
-WHERE runs.outcome IS NULL AND runs.lease_expires_at <= $11
+WHERE runs.outcome IS NULL AND runs.lease_expires_at <= $16
 RETURNING `+runColumns,
 		string(value.ID), value.Slot.OrganizationID, value.Slot.MonitorID, value.Slot.RevisionNumber,
 		value.Slot.Location, value.Slot.ScheduledFor.UTC(), string(value.Kind),
-		value.LeaseHolder, value.LeaseExpiresAt.UTC(), now.UTC(), now.UTC())
+		value.LeaseHolder, value.LeaseExpiresAt.UTC(), candidateID, triggeringRunID,
+		triggeringScheduledFor, causationEventID, policyVersion, now.UTC(), now.UTC())
 
 	claimed, found, err := scanRun(row)
 	if err != nil {
@@ -215,7 +223,25 @@ WHERE id = $4 AND scheduled_for = $5 AND organization_id = $6
 			return err
 		}
 	}
+	if value.Confirmation != nil {
+		result, err := transaction.Exec(ctx, `
+UPDATE health_candidates
+SET confirmation_run_id=$1, confirmation_scheduled_for=$2
+WHERE id=$3 AND organization_id=$4
+  AND (
+      confirmation_run_id IS NULL
+      OR (confirmation_run_id=$1 AND confirmation_scheduled_for=$2)
+  )`,
+			string(value.ID), value.Slot.ScheduledFor.UTC(),
+			value.Confirmation.CandidateID, value.Slot.OrganizationID)
+		if err != nil {
+			return fmt.Errorf("link confirmation Run to health candidate: %w", err)
+		}
+		if result.RowsAffected() == 0 {
+			return errors.New("confirmation Run does not match its health candidate")
+		}
 
+	}
 	if err := transaction.Commit(ctx); err != nil {
 		return fmt.Errorf("commit Run completion: %w", err)
 	}
@@ -225,14 +251,29 @@ WHERE id = $4 AND scheduled_for = $5 AND organization_id = $6
 // RecordSkipped writes a slot the scheduler deliberately did not execute (ADR 0021). It
 // takes no lease: there is nothing to protect, because the Run is finished the moment it is
 // written. A slot another worker already claimed or executed is left alone.
-func (store *RunStore) RecordSkipped(ctx context.Context, value run.Run, now time.Time) error {
+func (store *RunStore) RecordSkipped(ctx context.Context, value run.Run, entries []run.OutboxEntry, now time.Time) error {
 	if value.Outcome != run.OutcomeSkipped {
 		return errors.New("recording a skipped Run requires the skipped outcome")
 	}
 	if value.Kind == run.KindManual {
 		return errors.New("a manual Run is requested rather than scheduled, so it cannot be skipped")
 	}
-	result, err := store.pool.Exec(ctx, `
+	if len(entries) > run.MaxOutboxBatchSize {
+		return fmt.Errorf("at most %d outbox entries accompany one Run", run.MaxOutboxBatchSize)
+	}
+	for _, entry := range entries {
+		if err := entry.Validate(); err != nil {
+			return fmt.Errorf("validate outbox entry: %w", err)
+		}
+	}
+
+	transaction, err := store.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin skipped Run recording: %w", err)
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+
+	result, err := transaction.Exec(ctx, `
 INSERT INTO runs (
     id, organization_id, monitor_id, revision_number, location, scheduled_for,
     kind, outcome, started_at, finished_at, lease_holder, lease_expires_at, created_at
@@ -247,6 +288,14 @@ DO NOTHING`,
 	}
 	if result.RowsAffected() == 0 {
 		return run.ErrSlotHeld
+	}
+	for _, entry := range entries {
+		if err := insertOutboxEntry(ctx, transaction, entry); err != nil {
+			return err
+		}
+	}
+	if err := transaction.Commit(ctx); err != nil {
+		return fmt.Errorf("commit skipped Run recording: %w", err)
 	}
 	return nil
 }
@@ -521,22 +570,29 @@ VALUES ($1, $2, $3, $4, 0, $5, $5)`,
 
 func scanRun(row rowScanner) (run.Run, bool, error) {
 	var (
-		id             string
-		organizationID string
-		monitorID      string
-		revisionNumber int
-		location       string
-		scheduledFor   time.Time
-		kind           string
-		outcome        *string
-		startedAt      *time.Time
-		finishedAt     *time.Time
-		leaseHolder    *string
-		leaseExpiresAt *time.Time
+		id                     string
+		organizationID         string
+		monitorID              string
+		revisionNumber         int
+		location               string
+		scheduledFor           time.Time
+		kind                   string
+		outcome                *string
+		startedAt              *time.Time
+		finishedAt             *time.Time
+		leaseHolder            *string
+		leaseExpiresAt         *time.Time
+		candidateID            *string
+		triggeringRunID        *string
+		triggeringScheduledFor *time.Time
+		causationEventID       *string
+		policyVersion          *string
 	)
 	if err := row.Scan(
 		&id, &organizationID, &monitorID, &revisionNumber, &location, &scheduledFor,
 		&kind, &outcome, &startedAt, &finishedAt, &leaseHolder, &leaseExpiresAt,
+		&candidateID, &triggeringRunID, &triggeringScheduledFor,
+		&causationEventID, &policyVersion,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return run.Run{}, false, nil
@@ -544,7 +600,17 @@ func scanRun(row rowScanner) (run.Run, bool, error) {
 		return run.Run{}, false, fmt.Errorf("scan Run: %w", err)
 	}
 
-	value, err := run.Restore(
+	var cause *run.ConfirmationCause
+	if candidateID != nil {
+		cause = &run.ConfirmationCause{
+			CandidateID:            *candidateID,
+			TriggeringRunID:        run.ID(textValue(triggeringRunID)),
+			TriggeringScheduledFor: instantValue(triggeringScheduledFor),
+			CausationEventID:       textValue(causationEventID),
+			PolicyVersion:          textValue(policyVersion),
+		}
+	}
+	value, err := run.RestoreWithCause(
 		run.ID(id),
 		run.Slot{
 			OrganizationID: organizationID,
@@ -557,11 +623,23 @@ func scanRun(row rowScanner) (run.Run, bool, error) {
 		run.Outcome(textValue(outcome)),
 		instantValue(startedAt), instantValue(finishedAt),
 		textValue(leaseHolder), instantValue(leaseExpiresAt),
+		cause,
 	)
 	if err != nil {
 		return run.Run{}, false, fmt.Errorf("restore Run: %w", err)
 	}
 	return value, true, nil
+}
+
+func confirmationDatabaseValues(value run.Run) (any, any, any, any, any) {
+	if value.Confirmation == nil {
+		return nil, nil, nil, nil, nil
+	}
+	return value.Confirmation.CandidateID,
+		string(value.Confirmation.TriggeringRunID),
+		value.Confirmation.TriggeringScheduledFor.UTC(),
+		value.Confirmation.CausationEventID,
+		value.Confirmation.PolicyVersion
 }
 
 func textValue(value *string) string {

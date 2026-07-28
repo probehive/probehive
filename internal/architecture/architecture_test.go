@@ -24,6 +24,9 @@ var standardLibraryOnlyPackages = []string{
 	"./internal/user",
 	"./internal/monitor",
 	"./internal/run",
+	"./internal/health",
+	"./internal/incident",
+	"./internal/outbox",
 	"./internal/check",
 	"./internal/outbound",
 }

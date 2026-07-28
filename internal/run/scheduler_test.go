@@ -69,7 +69,7 @@ func (store *fakeStore) Complete(_ context.Context, value Run, holder string, ob
 	return nil
 }
 
-func (store *fakeStore) RecordSkipped(_ context.Context, value Run, _ time.Time) error {
+func (store *fakeStore) RecordSkipped(_ context.Context, value Run, _ []OutboxEntry, _ time.Time) error {
 	store.mutex.Lock()
 	defer store.mutex.Unlock()
 	if store.skipHeld {

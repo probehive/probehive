@@ -248,15 +248,19 @@ func readRootCAs() (*x509.CertPool, error) {
 	return pool, nil
 }
 
-// newScheduler composes the outbound policy, the probe executor, and the Run store into the
-// embedded scheduler of ADR 0020.
-func newScheduler(
+type workerRuntime struct {
+	scheduler     *run.Scheduler
+	confirmations *run.ConfirmationRunner
+}
+
+// newWorkerRuntime shares one policy-enforced executor between scheduled and confirmation Runs.
+func newWorkerRuntime(
 	database *postgres.DB,
 	settings workerSettings,
 	systemClock run.Clock,
 	identifiers run.IDGenerator,
 	logger *slog.Logger,
-) (*run.Scheduler, error) {
+) (*workerRuntime, error) {
 	policy, err := outbound.NewPolicy(settings.outbound)
 	if err != nil {
 		return nil, fmt.Errorf("compose outbound policy: %w", err)
@@ -289,10 +293,11 @@ func newScheduler(
 	}
 
 	runs := database.Runs()
-	return run.NewScheduler(run.SchedulerConfig{
+	adapted := probeExecutor{executor: executor}
+	scheduler, err := run.NewScheduler(run.SchedulerConfig{
 		Source:           runs,
 		Store:            runs,
-		Executor:         probeExecutor{executor: executor},
+		Executor:         adapted,
 		Clock:            systemClock,
 		UUIDs:            identifiers,
 		Logger:           logger,
@@ -302,6 +307,17 @@ func newScheduler(
 		TickInterval:     settings.tickInterval,
 		Concurrency:      settings.concurrency,
 	})
+	if err != nil {
+		return nil, err
+	}
+	confirmations, err := run.NewConfirmationRunner(run.ConfirmationConfig{
+		Store: runs, Executor: adapted, Clock: systemClock, UUIDs: identifiers,
+		Logger: logger, ExecutionCeiling: settings.executionCeiling,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &workerRuntime{scheduler: scheduler, confirmations: confirmations}, nil
 }
 
 // serveMaintenance creates partitions ahead of time and drops the ones that have aged out.

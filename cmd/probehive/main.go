@@ -17,7 +17,9 @@ import (
 
 	"github.com/probehive/probehive/internal/check"
 	"github.com/probehive/probehive/internal/clock"
+	"github.com/probehive/probehive/internal/health"
 	"github.com/probehive/probehive/internal/httpapi"
+	"github.com/probehive/probehive/internal/incident"
 	"github.com/probehive/probehive/internal/monitor"
 	"github.com/probehive/probehive/internal/organization"
 	"github.com/probehive/probehive/internal/password"
@@ -88,11 +90,15 @@ func serve(logger *slog.Logger) error {
 	organizations := organization.NewService(database.Organizations(), systemClock, identifiers)
 	monitors := monitor.NewService(database.Monitors(), check.NewCatalog(), systemClock, identifiers)
 	runQueries := run.NewQueryService(database.Runs())
+	healthService := health.NewService(database.Health(), systemClock, identifiers)
+	incidentService := incident.NewService(database.Incidents(), systemClock, identifiers)
 	handler, err := httpapi.New(httpapi.Config{
 		Organizations:               organizations,
 		Users:                       users,
 		Monitors:                    monitors,
 		Runs:                        runQueries,
+		MonitorHealth:               healthService,
+		Incidents:                   incidentService,
 		Sessions:                    database.Sessions(),
 		Antiforgery:                 database.Antiforgery(),
 		Clock:                       systemClock,
@@ -124,19 +130,41 @@ func serve(logger *slog.Logger) error {
 	// server does, and serve() waits for them before returning.
 	var workers sync.WaitGroup
 	if workerConfiguration.enabled {
-		scheduler, err := newScheduler(database, workerConfiguration, systemClock, identifiers, logger)
+		runtime, err := newWorkerRuntime(database, workerConfiguration, systemClock, identifiers, logger)
 		if err != nil {
 			return err
 		}
-		workers.Add(2)
+		dispatcher, err := newOutboxDispatcher(
+			database, healthService, incidentService, runtime.confirmations,
+			systemClock, identifiers, logger)
+		if err != nil {
+			return err
+		}
+		workers.Add(4)
 		go func() {
 			defer workers.Done()
 			serveMaintenance(stopContext, database.Runs(), workerConfiguration, systemClock, logger)
 		}()
 		go func() {
 			defer workers.Done()
-			if err := scheduler.Serve(stopContext); err != nil {
+			if err := runtime.scheduler.Serve(stopContext); err != nil {
 				logger.Error("scheduler stopped", "error", err)
+			}
+		}()
+		go func() {
+			defer workers.Done()
+			if err := dispatcher.Serve(stopContext); err != nil {
+				logger.Error("outbox dispatcher stopped", "error", err)
+			}
+		}()
+		go func() {
+			defer workers.Done()
+			if err := healthService.ServeStaleness(
+				stopContext, workerConfiguration.executionCeiling,
+				workerConfiguration.tickInterval, func(err error) {
+					logger.Error("health staleness sweep failed", "error", err)
+				}); err != nil {
+				logger.Error("health staleness worker stopped", "error", err)
 			}
 		}()
 	} else {

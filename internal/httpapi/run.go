@@ -274,7 +274,7 @@ func decodeRunCursor(value string) (run.Cursor, error) {
 }
 
 func toRunResponse(projectID string, value run.Run) api.RunResponse {
-	return api.RunResponse{
+	response := api.RunResponse{
 		ID:             string(value.ID),
 		OrganizationID: value.Slot.OrganizationID,
 		ProjectID:      projectID,
@@ -288,6 +288,16 @@ func toRunResponse(projectID string, value run.Run) api.RunResponse {
 		FinishedAt:     optionalInstant(value.FinishedAt),
 		LeaseExpiresAt: optionalInstant(value.LeaseExpiresAt),
 	}
+	if value.Confirmation != nil {
+		response.Confirmation = &api.ConfirmationCauseResponse{
+			CandidateID:            value.Confirmation.CandidateID,
+			TriggeringRunID:        string(value.Confirmation.TriggeringRunID),
+			TriggeringScheduledFor: value.Confirmation.TriggeringScheduledFor,
+			CausationEventID:       value.Confirmation.CausationEventID,
+			PolicyVersion:          value.Confirmation.PolicyVersion,
+		}
+	}
+	return response
 }
 
 func toObservationResponse(value run.Observation) api.ObservationResponse {

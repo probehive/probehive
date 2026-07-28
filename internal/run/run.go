@@ -105,6 +105,15 @@ func (slot Slot) Validate() error {
 // exists and can impose its own rule (ADR 0025).
 const MaxLocationLength = 63
 
+// ConfirmationCause makes a confirmation Run explicitly causal (ADR 0027).
+type ConfirmationCause struct {
+	CandidateID            string
+	TriggeringRunID        ID
+	TriggeringScheduledFor time.Time
+	CausationEventID       string
+	PolicyVersion          string
+}
+
 // Run is one execution of one Monitor Revision from one Probe Location.
 //
 // Three states are representable and a fourth is not. A claimed Run has a lease and no
@@ -112,9 +121,10 @@ const MaxLocationLength = 63
 // lease, and no execution instants. A Run that is both leased and finished is rejected here
 // and by a check constraint in the database (ADR 0025).
 type Run struct {
-	ID   ID
-	Slot Slot
-	Kind Kind
+	ID           ID
+	Slot         Slot
+	Kind         Kind
+	Confirmation *ConfirmationCause
 	// Outcome is empty while the Run is in flight.
 	Outcome Outcome
 	// StartedAt and FinishedAt are the wall-clock record of execution, zero when the Run has
@@ -141,6 +151,9 @@ func Claim(id ID, slot Slot, kind Kind, holder string, leaseExpiresAt time.Time)
 	if !validKind(kind) {
 		return Run{}, fmt.Errorf("unknown Run kind %q", kind)
 	}
+	if kind == KindConfirmation {
+		return Run{}, errors.New("a confirmation Run requires causal identity")
+	}
 	if holder == "" || len(holder) > MaxLeaseHolderLength {
 		return Run{}, fmt.Errorf("a lease holder token is 1 to %d bytes", MaxLeaseHolderLength)
 	}
@@ -148,6 +161,39 @@ func Claim(id ID, slot Slot, kind Kind, holder string, leaseExpiresAt time.Time)
 		return Run{}, errors.New("a lease requires a UTC expiry")
 	}
 	return Run{ID: id, Slot: slot, Kind: kind, LeaseHolder: holder, LeaseExpiresAt: leaseExpiresAt}, nil
+}
+
+// ClaimConfirmation builds an in-flight confirmation Run with explicit causation.
+func ClaimConfirmation(
+	id ID, slot Slot, cause ConfirmationCause, holder string, leaseExpiresAt time.Time,
+) (Run, error) {
+	if id == "" {
+		return Run{}, errors.New("a Run requires an identifier")
+	}
+	if err := slot.Validate(); err != nil {
+		return Run{}, err
+	}
+	if err := cause.validate(); err != nil {
+		return Run{}, err
+	}
+	if holder == "" || len(holder) > MaxLeaseHolderLength {
+		return Run{}, fmt.Errorf("a lease holder token is 1 to %d bytes", MaxLeaseHolderLength)
+	}
+	if !isUTC(leaseExpiresAt) {
+		return Run{}, errors.New("a lease requires a UTC expiry")
+	}
+	return Run{ID: id, Slot: slot, Kind: KindConfirmation, Confirmation: &cause,
+		LeaseHolder: holder, LeaseExpiresAt: leaseExpiresAt}, nil
+}
+
+func (cause ConfirmationCause) validate() error {
+	if cause.CandidateID == "" || cause.TriggeringRunID == "" || cause.CausationEventID == "" || cause.PolicyVersion == "" {
+		return errors.New("a confirmation Run requires candidate, triggering Run, causation event, and policy identity")
+	}
+	if !isUTC(cause.TriggeringScheduledFor) {
+		return errors.New("a confirmation Run requires the triggering Run partition key")
+	}
+	return nil
 }
 
 // MaxLeaseHolderLength bounds the worker token so a lease column cannot become free storage.
@@ -220,6 +266,22 @@ func Restore(
 	leaseHolder string,
 	leaseExpiresAt time.Time,
 ) (Run, error) {
+	return RestoreWithCause(
+		id, slot, kind, outcome, startedAt, finishedAt, leaseHolder, leaseExpiresAt, nil,
+	)
+}
+
+// RestoreWithCause restores a Run whose confirmation causation is stored beside it.
+func RestoreWithCause(
+	id ID,
+	slot Slot,
+	kind Kind,
+	outcome Outcome,
+	startedAt, finishedAt time.Time,
+	leaseHolder string,
+	leaseExpiresAt time.Time,
+	cause *ConfirmationCause,
+) (Run, error) {
 	if id == "" {
 		return Run{}, errors.New("a Run requires an identifier")
 	}
@@ -228,6 +290,16 @@ func Restore(
 	}
 	if !validKind(kind) {
 		return Run{}, fmt.Errorf("unknown Run kind %q", kind)
+	}
+	if kind == KindConfirmation {
+		if cause == nil {
+			return Run{}, errors.New("a confirmation Run requires causal identity")
+		}
+		if err := cause.validate(); err != nil {
+			return Run{}, err
+		}
+	} else if cause != nil {
+		return Run{}, errors.New("only a confirmation Run carries confirmation causation")
 	}
 
 	leased := leaseHolder != "" || !leaseExpiresAt.IsZero()
@@ -241,7 +313,10 @@ func Restore(
 		if !startedAt.IsZero() || !finishedAt.IsZero() {
 			return Run{}, errors.New("a Run in flight has no execution instants")
 		}
-		return Run{ID: id, Slot: slot, Kind: kind, LeaseHolder: leaseHolder, LeaseExpiresAt: leaseExpiresAt}, nil
+		return Run{
+			ID: id, Slot: slot, Kind: kind, Confirmation: cause,
+			LeaseHolder: leaseHolder, LeaseExpiresAt: leaseExpiresAt,
+		}, nil
 	}
 
 	if leased {
@@ -251,7 +326,7 @@ func Restore(
 		if !startedAt.IsZero() || !finishedAt.IsZero() {
 			return Run{}, errors.New("a skipped Run never executed and has no execution instants")
 		}
-		return Run{ID: id, Slot: slot, Kind: kind, Outcome: outcome}, nil
+		return Run{ID: id, Slot: slot, Kind: kind, Confirmation: cause, Outcome: outcome}, nil
 	}
 	if !validExecutionOutcome(outcome) {
 		return Run{}, fmt.Errorf("unknown Run outcome %q", outcome)
@@ -263,7 +338,7 @@ func Restore(
 		return Run{}, errors.New("a Run cannot finish before it started")
 	}
 	return Run{
-		ID: id, Slot: slot, Kind: kind, Outcome: outcome,
+		ID: id, Slot: slot, Kind: kind, Confirmation: cause, Outcome: outcome,
 		StartedAt: startedAt, FinishedAt: finishedAt,
 	}, nil
 }

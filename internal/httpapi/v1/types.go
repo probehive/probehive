@@ -68,6 +68,83 @@ type MonitorResponse struct {
 	UpdatedAt            time.Time `json:"updatedAt"`
 }
 
+type MonitorHealthResponse struct {
+	OrganizationID            string                   `json:"organizationId"`
+	ProjectID                 string                   `json:"projectId"`
+	MonitorID                 string                   `json:"monitorId"`
+	State                     string                   `json:"state"`
+	StableState               string                   `json:"stableState"`
+	PolicyVersion             string                   `json:"policyVersion"`
+	Version                   int64                    `json:"version"`
+	SourceRevisionNumber      *int                     `json:"sourceRevisionNumber"`
+	LastScheduledFor          *time.Time               `json:"lastScheduledFor"`
+	LastDeterminateFinishedAt *time.Time               `json:"lastDeterminateFinishedAt"`
+	LastRunID                 *string                  `json:"lastRunId"`
+	LastRunScheduledFor       *time.Time               `json:"lastRunScheduledFor"`
+	Candidate                 *HealthCandidateResponse `json:"candidate"`
+	Counts                    HealthCountsResponse     `json:"counts"`
+	TransitionedAt            time.Time                `json:"transitionedAt"`
+	UpdatedAt                 time.Time                `json:"updatedAt"`
+}
+
+type HealthCandidateResponse struct {
+	ID                     string    `json:"id"`
+	Direction              string    `json:"direction"`
+	ExpectedEvidence       string    `json:"expectedEvidence"`
+	SourceRevisionNumber   int       `json:"sourceRevisionNumber"`
+	TriggeringRunID        string    `json:"triggeringRunId"`
+	TriggeringScheduledFor time.Time `json:"triggeringScheduledFor"`
+	RequestedAt            time.Time `json:"requestedAt"`
+}
+
+type HealthCountsResponse struct {
+	Configured    int `json:"configured"`
+	Eligible      int `json:"eligible"`
+	Responding    int `json:"responding"`
+	Passing       int `json:"passing"`
+	Failing       int `json:"failing"`
+	LocationFault int `json:"locationFault"`
+	Indeterminate int `json:"indeterminate"`
+	Missing       int `json:"missing"`
+}
+
+type IncidentPageResponse struct {
+	Items      []IncidentResponse `json:"items"`
+	NextCursor *string            `json:"nextCursor"`
+}
+
+type IncidentResponse struct {
+	ID                   string                     `json:"id"`
+	OrganizationID       string                     `json:"organizationId"`
+	ProjectID            string                     `json:"projectId"`
+	MonitorID            string                     `json:"monitorId"`
+	State                string                     `json:"state"`
+	Version              int64                      `json:"version"`
+	OpenedTransitionID   string                     `json:"openedTransitionId"`
+	AcknowledgedBy       *string                    `json:"acknowledgedBy"`
+	AcknowledgedAt       *time.Time                 `json:"acknowledgedAt"`
+	ResolvedTransitionID *string                    `json:"resolvedTransitionId"`
+	ResolvedAt           *time.Time                 `json:"resolvedAt"`
+	CreatedAt            time.Time                  `json:"createdAt"`
+	UpdatedAt            time.Time                  `json:"updatedAt"`
+	Timeline             []IncidentTimelineResponse `json:"timeline"`
+}
+
+type IncidentTimelineResponse struct {
+	ID                    string                `json:"id"`
+	IncidentVersion       int64                 `json:"incidentVersion"`
+	Kind                  string                `json:"kind"`
+	HealthTransitionID    *string               `json:"healthTransitionId"`
+	ActorUserID           *string               `json:"actorUserId"`
+	OldHealthState        *string               `json:"oldHealthState"`
+	NewHealthState        *string               `json:"newHealthState"`
+	PolicyVersion         *string               `json:"policyVersion"`
+	CausalRunID           *string               `json:"causalRunId"`
+	CausalRunScheduledFor *time.Time            `json:"causalRunScheduledFor"`
+	Counts                *HealthCountsResponse `json:"counts"`
+	OccurredAt            time.Time             `json:"occurredAt"`
+}
+
 type MonitorRevisionResponse struct {
 	ID                 string          `json:"id"`
 	MonitorID          string          `json:"monitorId"`
@@ -84,18 +161,27 @@ type RunPageResponse struct {
 }
 
 type RunResponse struct {
-	ID             string     `json:"id"`
-	OrganizationID string     `json:"organizationId"`
-	ProjectID      string     `json:"projectId"`
-	MonitorID      string     `json:"monitorId"`
-	RevisionNumber int        `json:"revisionNumber"`
-	Location       string     `json:"location"`
-	ScheduledFor   time.Time  `json:"scheduledFor"`
-	Kind           string     `json:"kind"`
-	Outcome        *string    `json:"outcome"`
-	StartedAt      *time.Time `json:"startedAt"`
-	FinishedAt     *time.Time `json:"finishedAt"`
-	LeaseExpiresAt *time.Time `json:"leaseExpiresAt"`
+	ID             string                     `json:"id"`
+	OrganizationID string                     `json:"organizationId"`
+	ProjectID      string                     `json:"projectId"`
+	MonitorID      string                     `json:"monitorId"`
+	RevisionNumber int                        `json:"revisionNumber"`
+	Location       string                     `json:"location"`
+	ScheduledFor   time.Time                  `json:"scheduledFor"`
+	Kind           string                     `json:"kind"`
+	Outcome        *string                    `json:"outcome"`
+	StartedAt      *time.Time                 `json:"startedAt"`
+	FinishedAt     *time.Time                 `json:"finishedAt"`
+	LeaseExpiresAt *time.Time                 `json:"leaseExpiresAt"`
+	Confirmation   *ConfirmationCauseResponse `json:"confirmation"`
+}
+
+type ConfirmationCauseResponse struct {
+	CandidateID            string    `json:"candidateId"`
+	TriggeringRunID        string    `json:"triggeringRunId"`
+	TriggeringScheduledFor time.Time `json:"triggeringScheduledFor"`
+	CausationEventID       string    `json:"causationEventId"`
+	PolicyVersion          string    `json:"policyVersion"`
 }
 
 type ObservationResponse struct {

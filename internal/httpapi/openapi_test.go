@@ -40,16 +40,20 @@ func TestOpenAPIDocumentDescribesEveryRoute(t *testing.T) {
 		"/api/v1/organizations":                       {"get", "post"},
 		"/api/v1/organizations/{organizationId}":      {"get"},
 		"/api/v1/organizations/{organizationId}/name": {"put"},
-		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors":                                        {"get", "post"},
-		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}":                            {"get"},
-		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/name":                       {"put"},
-		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/state":                      {"put"},
-		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/interval":                   {"put"},
-		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions":                  {"get", "post"},
-		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}": {"get"},
-		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs":                       {"get"},
-		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}":               {"get"},
-		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}/observation":   {"get"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors":                                                {"get", "post"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}":                                    {"get"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/name":                               {"put"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/state":                              {"put"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/interval":                           {"put"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions":                          {"get", "post"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}":         {"get"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/health":                             {"get"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents":                          {"get"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}":             {"get"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}/acknowledge": {"post"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs":                               {"get"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}":                       {"get"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}/observation":           {"get"},
 	}
 	httpMethods := map[string]struct{}{
 		"get": {}, "put": {}, "post": {}, "delete": {}, "options": {}, "head": {}, "patch": {}, "trace": {},
@@ -123,11 +127,19 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 	if pageSize.Minimum != 1 || pageSize.Maximum != 500 || string(pageSize.Default) != "50" {
 		t.Fatalf("RunPageSize schema = %#v", pageSize)
 	}
+	incidentPageSize := document.Components.Parameters["IncidentPageSize"].Schema
+	if incidentPageSize.Minimum != 1 || incidentPageSize.Maximum != 100 || string(incidentPageSize.Default) != "50" {
+		t.Fatalf("IncidentPageSize schema = %#v", incidentPageSize)
+	}
 	location := document.Components.Parameters["RunLocation"].Schema
 	if location.MinLength != 1 || location.MaxBytes != 63 {
 		t.Fatalf("RunLocation schema = %#v", location)
 	}
-	for _, name := range []string{"RunPageResponse", "RunResponse", "ObservationResponse", "ObservationPhasesResponse", "HTTPObservationResponse", "TLSObservationResponse"} {
+	for _, name := range []string{
+		"RunPageResponse", "RunResponse", "ConfirmationCauseResponse", "ObservationResponse",
+		"MonitorHealthResponse", "HealthCountsResponse", "IncidentPageResponse", "IncidentResponse", "IncidentTimelineResponse",
+		"ObservationPhasesResponse", "HTTPObservationResponse", "TLSObservationResponse",
+	} {
 		if _, found := document.Components.Schemas[name]; !found {
 			t.Errorf("OpenAPI omits %s", name)
 		}

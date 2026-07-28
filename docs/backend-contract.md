@@ -4,7 +4,7 @@ Status: working implementation specification for the unreleased initial vertical
 
 This document defines the observable backend behavior of the initial vertical slice. It is maintained with
 the v1 API, check validation, PostgreSQL adapters and migrations, API tests, React
-client, Playwright journey, and ADRs 0012-0019. The web application and browser
+client, Playwright journey, and ADRs 0012-0028. The web application and browser
 journey are contract consumers and remain synchronized with this specification.
 
 ADRs remain normative. Where the current implementation and an ADR differ, this
@@ -25,8 +25,9 @@ document calls out the gap rather than turning it into a compatibility promise.
 - A missing or JSON `null` string field reaches use-case validation and produces the
   same field-level `400` response as an invalid string. A JSON value of the wrong
   primitive type or malformed JSON is a framework-level `400`.
-- Arrays are returned as bare JSON arrays, not wrapper objects. An existing empty
-  Project or Monitor has an empty array, not `null` and not `404`.
+- Unpaginated collections are returned as bare JSON arrays, not wrapper objects. An
+  existing empty Project or Monitor has an empty array, not `null` and not `404`.
+  Bounded Run and Incident collections use their documented page response objects.
 - Canonical route parameters are UUID strings. A malformed UUID, non-decimal revision
   number, or revision number outside the positive signed 32-bit range does not match
   and returns `404`.
@@ -101,8 +102,10 @@ antiforgery token and `request.origin.rejected` for a browser-origin mismatch.
 
 All response fields below are required and non-null unless explicitly marked nullable.
 Nullable fields are still present in the JSON object: `nextCursor`, `outcome`, `startedAt`,
-`finishedAt`, `leaseExpiresAt`, `http`, `tls`, and `certificateExpiresAt` serialize as
-JSON `null` when absent.
+`finishedAt`, `leaseExpiresAt`, `confirmation`, `http`, `tls`, `certificateExpiresAt`,
+health evidence pointers, a health `candidate`, Incident acknowledgement/resolution
+pointers, and acknowledgement-only timeline evidence serialize as JSON `null` when
+absent.
 
 | Type | Exact JSON fields |
 | --- | --- |
@@ -113,14 +116,20 @@ JSON `null` when absent.
 | `UserResponse` | `id: UUID string`, `email: string`, `displayName: string`, `role: string`, `createdAt: UTC timestamp string` |
 | `ProjectResponse` | `id: UUID string`, `organizationId: UUID string`, `name: string`, `isDefault: boolean`, `createdAt: UTC timestamp string` |
 | `OrganizationResponse` | `id: UUID string`, `slug: string`, `displayName: string`, `createdAt: UTC timestamp string`, `defaultProject: ProjectResponse` |
-| `MonitorResponse` | `id`, `organizationId`, `projectId` as UUID strings; `name`, `checkType`, `state` as strings; `latestRevisionNumber: integer`; `createdAt`, `updatedAt` as UTC timestamp strings |
+| `MonitorResponse` | `id`, `organizationId`, `projectId` as UUID strings; `name`, `checkType`, `state` as strings; `intervalSeconds`, `latestRevisionNumber` as integers; `createdAt`, `updatedAt` as UTC timestamp strings |
 | `MonitorRevisionResponse` | `id`, `monitorId` as UUID strings; `revisionNumber: integer`; `checkType: string`; `checkSchemaVersion: integer`; `checkConfiguration: JSON value`; `createdAt: UTC timestamp string` |
+| `MonitorHealthResponse` | scoped Organization, Project, and Monitor UUIDs; `state`, `stableState`, `policyVersion`; `version`; nullable source revision, Run, cohort, candidate, and determinate-finish pointers; `counts: HealthCountsResponse`; transition/update timestamps |
+| `HealthCountsResponse` | `configured`, `eligible`, `responding`, `passing`, `failing`, `locationFault`, `indeterminate`, and `missing` non-negative integers |
 | `RunPageResponse` | `items: RunResponse[]`; `nextCursor: nullable opaque string` |
-| `RunResponse` | `id`, `organizationId`, `projectId`, `monitorId` as UUID strings; `revisionNumber: integer`; `location`, `kind` as strings; `scheduledFor: UTC timestamp string`; `outcome: nullable string`; `startedAt`, `finishedAt`, `leaseExpiresAt` as nullable UTC timestamp strings |
+| `RunResponse` | `id`, `organizationId`, `projectId`, `monitorId` as UUID strings; `revisionNumber: integer`; `location`, `kind` as strings; `scheduledFor: UTC timestamp string`; `outcome: nullable string`; `startedAt`, `finishedAt`, `leaseExpiresAt` as nullable UTC timestamp strings; `confirmation: nullable ConfirmationCauseResponse` |
+| `ConfirmationCauseResponse` | candidate, triggering Run, and causation-event UUIDs; triggering slot timestamp; policy version |
 | `ObservationResponse` | `runId`, `organizationId` as UUID strings; `scheduledFor: UTC timestamp string`; `failureCode`, `failureClass` as strings; `durationMicroseconds: integer`; `phases: ObservationPhasesResponse`; `http: nullable HTTPObservationResponse` |
 | `ObservationPhasesResponse` | `connectMicroseconds`, `tlsMicroseconds`, `firstByteMicroseconds` as integers |
 | `HTTPObservationResponse` | `statusCode`, `redirectCount`, `bodyBytes` as integers; `protocol: string`; `bodyTruncated: boolean`; `tls: nullable TLSObservationResponse` |
 | `TLSObservationResponse` | `version`, `cipherSuite` as strings; `certificateExpiresAt: nullable UTC timestamp string` |
+| `IncidentPageResponse` | `items: IncidentResponse[]`; `nextCursor: nullable opaque string` |
+| `IncidentResponse` | scoped UUIDs; lifecycle `state` and `version`; opening transition; nullable acknowledgement and resolution identity/timestamps; created/updated timestamps; `timeline: IncidentTimelineResponse[]` |
+| `IncidentTimelineResponse` | timeline UUID, Incident version and kind; nullable health transition, actor, health states, policy, causal Run, slot, and counts; occurrence timestamp |
 
 Request shapes are:
 
@@ -133,9 +142,10 @@ Request shapes are:
 | `RenameOrganizationRequest` | `displayName` (nullable string at decoding boundary; required by validation) |
 | `RenameMonitorRequest` | `name` string |
 | `ChangeMonitorStateRequest` | `state` string |
+| `ChangeMonitorIntervalRequest` | `intervalSeconds: integer` |
 | `CreateMonitorRevisionRequest` | `checkSchemaVersion: integer`, `checkConfiguration: JSON value` |
 
-The only current role string is exactly `Administrator`. Monitor state strings are
+Current Organization role strings are exactly `Administrator` and `Viewer`. Monitor state strings are
 exactly `draft`, `active`, `paused`, and `archived`. The only supported check type is
 exactly lowercase `http`.
 
@@ -165,9 +175,14 @@ antiforgery and origin rules in section 5 also apply.
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}` | `monitor.read` | `200 MonitorResponse` | `404`, `401`, `403` |
 | `PUT /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/name` | `monitor.write`, unsafe | `200 MonitorResponse` | `400`, `404`, `409`, `401`, `403` |
 | `PUT /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/state` | `monitor.write`, unsafe | `200 MonitorResponse` | `400`, `404`, `409`, `401`, `403` |
+| `PUT /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/interval` | `monitor.write`, unsafe | `200 MonitorResponse` | `400`, `404`, `409`, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions` | `monitor.write`, unsafe | `201 MonitorRevisionResponse` and canonical revision `Location` | `400`, `404`, `409`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions` | `monitor.read` | `200 MonitorRevisionResponse[]` in ascending revision number | `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}` | `monitor.read` | `200 MonitorRevisionResponse` | `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/health` | `monitor.read` | `200 MonitorHealthResponse` | `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents` | `incident.read` | `200 IncidentPageResponse`, newest first by `(createdAt, id)` | `400`, `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}` | `incident.read` | `200 IncidentResponse` with timeline | `404`, `401`, `403` |
+| `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}/acknowledge` | `incident.write`, unsafe | `200 IncidentResponse`; repeat acknowledgement is idempotent | `400`, `404`, `409` when resolved, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs` | `monitor.read` | `200 RunPageResponse`, newest first by `(scheduledFor, id)` | `400`, `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}` | `monitor.read` | `200 RunResponse` | `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}/observation` | `monitor.read` | `200 ObservationResponse` for a completed, non-skipped Run | `404`, `401`, `403` |
@@ -197,8 +212,8 @@ membership of that Organization and checks a permission against its role:
 
 Organization roles and the permissions they carry are `Administrator` (every permission,
 including ones added in later releases) and `Viewer` (every read permission). The
-permissions in use are `organization.read`, `organization.write`, `monitor.read`, and
-`monitor.write`. The
+permissions in use are `organization.read`, `organization.write`, `monitor.read`,
+`monitor.write`, `incident.read`, and `incident.write`. The
 permission catalog itself is internal and not published; endpoints document the
 permission they require. Provisioning makes the creator an `Administrator` member of the
 new Organization in the same transaction, so no Organization exists without a member.
@@ -442,6 +457,11 @@ has no execution or lease instants. The secret lease-holder token is never part 
 response.
 
 An Observation exists only for a completed, non-skipped Run. Querying one for an
+A confirmation Run carries `confirmation` with the candidate id, triggering Run id and
+slot, causation outbox event id, and policy version. Every scheduled or manual Run carries
+`confirmation: null`. Confirmation remains a normal visible Run with `kind: "confirmation"`;
+it never replaces or mutates its triggering Run.
+
 in-flight or skipped Run returns `404`. Completion persists the Run and Observation in
 one transaction, so a completed execution missing its Observation is an internal
 integrity error, not an absent resource. Durations and phase timings are non-negative
@@ -544,7 +564,26 @@ All listed columns are `NOT NULL` unless marked nullable.
 - `anonymous_antiforgery_keys`: one row identified by the checked singleton id
   `1`, containing exactly 32 bytes of HMAC key material and its creation time.
 
+- `runs` and `observations`: Organization-scoped, monthly range-partitioned execution
+  records. Run slot uniqueness includes its partition key. Confirmation Runs add a
+  candidate id, triggering Run and slot, causation event, and policy version; their
+  unique candidate index also includes `scheduled_for` as PostgreSQL requires for a
+  partitioned unique index.
+- `outbox_entries`: one owning consumer per row, with topic, JSON payload, attempts,
+  availability, optional lease, stable failure code, and version-gap first-seen time.
+  `processed_outbox_events` retains successful consumer ids; `dead_letter_outbox_entries`
+  retains exhausted or permanent failures.
+- `health_candidates`: one unique failure or recovery candidate per source revision,
+  direction, triggering Run, and triggering slot. It records confirmation causation and
+  terminal candidate state.
+- `monitor_health` and `health_transitions`: current Monitor-scoped policy state plus
+  immutable versioned transitions with complete quorum counts and bounded causal Run pointers.
+- `incidents`, `incident_timeline_entries`, and `incident_projection_cursors`: one
+  unresolved automatic Incident per Monitor, immutable versioned timeline entries, and
+  aggregate-version ordering for the projector. Health timeline entries either carry all
+  eight quorum counts or none.
 ### Tenant foreign-key invariants
+
 
 `monitors(id, organization_id)` is unique.
 `monitor_revisions(monitor_id, organization_id)` is a composite foreign key to
@@ -584,6 +623,53 @@ number index is the second backstop and maps to the same `409`.
   plain-text status (normally `Unhealthy`).
 
 Neither route is under `/api/v1`, requires a cookie, or requires antiforgery.
+
+### Evaluated Monitor health and Incidents
+
+`GET .../monitors/{monitorId}/health` returns the durable evaluator snapshot defined by
+ADR 0027. Health states are `unknown`, `healthy`, `degraded`, and `down`; stable state is
+`unknown`, `healthy`, or `down`. Phase 1 policy is exactly `phase1.v1`, one configured
+embedded location, and one-of-one failure and recovery quorum. A failure candidate and a
+recovery candidate each require one matching explicit confirmation Run. Mixed,
+indeterminate, location-fault, pending-confirmation, and missing evidence never silently
+become Down. Every response carries the configured, eligible, responding, passing,
+failing, location-fault, indeterminate, and missing counts.
+
+For an Active Monitor, determinate evidence becomes stale at the ADR 0027 boundary and
+transitions health to Unknown. Paused and archived Monitors preserve their last evaluated
+state. Evidence from a superseded revision or an older scheduled cohort remains queryable
+but cannot rewrite current health or Incident history.
+
+An automatic Incident opens only when health becomes Down, may be acknowledged without
+changing health, and resolves only when health becomes Healthy. Degraded and Unknown do
+neither. Resolved Incidents never reopen; a later Down creates a new Incident. One
+unresolved Incident per Monitor is enforced. Creation, acknowledgement, and resolution
+append immutable timeline entries. Health entries retain bounded quorum counts and causal
+Run identity after raw Run partitions expire.
+
+Incident lists are newest-first by descending `(createdAt, id)`. `pageSize` defaults to
+50 and is 1 through 100; `cursor` is optional, opaque, exclusive, and accepted exactly
+once. Both malformed values use field-level `400` validation. `nextCursor` is null on the
+final page. Every list, detail, and acknowledgement lookup carries Organization, Project,
+and Monitor scope. A resolved acknowledgement returns `409` with title
+`Incident acknowledgement rejected`.
+
+### Internal outbox event contract
+
+The internal PostgreSQL outbox topics are `run.recorded.v1`,
+`run.confirmation.requested.v1`, and `health.transitioned.v1`. They are internal durable
+facts, not public webhooks. Every camelCase payload has `eventId` equal to its owning row,
+`organizationId`, `occurredAt`, `aggregateType`, `aggregateId`, `aggregateVersion`, and
+the ADR-defined causation where applicable. Consumers verify row/payload Organization,
+ignore additional object members, reject invalid required enums, serialize each aggregate,
+and mark the event id processed transactionally.
+
+Dispatch is at least once with no global or tenant FIFO promise: 60-second leases, batches
+up to 32, concurrency up to 4, 12 attempts, exponential retry from one second to five
+minutes with deterministic non-negative jitter up to 20 percent, and a 15-minute future
+aggregate-version gap deadline. Permanent payload/topic/Organization failures dead-letter
+immediately. Processed ids and dead letters retain for 30 days; live rows are never removed
+by cleanup. Stable dispatcher codes are those listed in ADR 0028.
 
 ## 11. Current Frontend Fetch Contract
 
@@ -724,6 +810,12 @@ run.query.notBefore.invalid  run.query.pageSize.invalid  run.query.cursor.invali
 run.query.outcome.invalid    run.query.kind.invalid      run.query.location.invalid
 ```
 
+
+Incident queries:
+
+```text
+incident.query.pageSize.invalid  incident.query.cursor.invalid
+```
 `monitor.checkType.unsupported` and `check.checkType.unsupported` describe the same
 condition at two layers; the Monitor use case screens first, and a catalog may map both
 to one sentence.

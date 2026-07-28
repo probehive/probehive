@@ -3,8 +3,11 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/probehive/probehive/internal/run"
 )
@@ -79,4 +82,55 @@ LIMIT $1`, MaxSchedulableMonitors+1)
 			MaxSchedulableMonitors)
 	}
 	return values, nil
+}
+
+// LoadConfirmationTarget returns the exact still-current revision for a pending candidate.
+func (store *RunStore) LoadConfirmationTarget(
+	ctx context.Context, request run.ConfirmationRequest,
+) (run.Schedulable, bool, error) {
+	var (
+		value           run.Schedulable
+		intervalSeconds int
+		updatedAt       time.Time
+		configuration   []byte
+	)
+	err := store.pool.QueryRow(ctx, `
+SELECT m.organization_id, m.id, m.interval_seconds, m.updated_at,
+       r.revision_number, r.check_type, r.check_schema_version, r.check_configuration
+FROM health_candidates AS c
+JOIN monitors AS m
+  ON m.id = c.monitor_id AND m.organization_id = c.organization_id
+JOIN monitor_revisions AS r
+  ON r.monitor_id = m.id AND r.organization_id = m.organization_id
+ AND r.revision_number = c.source_revision_number
+WHERE c.id = $1 AND c.organization_id = $2 AND c.monitor_id = $3
+  AND c.source_revision_number = $4 AND c.triggering_run_id = $5
+  AND c.triggering_scheduled_for = $6 AND c.state = 'pending'
+  AND m.state = 'active' AND m.latest_revision_number = c.source_revision_number`,
+		request.CandidateID, request.OrganizationID, request.MonitorID,
+		request.RevisionNumber, request.TriggeringRunID,
+		request.TriggeringScheduledFor.UTC()).Scan(
+		&value.OrganizationID, &value.MonitorID, &intervalSeconds, &updatedAt,
+		&value.RevisionNumber, &value.CheckType, &value.CheckSchemaVersion, &configuration)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return run.Schedulable{}, false, nil
+	}
+	if err != nil {
+		return run.Schedulable{}, false, fmt.Errorf("load confirmation target: %w", err)
+	}
+	value.CheckConfiguration = append(json.RawMessage(nil), configuration...)
+	value.Interval = time.Duration(intervalSeconds) * time.Second
+	value.NotBefore = updatedAt.UTC()
+	return value, true, nil
+}
+
+func (store *RunStore) FindConfirmation(
+	ctx context.Context, organizationID, candidateID string,
+) (run.Run, bool, error) {
+	return scanRun(store.pool.QueryRow(ctx, `
+SELECT `+runColumns+`
+FROM runs
+WHERE organization_id = $1 AND confirmation_candidate_id = $2
+ORDER BY scheduled_for DESC
+LIMIT 1`, organizationID, candidateID))
 }

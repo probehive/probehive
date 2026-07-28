@@ -41,9 +41,11 @@ The current foundation implements:
 - Stable machine-readable error codes on every API failure, so clients localize without the API ever returning a translated string.
 - An embedded scheduler and bounded worker that execute validated HTTP checks through the shared outbound-access policy and persist partitioned Runs and Observations.
 - Fully scoped Run history and Observation query APIs with bounded keyset pagination and stable filters.
+- Auditable Monitor health evaluation with explicit failure and recovery confirmation Runs, honest Phase 1 quorum counts, and staleness handling.
+- Automatic per-Monitor Incidents with open, acknowledge, and resolve lifecycle, immutable timelines, scoped keyset query APIs, and PostgreSQL-backed outbox dispatch.
 - A React administration application in English and Simplified Chinese, rendering instants in the viewer's time zone, with Playwright browser journeys.
 
-Incident evaluation, alert delivery, status pages, Agents, frontend Monitor and Run screens, and packaged releases remain under development.
+Alert delivery, status pages, Agents, frontend Monitor, Run, Health, and Incident screens, and packaged releases remain under development.
 
 ## Get Started
 

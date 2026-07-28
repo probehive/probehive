@@ -12,6 +12,8 @@ import (
 	"path"
 	"time"
 
+	"github.com/probehive/probehive/internal/health"
+	"github.com/probehive/probehive/internal/incident"
 	"github.com/probehive/probehive/internal/monitor"
 	"github.com/probehive/probehive/internal/organization"
 	"github.com/probehive/probehive/internal/run"
@@ -29,6 +31,8 @@ type Config struct {
 	Users                       *user.Service
 	Monitors                    *monitor.Service
 	Runs                        *run.QueryService
+	MonitorHealth               *health.Service
+	Incidents                   *incident.Service
 	Sessions                    user.SessionStore
 	Antiforgery                 user.AntiforgeryStore
 	Clock                       Clock
@@ -45,6 +49,8 @@ type Server struct {
 	users         *user.Service
 	monitors      *monitor.Service
 	runs          *run.QueryService
+	monitorHealth *health.Service
+	incidents     *incident.Service
 	sessions      user.SessionStore
 	antiforgery   user.AntiforgeryStore
 	clock         Clock
@@ -59,7 +65,7 @@ type Server struct {
 
 func New(config Config) (*Server, error) {
 	if config.Organizations == nil || config.Users == nil || config.Monitors == nil || config.Runs == nil ||
-		config.Sessions == nil || config.Antiforgery == nil || config.Clock == nil || config.Ready == nil {
+		config.MonitorHealth == nil || config.Incidents == nil || config.Sessions == nil || config.Antiforgery == nil || config.Clock == nil || config.Ready == nil {
 		return nil, errors.New("httpapi requires feature services, security stores, a clock, and readiness check")
 	}
 	if config.Random == nil {
@@ -82,7 +88,7 @@ func New(config Config) (*Server, error) {
 	server := &Server{
 		organizations: config.Organizations, users: config.Users, monitors: config.Monitors,
 		sessions: config.Sessions, antiforgery: config.Antiforgery, clock: config.Clock,
-		runs:  config.Runs,
+		runs: config.Runs, monitorHealth: config.MonitorHealth, incidents: config.Incidents,
 		ready: config.Ready, random: config.Random, logger: config.Logger,
 		development:  config.Development,
 		publicOrigin: publicOrigin,
@@ -141,6 +147,10 @@ func (server *Server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs", server.monitorRuns)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}", server.monitorRun)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}/observation", server.monitorRunObservation)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/health", server.monitorHealthState)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents", server.monitorIncidents)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}", server.monitorIncident)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}/acknowledge", server.acknowledgeIncident)
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) { writeStatusProblem(w, http.StatusNotFound) })
 	return mux
 }

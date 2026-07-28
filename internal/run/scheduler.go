@@ -22,7 +22,7 @@ type Store interface {
 	ClaimSlot(ctx context.Context, value Run, now time.Time) (Run, error)
 	ReleaseSlot(ctx context.Context, value Run) error
 	Complete(ctx context.Context, value Run, holder string, observation Observation, entries []OutboxEntry) error
-	RecordSkipped(ctx context.Context, value Run, now time.Time) error
+	RecordSkipped(ctx context.Context, value Run, entries []OutboxEntry, now time.Time) error
 }
 
 // Execution is one executor's report of one Run. The Observation it carries has no identity:
@@ -310,7 +310,17 @@ func (scheduler *Scheduler) recordMissed(ctx context.Context, schedulable Schedu
 				"monitorId", schedulable.MonitorID, "error", skipErr)
 			return recorded
 		}
-		switch err := scheduler.config.Store.RecordSkipped(ctx, skipped, now); {
+		eventID, eventErr := scheduler.config.UUIDs.NewUUIDv7(now)
+		if eventErr != nil {
+			scheduler.config.Logger.Error("cannot generate a Run event identifier", "error", eventErr)
+			return recorded
+		}
+		entry, eventErr := NewRunRecordedEntry(ID(eventID), skipped, now.UTC())
+		if eventErr != nil {
+			scheduler.config.Logger.Error("cannot build a Run recorded event", "error", eventErr)
+			return recorded
+		}
+		switch err := scheduler.config.Store.RecordSkipped(ctx, skipped, []OutboxEntry{entry}, now); {
 		case err == nil:
 			recorded++
 		case errors.Is(err, ErrSlotHeld):
@@ -379,7 +389,18 @@ func (scheduler *Scheduler) runSlot(ctx context.Context, schedulable Schedulable
 	observation.ScheduledFor = completed.Slot.ScheduledFor
 	observation.OrganizationID = completed.Slot.OrganizationID
 
-	switch err := scheduler.config.Store.Complete(ctx, completed, claimed.LeaseHolder, observation, nil); {
+	eventID, err := scheduler.config.UUIDs.NewUUIDv7(completed.FinishedAt)
+	if err != nil {
+		scheduler.config.Logger.Error("cannot generate a Run event identifier", "error", err)
+		return slotFailed
+	}
+	entry, err := NewRunRecordedEntry(ID(eventID), completed, completed.FinishedAt)
+	if err != nil {
+		scheduler.config.Logger.Error("cannot build a Run recorded event", "error", err)
+		return slotFailed
+	}
+
+	switch err := scheduler.config.Store.Complete(ctx, completed, claimed.LeaseHolder, observation, []OutboxEntry{entry}); {
 	case err == nil:
 		return slotClaimed
 	case errors.Is(err, ErrLeaseLost):

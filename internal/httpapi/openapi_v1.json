@@ -3,7 +3,7 @@
   "info": {
     "title": "ProbeHive API",
     "version": "v1",
-    "description": "Contract-compatible API for ProbeHive organization bootstrap, local authentication, Monitors, immutable revisions, Runs, and Observations."
+    "description": "Contract-compatible API for ProbeHive organization bootstrap, local authentication, Monitors, immutable revisions, Runs, Observations, evaluated health, and Incidents."
   },
   "tags": [
     { "name": "Health" },
@@ -11,7 +11,8 @@
     { "name": "Authentication" },
     { "name": "Organizations" },
     { "name": "Monitors" },
-    { "name": "Runs" }
+    { "name": "Runs" },
+    { "name": "Incidents" }
   ],
   "paths": {
     "/healthz": {
@@ -533,6 +534,106 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/health": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" }
+      ],
+      "get": {
+        "tags": ["Monitors"],
+        "operationId": "getMonitorHealth",
+        "summary": "Return one Monitor's evaluated health",
+        "description": "Requires monitor.read. Health is a versioned policy conclusion over Run evidence and remains distinct from any single Run outcome.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/MonitorHealth" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" },
+        { "$ref": "#/components/parameters/IncidentPageSize" },
+        { "$ref": "#/components/parameters/IncidentCursor" }
+      ],
+      "get": {
+        "tags": ["Incidents"],
+        "operationId": "listMonitorIncidents",
+        "summary": "List a Monitor's Incidents",
+        "description": "Requires incident.read. Returns a bounded newest-first keyset page ordered by createdAt and Incident id. nextCursor is null on the final page and otherwise must be sent back unchanged.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "One bounded Incident page.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/IncidentPageResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" },
+        { "$ref": "#/components/parameters/IncidentID" }
+      ],
+      "get": {
+        "tags": ["Incidents"],
+        "operationId": "getMonitorIncident",
+        "summary": "Return one fully scoped Incident and its timeline",
+        "description": "Requires incident.read. A real Incident identifier under the wrong Organization, Project, or Monitor returns 404.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Incident" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}/acknowledge": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" },
+        { "$ref": "#/components/parameters/IncidentID" }
+      ],
+      "post": {
+        "tags": ["Incidents"],
+        "operationId": "acknowledgeMonitorIncident",
+        "summary": "Acknowledge one unresolved Incident",
+        "description": "Requires incident.write. Acknowledgement records the current actor and an immutable timeline entry without changing health. Repeating acknowledgement is idempotent; a resolved Incident returns 409.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/Incident" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs": {
       "parameters": [
         { "$ref": "#/components/parameters/OrganizationID" },
@@ -665,6 +766,12 @@
         "required": true,
         "schema": { "type": "string", "format": "uuid" }
       },
+      "IncidentID": {
+        "name": "incidentId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
       "RunNotBefore": {
         "name": "notBefore",
         "in": "query",
@@ -711,6 +818,18 @@
           "minLength": 1,
           "x-probehive-max-bytes": 63
         }
+      },
+      "IncidentPageSize": {
+        "name": "pageSize",
+        "in": "query",
+        "description": "Maximum Incidents in this page.",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 }
+      },
+      "IncidentCursor": {
+        "name": "cursor",
+        "in": "query",
+        "description": "Opaque nextCursor returned by the preceding Incident page.",
+        "schema": { "type": "string", "minLength": 1 }
       }
     },
     "headers": {
@@ -743,6 +862,14 @@
       "MonitorRevision": {
         "description": "The immutable Monitor revision.",
         "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MonitorRevisionResponse" } } }
+      },
+      "MonitorHealth": {
+        "description": "The Monitor's current evaluated health and bounded evidence summary.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MonitorHealthResponse" } } }
+      },
+      "Incident": {
+        "description": "The fully scoped Incident and its immutable timeline.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/IncidentResponse" } } }
       },
       "BadRequest": {
         "description": "Malformed input, validation failure, or invalid antiforgery state.",
@@ -913,6 +1040,118 @@
           "createdAt": { "type": "string", "format": "date-time" }
         }
       },
+      "MonitorHealthResponse": {
+        "type": "object",
+        "required": ["organizationId", "projectId", "monitorId", "state", "stableState", "policyVersion", "version", "sourceRevisionNumber", "lastScheduledFor", "lastDeterminateFinishedAt", "lastRunId", "lastRunScheduledFor", "candidate", "counts", "transitionedAt", "updatedAt"],
+        "description": "Current evaluated Monitor health. Counts always expose the full Phase 1 quorum denominator instead of a bare percentage.",
+        "properties": {
+          "organizationId": { "type": "string", "format": "uuid" },
+          "projectId": { "type": "string", "format": "uuid" },
+          "monitorId": { "type": "string", "format": "uuid" },
+          "state": { "type": "string", "enum": ["unknown", "healthy", "degraded", "down"] },
+          "stableState": { "type": "string", "enum": ["unknown", "healthy", "down"] },
+          "policyVersion": { "type": "string", "const": "phase1.v1" },
+          "version": { "type": "integer", "format": "int64", "minimum": 0 },
+          "sourceRevisionNumber": { "type": ["integer", "null"], "minimum": 1 },
+          "lastScheduledFor": { "type": ["string", "null"], "format": "date-time" },
+          "lastDeterminateFinishedAt": { "type": ["string", "null"], "format": "date-time" },
+          "lastRunId": { "type": ["string", "null"], "format": "uuid" },
+          "lastRunScheduledFor": { "type": ["string", "null"], "format": "date-time" },
+          "candidate": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/HealthCandidateResponse" },
+              { "type": "null" }
+            ]
+          },
+          "counts": { "$ref": "#/components/schemas/HealthCountsResponse" },
+          "transitionedAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "HealthCandidateResponse": {
+        "type": "object",
+        "required": ["id", "direction", "expectedEvidence", "sourceRevisionNumber", "triggeringRunId", "triggeringScheduledFor", "requestedAt"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "direction": { "type": "string", "enum": ["failure", "recovery"] },
+          "expectedEvidence": { "type": "string", "enum": ["passing", "failing"] },
+          "sourceRevisionNumber": { "type": "integer", "minimum": 1 },
+          "triggeringRunId": { "type": "string", "format": "uuid" },
+          "triggeringScheduledFor": { "type": "string", "format": "date-time" },
+          "requestedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "HealthCountsResponse": {
+        "type": "object",
+        "required": ["configured", "eligible", "responding", "passing", "failing", "locationFault", "indeterminate", "missing"],
+        "properties": {
+          "configured": { "type": "integer", "minimum": 0 },
+          "eligible": { "type": "integer", "minimum": 0 },
+          "responding": { "type": "integer", "minimum": 0 },
+          "passing": { "type": "integer", "minimum": 0 },
+          "failing": { "type": "integer", "minimum": 0 },
+          "locationFault": { "type": "integer", "minimum": 0 },
+          "indeterminate": { "type": "integer", "minimum": 0 },
+          "missing": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "IncidentPageResponse": {
+        "type": "object",
+        "required": ["items", "nextCursor"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/IncidentResponse" }
+          },
+          "nextCursor": { "type": ["string", "null"], "minLength": 1 }
+        }
+      },
+      "IncidentResponse": {
+        "type": "object",
+        "required": ["id", "organizationId", "projectId", "monitorId", "state", "version", "openedTransitionId", "acknowledgedBy", "acknowledgedAt", "resolvedTransitionId", "resolvedAt", "createdAt", "updatedAt", "timeline"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "organizationId": { "type": "string", "format": "uuid" },
+          "projectId": { "type": "string", "format": "uuid" },
+          "monitorId": { "type": "string", "format": "uuid" },
+          "state": { "type": "string", "enum": ["open", "acknowledged", "resolved"] },
+          "version": { "type": "integer", "format": "int64", "minimum": 1 },
+          "openedTransitionId": { "type": "string", "format": "uuid" },
+          "acknowledgedBy": { "type": ["string", "null"], "format": "uuid" },
+          "acknowledgedAt": { "type": ["string", "null"], "format": "date-time" },
+          "resolvedTransitionId": { "type": ["string", "null"], "format": "uuid" },
+          "resolvedAt": { "type": ["string", "null"], "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "timeline": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/IncidentTimelineResponse" }
+          }
+        }
+      },
+      "IncidentTimelineResponse": {
+        "type": "object",
+        "required": ["id", "incidentVersion", "kind", "healthTransitionId", "actorUserId", "oldHealthState", "newHealthState", "policyVersion", "causalRunId", "causalRunScheduledFor", "counts", "occurredAt"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "incidentVersion": { "type": "integer", "format": "int64", "minimum": 1 },
+          "kind": { "type": "string", "enum": ["opened", "acknowledged", "resolved"] },
+          "healthTransitionId": { "type": ["string", "null"], "format": "uuid" },
+          "actorUserId": { "type": ["string", "null"], "format": "uuid" },
+          "oldHealthState": { "type": ["string", "null"], "enum": ["unknown", "healthy", "degraded", "down", null] },
+          "newHealthState": { "type": ["string", "null"], "enum": ["unknown", "healthy", "degraded", "down", null] },
+          "policyVersion": { "type": ["string", "null"] },
+          "causalRunId": { "type": ["string", "null"], "format": "uuid" },
+          "causalRunScheduledFor": { "type": ["string", "null"], "format": "date-time" },
+          "counts": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/HealthCountsResponse" },
+              { "type": "null" }
+            ]
+          },
+          "occurredAt": { "type": "string", "format": "date-time" }
+        }
+      },
       "RunPageResponse": {
         "type": "object",
         "required": ["items", "nextCursor"],
@@ -926,7 +1165,7 @@
       },
       "RunResponse": {
         "type": "object",
-        "required": ["id", "organizationId", "projectId", "monitorId", "revisionNumber", "location", "scheduledFor", "kind", "outcome", "startedAt", "finishedAt", "leaseExpiresAt"],
+        "required": ["id", "organizationId", "projectId", "monitorId", "revisionNumber", "location", "scheduledFor", "kind", "outcome", "startedAt", "finishedAt", "leaseExpiresAt", "confirmation"],
         "description": "A Run without its secret lease-holder token. Nullable state fields distinguish in-flight, completed, and skipped Runs.",
         "properties": {
           "id": { "type": "string", "format": "uuid" },
@@ -943,7 +1182,25 @@
           },
           "startedAt": { "type": ["string", "null"], "format": "date-time" },
           "finishedAt": { "type": ["string", "null"], "format": "date-time" },
-          "leaseExpiresAt": { "type": ["string", "null"], "format": "date-time" }
+          "leaseExpiresAt": { "type": ["string", "null"], "format": "date-time" },
+          "confirmation": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/ConfirmationCauseResponse" },
+              { "type": "null" }
+            ]
+          }
+        }
+      },
+      "ConfirmationCauseResponse": {
+        "type": "object",
+        "required": ["candidateId", "triggeringRunId", "triggeringScheduledFor", "causationEventId", "policyVersion"],
+        "description": "Explicit causal identity for a confirmation Run. Present only when kind is confirmation.",
+        "properties": {
+          "candidateId": { "type": "string", "format": "uuid" },
+          "triggeringRunId": { "type": "string", "format": "uuid" },
+          "triggeringScheduledFor": { "type": "string", "format": "date-time" },
+          "causationEventId": { "type": "string", "format": "uuid" },
+          "policyVersion": { "type": "string", "const": "phase1.v1" }
         }
       },
       "ObservationResponse": {

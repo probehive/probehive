@@ -184,7 +184,7 @@ func TestSkippedRunIsStoredWithoutExecutionInstants(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run.Skip() error = %v", err)
 	}
-	if err := store.RecordSkipped(t.Context(), skipped, now); err != nil {
+	if err := store.RecordSkipped(t.Context(), skipped, nil, now); err != nil {
 		t.Fatalf("RecordSkipped() error = %v", err)
 	}
 

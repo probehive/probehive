@@ -17,7 +17,9 @@ import (
 	"time"
 
 	"github.com/probehive/probehive/internal/check"
+	"github.com/probehive/probehive/internal/health"
 	api "github.com/probehive/probehive/internal/httpapi/v1"
+	"github.com/probehive/probehive/internal/incident"
 	"github.com/probehive/probehive/internal/monitor"
 	"github.com/probehive/probehive/internal/organization"
 	"github.com/probehive/probehive/internal/run"
@@ -34,6 +36,8 @@ type testEnvironment struct {
 	organizations *memoryOrganizationStore
 	monitors      *memoryMonitorStore
 	runs          *memoryRunStore
+	health        *memoryHealthStore
+	incidents     *memoryIncidentStore
 }
 
 func newTestEnvironment(t *testing.T, development bool, credentialLimit int, configure ...func(*Config)) *testEnvironment {
@@ -51,11 +55,17 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 	userService := user.NewService(users, testPasswordHasher{}, clock, ids)
 	monitorService := monitor.NewService(monitors, check.NewCatalog(), clock, ids)
 	runService := run.NewQueryService(runs)
+	healthStore := &memoryHealthStore{monitors: monitors}
+	incidentStore := &memoryIncidentStore{monitors: monitors}
+	healthService := health.NewService(healthStore, clock, ids)
+	incidentService := incident.NewService(incidentStore, clock, ids)
 	config := Config{
 		Organizations:               organizationService,
 		Users:                       userService,
 		Monitors:                    monitorService,
 		Runs:                        runService,
+		MonitorHealth:               healthService,
+		Incidents:                   incidentService,
 		Sessions:                    sessions,
 		Antiforgery:                 antiforgery,
 		Clock:                       clock,
@@ -82,7 +92,7 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 		server: server, client: &http.Client{Jar: jar}, clock: clock,
 		users: users, sessions: sessions, antiforgery: antiforgery,
 		organizations: organizations, monitors: monitors,
-		runs: runs,
+		runs: runs, health: healthStore, incidents: incidentStore,
 	}
 	t.Cleanup(server.Close)
 	return environment

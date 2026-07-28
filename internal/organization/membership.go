@@ -16,6 +16,8 @@ const (
 	PermissionOrganizationWrite Permission = "organization.write"
 	PermissionMonitorRead       Permission = "monitor.read"
 	PermissionMonitorWrite      Permission = "monitor.write"
+	PermissionIncidentRead      Permission = "incident.read"
+	PermissionIncidentWrite     Permission = "incident.write"
 	PermissionMemberRead        Permission = "member.read"
 	PermissionMemberWrite       Permission = "member.write"
 )
