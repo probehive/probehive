@@ -1,13 +1,11 @@
 # 0028: Incident Lifecycle and Outbox Event Semantics
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-07-28
 - Clarifies: [ADR 0005](0005-postgresql-leases-and-outbox.md), [ADR 0021](0021-run-observation-retention-and-scheduling.md), [ADR 0025](0025-run-storage-schema-and-lease-placement.md)
 - Related: [ADR 0009](0009-tenant-scope-default-project-and-telemetry.md), [ADR 0027](0027-health-evaluation-confirmation-and-quorum.md)
 
-This is a proposal, not implementation authority. Its status must change to Accepted
-before code, migrations, OpenAPI, or event contracts depend on it. Alert routing and
-Delivery Attempt semantics remain a separate future ADR.
+Alert routing and Delivery Attempt semantics remain a separate future ADR.
 
 ## Context
 
@@ -32,9 +30,7 @@ The blueprint suggests Open, Acknowledged, and Resolved but leaves undecided:
 7. Topic vocabulary, schema version, payload, visibility, ordering, and fan-out.
 8. Claim leases, retries, poison messages, dead letters, shutdown, and observability.
 
-## Proposed Decision
-
-Everything below is a candidate answer for owner review.
+## Decision
 
 ### Start with one automatic Incident per Monitor
 
@@ -45,13 +41,13 @@ postmortem links remain additive future behavior rather than empty schema.
 
 At most one unresolved automatic Incident exists per Monitor, enforced by persistence.
 
-| State | Candidate meaning |
+| State | Meaning |
 | --- | --- |
 | open | A qualifying health transition created the Incident and nobody acknowledged it. |
 | acknowledged | An authorized actor acknowledged it; health is unchanged. |
 | resolved | Recovery ended the episode; this Incident is terminal. |
 
-Candidate transitions are:
+The only lifecycle transitions are:
 
 - no active Incident plus health becoming Down creates open;
 - open may become acknowledged;
@@ -64,9 +60,9 @@ a duplicate Incident nor duplicate timeline entry.
 Acknowledgement stores actor and UTC time and appends a timeline entry. It does not change
 health, resolve the Incident, suppress evaluation, or imply delivery.
 
-The proposed first slice has no manual resolution while health remains Down. A later audited
-health override may permit it, but an Incident endpoint must not claim recovery while the
-evaluator disagrees.
+Phase 1 has no manual Incident creation or manual resolution. A later audited health
+override may permit it, but an Incident endpoint must not claim recovery while the evaluator
+disagrees.
 
 ### Monitor and maintenance state do not rewrite history
 
@@ -78,44 +74,64 @@ Pause, archive, revision change, and policy change never delete an Incident or t
 - Archive prevents new Incidents but does not silently resolve an active one.
 - Revision and policy changes are timeline facts; ADR 0027 decides their health effect.
 
-Archive treatment remains an acceptance blocker because retaining an active Incident while
-excluding manual resolution needs an explicit operator path.
+An Incident that is unresolved when its Monitor is archived remains open or acknowledged.
+It can still be acknowledged and queried. It resolves only if the Monitor is reactivated and
+later becomes Healthy. This is deliberately honest: permanent archive may leave an
+unresolved historical episode, and the API reports that fact instead of inventing recovery.
+
+Maintenance never suppresses health evaluation or Incident creation, acknowledgement,
+resolution, or history. Future Alert policy may suppress Alert creation, delivery, or both,
+but that behavior is outside this ADR and must be explicit.
 
 ### Keep an append-only bounded timeline
 
 Creation, acknowledgement, and resolution append immutable timeline entries in the same
 transaction as state change. Health entries name the transition, old and new health, policy
-version, bounded quorum counts, and causal Run identifiers with scheduled_for partition keys.
+version, bounded quorum counts, and causal Run identifiers with `scheduled_for` partition
+keys.
 
 Do not copy raw Observation content into the Incident. Retain the bounded transition summary
 with the Incident so history remains intelligible after Run partitions expire. Incident
 retention and authorization remain Organization-scoped and separate from raw retention.
 
+Incidents and timeline entries have no time-based Phase 1 deletion. They are removed only by
+the existing tenant-scoped Monitor or Organization cascade. A future retention setting and
+Organization deletion workflow must preserve the same tenant boundary.
+
 ### Use versioned internal fact topics
 
-Candidate initial topics are:
+Phase 1 defines only topics that have a current owning consumer:
 
 | Topic | Producer transaction | Owning consumer |
 | --- | --- | --- |
-| run.recorded.v1 | completed Run plus Observation, or skipped Run | health evaluator |
-| health.transitioned.v1 | health state and evidence transition | Incident projector |
-| incident.opened.v1 | Incident and opening timeline entry | future Alert evaluator |
-| incident.acknowledged.v1 | acknowledgement and timeline entry | future audit and Alert policy |
-| incident.resolved.v1 | resolution and timeline entry | future recovery Alert evaluator |
+| `run.recorded.v1` | completed Run plus Observation, or skipped Run | health evaluator |
+| `run.confirmation.requested.v1` | pending health candidate and request | confirmation executor |
+| `health.transitioned.v1` | health state and evidence transition | Incident projector |
 
-The scheduler would produce run.recorded.v1 instead of an empty batch. RecordSkipped would
-gain the same transaction boundary. An outcome-null abandoned claim is not terminal and
-emits no recorded event.
+The scheduler produces `run.recorded.v1` instead of an empty batch. `RecordSkipped` gains
+the same transaction boundary. An outcome-null abandoned claim is not terminal and emits no
+recorded event. Incident topics are not produced until an Alert or audit consumer exists;
+durable Incident and timeline rows are the current contract.
 
-Each topic version has one exact payload schema beside its owning producer. Candidate common
-fields are eventId equal to outbox id, organizationId, occurredAt, aggregate type and id,
-aggregate version, optional causationId, and topic-specific identifiers needed to load the
-authoritative row.
+Each payload uses camelCase JSON. Its common fields are `eventId` equal to the outbox row
+id, `organizationId`, `occurredAt`, `aggregateType`, `aggregateId`,
+`aggregateVersion`, and optional `causationId`.
 
-Run events include Run id, Monitor id, revision, location, scheduledFor, kind, and outcome,
-but no Observation detail or target data. Health events include Monitor id, transition id
-and version, old and new states, and policy version. Incident events include Incident id,
-Monitor id, and Incident version.
+- `run.recorded.v1` adds `runId`, `monitorId`, `revisionNumber`, `location`,
+  `scheduledFor`, `kind`, and `outcome`. Its aggregate is the Run at version 1.
+- `run.confirmation.requested.v1` adds `candidateId`, `monitorId`,
+  `revisionNumber`, `location`, `triggeringRunId`, `triggeringScheduledFor`,
+  `requestedFor`, `expectedEvidence` (`passing` or `failing`), and
+  `policyVersion`. Its aggregate is the candidate at version 1 and its causation is the
+  triggering `run.recorded.v1` event.
+- `health.transitioned.v1` adds `transitionId`, `monitorId`, `projectId`,
+  `oldState`, `newState`, and `policyVersion`. Its aggregate is the Monitor health and
+  its aggregate version is the health transition version; its causation is the consumed Run
+  event.
+
+Timestamps use RFC 3339 with UTC offsets and integers are JSON numbers. Version 1 rejects
+unknown required enum values but ignores additional object members so a producer may add
+optional metadata without changing meaning.
 
 Table and payload Organization ids must match. Consumers load rows with Organization scope
 rather than trusting JSON identifiers.
@@ -135,9 +151,10 @@ same transaction. Do not make deletion depend on implicit in-memory subscribers.
 Claim available entries in bounded batches with PostgreSQL row locking without waiting
 behind another worker. Process outside the claim transaction under a bounded lease so a
 crash is reclaimable. When handler state shares PostgreSQL, commit its idempotent state
-change and outbox deletion atomically.
+change and processed-event marker atomically; deletion may follow because re-delivery then
+observes the processed marker and is a no-op.
 
-Failure increments attempts, records a bounded stable failure code and next available_at,
+Failure increments attempts, records a bounded stable failure code and next `available_at`,
 and releases the claim. Retry uses exponential backoff with bounded jitter and operator
 ceiling. Exhausting the accepted attempt limit moves the row to a dead-letter table in one
 transaction; never silently delete it.
@@ -146,9 +163,7 @@ Dead letters retain Organization, topic, payload, attempts, creation time, final
 code, and dead-letter time. Expose bounded metrics and structured logs, without tenant or
 payload data in metric labels.
 
-Shutdown stops claiming, cancels handlers, and releases claims within a bound. Exact lease,
-batch, retry, jitter, attempt, and dead-letter values are acceptance blockers, not defaults
-selected in code.
+Shutdown stops claiming, cancels handlers, and lets leases expire within the 60-second bound.
 
 ### Promise no queue-wide ordering
 
@@ -156,25 +171,32 @@ The outbox promises at-least-once delivery, not global or Organization FIFO. UUI
 timestamps aid inspection but are not concurrency sequence.
 
 Each mutable aggregate carries a version. A consumer serializes that aggregate, treats stale
-versions as handled, and defers a future version until its predecessor exists. Health also
-orders cohorts by scheduled_for because completion order is not evidence order.
+versions as handled, and defers a future version until its predecessor exists. Health orders
+current state by the arrival rule in ADR 0027.
 
-## Acceptance Blockers
+### Fix the Phase 1 delivery bounds
 
-Before acceptance, record owner choices for:
+- Claim lease: 60 seconds.
+- Claim batch: at most 32 rows.
+- Handler concurrency: at most 4.
+- Retry: exponential from 1 second, capped at 5 minutes. Attempt N uses
+  `min(5m, 1s * 2^(N-1))` plus deterministic non-negative jitter derived from event id and
+  attempt, bounded to 20 percent of the base delay and never beyond the 5-minute cap.
+- Maximum attempts: 12, counting the first handler call.
+- Dead-letter retention: 30 days.
+- Successful processed-event retention: 30 days.
+- Future aggregate-version gap timeout: 15 minutes from the first observation of the gap,
+  after which the event is dead-lettered.
 
-1. Down-only opening and Healthy-only resolution.
-2. Whether Phase 1 excludes manual Incident creation and manual resolution.
-3. Active-Incident behavior when its Monitor is archived.
-4. Whether maintenance suppresses Alert creation, delivery, or both, while never suppressing
-   health or Incident history.
-5. Incident and timeline retention, including future Organization deletion.
-6. Final topic names and exact version-1 payload schemas.
-7. Claim lease, batch, concurrency, retry base and ceiling, jitter, maximum attempts, and
-   dead-letter retention.
-8. The retained idempotency record after successful deletion and its retention.
-9. Handling and timeout for a future aggregate version missing its predecessor.
-10. The stable outbox failure-code catalog.
+The stable dispatcher failure codes are `outbox.topic.unknown`,
+`outbox.payload.invalid`, `outbox.organization.mismatch`,
+`outbox.aggregate.versionGap`, `outbox.handler.failed`, and
+`outbox.handler.cancelled`. A lost claim is normal at-least-once behavior and is not a
+failure code. Invalid payload, unknown topic, and Organization mismatch are permanent and go
+directly to dead letter; handler failures and cancellations consume the retry budget.
+
+Processed ids and dead letters are tenant-scoped. The maintenance pass deletes processed ids
+and dead letters older than their retention windows; it never deletes a live queue row.
 
 ## Consequences
 
@@ -183,4 +205,5 @@ Before acceptance, record owner choices for:
 - Bounded summaries survive raw measurement retention.
 - Outbox topics gain versioned schemas and one owner.
 - Reliable consumption needs lease and dead-letter schema beyond the current table.
+- Delivery timing is an operational contract rather than a hidden implementation default.
 - Alert and Delivery Attempt semantics remain blocked on their own ADR.

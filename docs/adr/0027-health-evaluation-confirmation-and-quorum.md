@@ -1,13 +1,9 @@
 # 0027: Health Evaluation, Confirmation Runs, and Location Quorum
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-07-28
 - Clarifies: [ADR 0021](0021-run-observation-retention-and-scheduling.md), [ADR 0024](0024-http-check-execution-and-observation-content.md), [ADR 0026](0026-execution-interval-and-slot-derivation.md)
 - Related: [ADR 0009](0009-tenant-scope-default-project-and-telemetry.md)
-
-This is a proposal, not implementation authority. Its status must change to Accepted
-before code, migrations, OpenAPI, or event contracts depend on it. The acceptance
-blockers below are deliberately unresolved.
 
 ## Context
 
@@ -26,20 +22,11 @@ The blueprint names Unknown, Healthy, Degraded, and Down and calls for threshold
 X-of-N, location quorum, confirmation, recovery confirmation, location-failure
 separation, honest denominators, and flapping handling. It does not decide their meaning.
 
-Still undecided are:
+This ADR fixes those meanings for the embedded single-location implementation. Distributed
+location membership, location-health exclusion, regional diversity, and configurable X-of-N
+policy remain Phase 2 work and require another accepted decision.
 
-1. The evidence meaning of every outcome and failure code, including skipped, cancelled,
-   abandoned, late, manual, and superseded-revision Runs.
-2. Evaluation windows, failure and recovery thresholds, staleness, and flapping.
-3. Confirmation triggers, causal linkage, revision, location, idempotency, and recursion.
-4. Quorum membership, denominator snapshots, missing and unhealthy locations, X-of-N,
-   and regional diversity.
-5. State transitions through activation, pause, archive, revision, and policy changes.
-6. Deterministic handling of out-of-order completion and at-least-once delivery.
-
-## Proposed Decision
-
-Everything below is a candidate answer for owner review.
+## Decision
 
 ### Separate stored health from Run outcome
 
@@ -47,7 +34,7 @@ Create a Monitor-scoped, Organization-scoped evaluated-health state machine. Sto
 policy version, last complete evaluation cohort, transition time, transition version,
 and immutable evidence naming the causal Runs and location votes.
 
-| State | Candidate meaning |
+| State | Meaning |
 | --- | --- |
 | Unknown | No current determinate cohort exists, or evidence is stale. |
 | Healthy | Recovery quorum has current passing evidence and no transition is pending. |
@@ -60,37 +47,47 @@ Neither rewrites the other. Degraded is not an alias for one failed Run.
 ### Classify evidence before quorum
 
 Classify each terminal Run as passing, failing, location-fault, or indeterminate using
-outcome plus stable failure code, never prose. Passed is proposed as passing. Cancelled,
-skipped, outcome-null, and manual Runs are proposed as indeterminate for automatic health.
-Errored is not classified as a group: every failure code must receive an explicit class
-before acceptance.
+outcome plus stable failure code, never prose.
+
+| Run evidence | Classification |
+| --- | --- |
+| `passed` | passing |
+| `failed` with `probe.http.status.unexpected` | failing |
+| `timedout` with `probe.execution.timeout` | failing |
+| `errored` with `probe.http.redirect.tooMany`, `probe.tls.certificateInvalid`, `probe.transport.failed`, `outbound.resolution.failed`, `outbound.resolution.empty`, or `outbound.connect.failed` | failing |
+| `errored` with `outbound.address.mismatch` | location-fault |
+| `errored` with `probe.checkType.unsupported`, `probe.http.request.invalid`, `outbound.policy.unconfigured`, `outbound.url.tooLong`, `outbound.url.invalid`, `outbound.url.notAbsolute`, `outbound.url.scheme`, `outbound.url.userInfo`, `outbound.host.missing`, `outbound.host.invalid`, `outbound.port.invalid`, `outbound.port.denied`, `outbound.network.unsupported`, `outbound.address.denied`, or any unrecognized failure code | indeterminate |
+| `cancelled`, `skipped`, or outcome-null | indeterminate |
+| any manual Run | indeterminate |
+
+The outcome/code combinations above are validated defensively. A combination that is not
+listed is indeterminate. This makes a new executor code fail closed with respect to health:
+it cannot declare a target Down until this ADR or a superseding decision classifies it.
 
 Manual Runs remain diagnostics. A later audited override may change health, but merely
 requesting a manual Run does not.
 
 ### Evaluate scheduled cohorts
 
-A cohort is one Monitor revision and one ordinary scheduled_for instant across its selected
-locations. Snapshot expected locations and policy version when first observed. Each expected
-location contributes at most one vote. Passing and failing are determinate; location-fault,
-indeterminate, and missing are reported separately and never silently become pass or fail.
+A cohort is one Monitor revision and one ordinary `scheduled_for` instant. Phase 1 permits
+only the configured embedded location, snapshots that location and policy version
+`phase1.v1`, and fixes both failure and recovery quorum at one of one. Configuration that
+names multiple locations, quorum other than one, or a regional constraint is rejected.
 
-The candidate quorum is a strict majority of eligible locations plus any required-region
-constraint. Record configured, eligible, responding, passing, failing, indeterminate, and
-missing counts. Never report a percentage without numerator and denominator. Excluding a
-location requires a durable location-health decision; absence alone cannot shrink the
-denominator.
-
-Until a location registry and location-health model exist, permit only the configured
-embedded location. Reject multi-location policy and quorum greater than one.
+Passing and failing are determinate votes. Location-fault, indeterminate, and missing are
+reported separately and do not cast a vote. A location-fault cannot shrink the denominator
+without a durable location-health model, so it leaves the current stable state unchanged
+and may leave a pending transition Degraded. Every stored evaluation records configured,
+eligible, responding, passing, failing, location-fault, indeterminate, and missing counts.
+An API never reports a percentage without its numerator and denominator.
 
 ### Make confirmation explicit and causal
 
-A candidate failure or recovery schedules exactly one confirmation Run. It:
+A failure or recovery candidate schedules exactly one confirmation Run. It:
 
 - uses the same revision and policy version as the evidence it confirms;
 - records the triggering evaluation and Run identifiers;
-- uses request time as scheduled_for so it cannot collide with the ordinary slot;
+- uses request time as `scheduled_for` so it cannot collide with the ordinary slot;
 - is idempotent on candidate transition identity;
 - remains visible as kind confirmation;
 - cannot recursively request confirmation; and
@@ -99,13 +96,19 @@ A candidate failure or recovery schedules exactly one confirmation Run. It:
 Single-location confirmation uses that location. A second-location confirmation waits for
 the location registry and quorum model.
 
-The candidate Phase 1 rule is one qualifying scheduled cohort followed by one matching
-confirmation. Contradiction returns to the prior stable state. Indeterminate confirmation
-leaves Degraded until staleness makes it Unknown; it never manufactures Down.
+The Phase 1 threshold is exactly one qualifying scheduled cohort followed by one matching
+confirmation. Failure and recovery use the same threshold. A candidate identity is
+Organization, Monitor, source revision, transition direction, and triggering Run. A unique
+constraint makes the request idempotent. A confirmation stores the candidate, triggering
+Run, and request event as causal fields.
 
-### Keep replay deterministic
+Contradiction returns to the prior stable state. An indeterminate confirmation leaves
+Degraded until a later determinate scheduled cohort supersedes the candidate or staleness
+makes it Unknown; it never manufactures Down.
 
-| Current | Evidence | Candidate result |
+### Keep processing deterministic
+
+| Current | Evidence | Result |
 | --- | --- | --- |
 | Unknown | passing cohort | Healthy |
 | Unknown or Healthy | failing cohort | Degraded; request failure confirmation |
@@ -117,34 +120,45 @@ leaves Degraded until staleness makes it Unknown; it never manufactures Down.
 | any | no current determinate evidence | Unknown after accepted staleness |
 
 Serialize evaluation per Organization and Monitor, compare transition versions, and record
-processed outbox identifiers. Re-delivery is a no-op. Recompute an affected cohort and later
-cohorts in the bounded window by scheduled order when a Run arrives late.
+processed outbox identifiers. Re-delivery is a no-op.
 
-A new revision starts a new evaluation series. Old Runs keep historical evidence but cannot
-change current health. Pause and archive stop new evaluation and confirmation; visible state
-is an acceptance blocker.
+Current health follows evidence arrival order, because outbox commit order is the only order
+that was actually observed. A Run whose `scheduled_for` is earlier than the last applied
+scheduled cohort is retained and queryable but marked late and does not rewrite current
+health, a pending candidate, an Incident, or an already published transition. Phase 1 does
+not perform retroactive replay. This avoids silently rewriting Incident history after an
+operator has seen or acknowledged it.
 
-Phase 1 either defines exact flapping behavior or has none. It must not hide cooldowns,
-debounce, or notification suppression inside the evaluator.
+### Staleness, Monitor lifecycle, and retention
 
-## Acceptance Blockers
+For an Active Monitor, determinate evidence becomes stale at:
 
-Before acceptance, record owner choices for:
+`latest determinate finished_at + max(3 * effective interval, 2 * execution ceiling)`.
 
-1. Every current HTTP failure-code classification, especially DNS, connect, TLS, policy
-   denial, invalid configuration, and internal execution.
-2. Strict majority versus separate X-of-N failure and recovery thresholds.
-3. Exact staleness duration and whether it starts at slot, completion, or evaluation.
-4. Confirmation and recovery thresholds and whether they are identical.
-5. Reset versus preservation on a new revision.
-6. Visible health of Paused and Archived Monitors.
-7. Exact flapping behavior or its explicit Phase 1 omission.
-8. Health evidence retention after raw Run partitions expire.
+The staleness sweep transitions the health to Unknown and clears a pending candidate. The
+Run's completion instant, not its slot or evaluation time, starts the window.
+
+A new revision does not reset health eagerly. The prior state and its source revision remain
+visible until the latest revision supplies new determinate evidence; Runs from a superseded
+revision cannot change current health. Pause and archive stop scheduled Runs, confirmations,
+and staleness transitions. They preserve the last evaluated state and expose its source
+revision rather than inventing Unknown or Healthy. Reactivation resumes evaluation and
+staleness from new evidence.
+
+There is no Phase 1 flapping suppression, cooldown, debounce, or hidden notification policy.
+Every actual state transition is stored. A future flapping policy must be separately visible
+and must not rewrite evidence.
+
+Current health and immutable transition summaries live for the Monitor's lifetime and are
+deleted only through the existing tenant-scoped Monitor or Organization cascade. Each
+summary retains bounded counts, causal Run identifiers, and their `scheduled_for` partition
+keys, so it remains intelligible after raw Run partitions expire.
 
 ## Consequences
 
 - Health becomes auditable instead of inferred from the latest Run.
 - Confirmation remains explicit, causal, and visible through the existing kind.
 - Distributed evaluation stays disabled until an honest denominator exists.
-- Durable state, idempotent consumption, and bounded replay are required.
-- Product choices remain blocked instead of being guessed in code.
+- Durable state and idempotent consumption are required.
+- Late evidence is retained without retroactively changing current health or Incident
+  history.
