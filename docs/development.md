@@ -59,7 +59,7 @@ stricter but never looser:
 | `PROBEHIVE_MINIMUM_INTERVAL_SECONDS` | operator floor on execution interval; may be raised but never lowered below 30 | `30` |
 | `PROBEHIVE_EXECUTION_CEILING_SECONDS` | operator ceiling on one whole execution, and the basis of the lease duration | `60` |
 | `PROBEHIVE_SCHEDULER_TICK_SECONDS` | how often due slots are looked for | `5` |
-| `PROBEHIVE_WORKER_CONCURRENCY` | in-flight executions | `8` |
+| `PROBEHIVE_WORKER_CONCURRENCY` | in-flight executions shared by scheduled, confirmation, and manual Runs | `8` |
 | `PROBEHIVE_RETENTION_DAYS` | raw Run and Observation retention; whole partitions are dropped, so effective retention exceeds this by up to a month | `30` |
 | `PROBEHIVE_OUTBOUND_PROFILE` | `managed` or `private`; `operator` is rejected here because it is never tenant-reachable | `private` |
 | `PROBEHIVE_OUTBOUND_ALLOWED_CIDRS` | comma-separated prefixes the `private` profile opts back in; metadata endpoints stay denied | empty |
@@ -79,6 +79,12 @@ are reproducible without coordination and Monitors sharing an interval do not al
 same second (ADR 0026). Partition maintenance runs at startup and every six hours; an
 installation whose worker never runs eventually cannot insert a Run, because there is no
 default partition to fall back on.
+
+`POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs`
+executes the latest revision synchronously and returns the completed manual Run. An explicit
+request may exercise a draft or paused Monitor. It does not queue when the shared worker
+capacity is occupied, and an API-only process with `PROBEHIVE_WORKER_ENABLED=false` returns
+`503` instead of executing outbound traffic.
 
 ## First Administrator and Sessions
 

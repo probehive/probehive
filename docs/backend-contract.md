@@ -184,6 +184,7 @@ antiforgery and origin rules in section 5 also apply.
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}` | `incident.read` | `200 IncidentResponse` with timeline | `404`, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}/acknowledge` | `incident.write`, unsafe | `200 IncidentResponse`; repeat acknowledgement is idempotent | `400`, `404`, `409` when resolved, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs` | `monitor.read` | `200 RunPageResponse`, newest first by `(scheduledFor, id)` | `400`, `404`, `401`, `403` |
+| `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs` | `monitor.write`, unsafe | `201 RunResponse` for the completed manual Run and canonical Run `Location` | `400`, `404`; `409` without a revision; `429` when execution capacity is occupied; `503` on an API-only process; `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}` | `monitor.read` | `200 RunResponse` | `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}/observation` | `monitor.read` | `200 ObservationResponse` for a completed, non-skipped Run | `404`, `401`, `403` |
 
@@ -191,6 +192,13 @@ The canonical revision `Location` ends in `/revisions/{revisionNumber}`. All mon
 and Run lookups include Organization, Project, and Monitor scope. A real identifier
 presented through the wrong Organization, Project, or Monitor is indistinguishable from
 an unknown one and returns `404`.
+
+Manual Run creation executes the latest immutable revision through the same outbound policy,
+execution ceiling, Probe Location, Observation bounds, transactional outbox, and shared
+concurrency limit as scheduled and confirmation Runs. It is synchronous: `201` means the Run,
+Observation, and `run.recorded.v1` entry committed together. An explicit request may exercise
+a draft or paused Monitor, but a Monitor without any revision returns `409`. Capacity is not
+queued, so the caller can retry a `429` deliberately.
 
 Development alone exposes anonymous `GET /openapi/v1.json`. There is no OpenAPI UI.
 

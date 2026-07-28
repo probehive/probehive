@@ -51,7 +51,7 @@ func TestOpenAPIDocumentDescribesEveryRoute(t *testing.T) {
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents":                          {"get"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}":             {"get"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}/acknowledge": {"post"},
-		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs":                               {"get"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs":                               {"get", "post"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}":                       {"get"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}/observation":           {"get"},
 	}

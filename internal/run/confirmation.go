@@ -55,6 +55,7 @@ type ConfirmationConfig struct {
 	UUIDs            IDGenerator
 	Logger           *slog.Logger
 	ExecutionCeiling time.Duration
+	ExecutionSlots   *ExecutionSlots
 }
 
 type ConfirmationRunner struct {
@@ -67,6 +68,13 @@ func NewConfirmationRunner(config ConfirmationConfig) (*ConfirmationRunner, erro
 	}
 	if config.ExecutionCeiling <= 0 {
 		return nil, errors.New("confirmation runner requires a positive execution ceiling")
+	}
+	if config.ExecutionSlots == nil {
+		var err error
+		config.ExecutionSlots, err = NewExecutionSlots(DefaultConcurrency)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if config.Logger == nil {
 		config.Logger = slog.New(slog.DiscardHandler)
@@ -85,6 +93,10 @@ func (runner *ConfirmationRunner) Execute(ctx context.Context, request Confirmat
 	if !eligible {
 		return nil
 	}
+	if err := runner.config.ExecutionSlots.Acquire(ctx); err != nil {
+		return err
+	}
+	defer runner.config.ExecutionSlots.Release()
 	now := runner.config.Clock.Now().UTC()
 	holder, err := runner.config.UUIDs.NewUUIDv7(now)
 	if err != nil {

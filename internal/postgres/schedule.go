@@ -84,6 +84,41 @@ LIMIT $1`, MaxSchedulableMonitors+1)
 	return values, nil
 }
 
+// LoadManualTarget returns the latest revision under the complete Monitor scope. Unlike the
+// scheduler and confirmation path, it deliberately does not filter on Monitor state: an
+// explicit manual request may exercise a draft or paused Monitor.
+func (store *RunStore) LoadManualTarget(
+	ctx context.Context, scope run.Scope,
+) (run.Schedulable, bool, error) {
+	var (
+		value           run.Schedulable
+		intervalSeconds int
+		updatedAt       time.Time
+		configuration   []byte
+	)
+	err := store.pool.QueryRow(ctx, `
+SELECT m.organization_id, m.id, m.interval_seconds, m.updated_at,
+       r.revision_number, r.check_type, r.check_schema_version, r.check_configuration
+FROM monitors AS m
+JOIN monitor_revisions AS r
+  ON r.monitor_id = m.id AND r.organization_id = m.organization_id
+ AND r.revision_number = m.latest_revision_number
+WHERE m.id = $1 AND m.project_id = $2 AND m.organization_id = $3`,
+		scope.MonitorID, scope.ProjectID, scope.OrganizationID).Scan(
+		&value.OrganizationID, &value.MonitorID, &intervalSeconds, &updatedAt,
+		&value.RevisionNumber, &value.CheckType, &value.CheckSchemaVersion, &configuration)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return run.Schedulable{}, false, nil
+	}
+	if err != nil {
+		return run.Schedulable{}, false, fmt.Errorf("load manual Run target: %w", err)
+	}
+	value.CheckConfiguration = append(json.RawMessage(nil), configuration...)
+	value.Interval = time.Duration(intervalSeconds) * time.Second
+	value.NotBefore = updatedAt.UTC()
+	return value, true, nil
+}
+
 // LoadConfirmationTarget returns the exact still-current revision for a pending candidate.
 func (store *RunStore) LoadConfirmationTarget(
 	ctx context.Context, request run.ConfirmationRequest,

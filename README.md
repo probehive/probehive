@@ -40,6 +40,7 @@ The current foundation implements:
 - Monitors with immutable revisions and strict HTTP check configuration validation.
 - Stable machine-readable error codes on every API failure, so clients localize without the API ever returning a translated string.
 - An embedded scheduler and bounded worker that execute validated HTTP checks through the shared outbound-access policy and persist partitioned Runs and Observations.
+- An antiforgery-protected manual Run endpoint that executes a Monitor's latest revision immediately through the same bounded worker.
 - Fully scoped Run history and Observation query APIs with bounded keyset pagination and stable filters.
 - Auditable Monitor health evaluation with explicit failure and recovery confirmation Runs, honest Phase 1 quorum counts, and staleness handling.
 - Automatic per-Monitor Incidents with open, acknowledge, and resolve lifecycle, immutable timelines, scoped keyset query APIs, and PostgreSQL-backed outbox dispatch.

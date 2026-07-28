@@ -638,19 +638,21 @@
       "parameters": [
         { "$ref": "#/components/parameters/OrganizationID" },
         { "$ref": "#/components/parameters/ProjectID" },
-        { "$ref": "#/components/parameters/MonitorID" },
-        { "$ref": "#/components/parameters/RunNotBefore" },
-        { "$ref": "#/components/parameters/RunPageSize" },
-        { "$ref": "#/components/parameters/RunCursor" },
-        { "$ref": "#/components/parameters/RunOutcome" },
-        { "$ref": "#/components/parameters/RunKind" },
-        { "$ref": "#/components/parameters/RunLocation" }
+        { "$ref": "#/components/parameters/MonitorID" }
       ],
       "get": {
         "tags": ["Runs"],
         "operationId": "listMonitorRuns",
         "summary": "List a Monitor's recent Runs",
         "description": "Requires monitor.read. Returns a bounded newest-first keyset page ordered by scheduledFor and Run id. notBefore is required so PostgreSQL can prune retained monthly partitions. nextCursor is null on the final page and otherwise must be sent back unchanged with the same filters.",
+        "parameters": [
+          { "$ref": "#/components/parameters/RunNotBefore" },
+          { "$ref": "#/components/parameters/RunPageSize" },
+          { "$ref": "#/components/parameters/RunCursor" },
+          { "$ref": "#/components/parameters/RunOutcome" },
+          { "$ref": "#/components/parameters/RunKind" },
+          { "$ref": "#/components/parameters/RunLocation" }
+        ],
         "security": [{ "sessionCookie": [] }],
         "responses": {
           "200": {
@@ -665,6 +667,32 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" },
           "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      },
+      "post": {
+        "tags": ["Runs"],
+        "operationId": "triggerManualMonitorRun",
+        "summary": "Execute a Monitor's latest revision now",
+        "description": "Requires monitor.write and antiforgery. The request synchronously executes the latest revision through this process's embedded worker and returns the completed manual Run. Draft and paused Monitors may be exercised explicitly. A Monitor without a revision returns 409, exhausted shared execution capacity returns 429 without queueing, and an API-only process returns 503.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "responses": {
+          "201": {
+            "description": "The completed manual Run.",
+            "headers": { "Location": { "$ref": "#/components/headers/Location" } },
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/RunResponse" } }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
           "405": { "$ref": "#/components/responses/MethodNotAllowed" }
         }
       }
@@ -900,7 +928,11 @@
         "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/ProblemDetails" } } }
       },
       "TooManyRequests": {
-        "description": "The per-client credential-attempt limit was exhausted.",
+        "description": "The applicable immediate capacity or request-rate limit was exhausted.",
+        "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/ProblemDetails" } } }
+      },
+      "ServiceUnavailable": {
+        "description": "The process is not configured to perform this operation.",
         "content": { "application/problem+json": { "schema": { "$ref": "#/components/schemas/ProblemDetails" } } }
       },
       "MethodNotAllowed": {

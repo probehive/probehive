@@ -251,9 +251,10 @@ func readRootCAs() (*x509.CertPool, error) {
 type workerRuntime struct {
 	scheduler     *run.Scheduler
 	confirmations *run.ConfirmationRunner
+	manualRuns    *run.ManualRunner
 }
 
-// newWorkerRuntime shares one policy-enforced executor between scheduled and confirmation Runs.
+// newWorkerRuntime shares one policy-enforced executor and concurrency bound between all Runs.
 func newWorkerRuntime(
 	database *postgres.DB,
 	settings workerSettings,
@@ -294,6 +295,10 @@ func newWorkerRuntime(
 
 	runs := database.Runs()
 	adapted := probeExecutor{executor: executor}
+	executionSlots, err := run.NewExecutionSlots(settings.concurrency)
+	if err != nil {
+		return nil, err
+	}
 	scheduler, err := run.NewScheduler(run.SchedulerConfig{
 		Source:           runs,
 		Store:            runs,
@@ -302,6 +307,7 @@ func newWorkerRuntime(
 		UUIDs:            identifiers,
 		Logger:           logger,
 		Location:         settings.location,
+		ExecutionSlots:   executionSlots,
 		MinimumInterval:  settings.minimumInterval,
 		ExecutionCeiling: settings.executionCeiling,
 		TickInterval:     settings.tickInterval,
@@ -312,12 +318,22 @@ func newWorkerRuntime(
 	}
 	confirmations, err := run.NewConfirmationRunner(run.ConfirmationConfig{
 		Store: runs, Executor: adapted, Clock: systemClock, UUIDs: identifiers,
-		Logger: logger, ExecutionCeiling: settings.executionCeiling,
+		Logger: logger, ExecutionCeiling: settings.executionCeiling, ExecutionSlots: executionSlots,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &workerRuntime{scheduler: scheduler, confirmations: confirmations}, nil
+	manualRuns, err := run.NewManualRunner(run.ManualConfig{
+		Store: runs, Executor: adapted, Clock: systemClock, UUIDs: identifiers,
+		Logger: logger, ExecutionSlots: executionSlots, Location: settings.location,
+		ExecutionCeiling: settings.executionCeiling,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &workerRuntime{
+		scheduler: scheduler, confirmations: confirmations, manualRuns: manualRuns,
+	}, nil
 }
 
 // serveMaintenance creates partitions ahead of time and drops the ones that have aged out.

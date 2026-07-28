@@ -16,12 +16,16 @@ import (
 )
 
 const (
-	runNotBeforeInvalidCode = "run.query.notBefore.invalid"
-	runPageSizeInvalidCode  = "run.query.pageSize.invalid"
-	runCursorInvalidCode    = "run.query.cursor.invalid"
-	runOutcomeInvalidCode   = "run.query.outcome.invalid"
-	runKindInvalidCode      = "run.query.kind.invalid"
-	runLocationInvalidCode  = "run.query.location.invalid"
+	runNotBeforeInvalidCode      = "run.query.notBefore.invalid"
+	runPageSizeInvalidCode       = "run.query.pageSize.invalid"
+	runCursorInvalidCode         = "run.query.cursor.invalid"
+	runOutcomeInvalidCode        = "run.query.outcome.invalid"
+	runKindInvalidCode           = "run.query.kind.invalid"
+	runLocationInvalidCode       = "run.query.location.invalid"
+	runManualUnconfiguredCode    = "run.manual.unconfigured"
+	runManualUnavailableCode     = "run.manual.unavailable"
+	runManualUnconfiguredMessage = "The Monitor needs a revision before it can run."
+	runManualUnavailableMessage  = "Manual Runs require the embedded worker on this process."
 )
 
 var runQueryMessages = map[string]string{
@@ -45,41 +49,66 @@ func (server *Server) monitorRuns(w http.ResponseWriter, r *http.Request) {
 		writeStatusProblem(w, http.StatusNotFound)
 		return
 	}
-	if r.Method != http.MethodGet {
-		methodNotAllowed(w, http.MethodGet)
-		return
-	}
-	if _, ok = server.readMonitors(w, r, scope.OrganizationID); !ok {
-		return
-	}
-	query, failures := parseRunListQuery(r.URL.Query())
-	if len(failures) != 0 {
-		writeValidationProblem(w, failures)
-		return
-	}
-	page, found, err := server.runs.List(r.Context(), scope, query)
-	if err != nil {
-		server.internalError(w, r, "list Runs", err)
-		return
-	}
-	if !found {
-		writeStatusProblem(w, http.StatusNotFound)
-		return
-	}
-	items := make([]api.RunResponse, len(page.Runs))
-	for index, value := range page.Runs {
-		items[index] = toRunResponse(scope.ProjectID, value)
-	}
-	var nextCursor *string
-	if page.NextCursor != nil {
-		encoded, encodeErr := encodeRunCursor(*page.NextCursor)
-		if encodeErr != nil {
-			server.internalError(w, r, "encode Run cursor", encodeErr)
+	switch r.Method {
+	case http.MethodGet:
+		if _, ok = server.readMonitors(w, r, scope.OrganizationID); !ok {
 			return
 		}
-		nextCursor = &encoded
+		query, failures := parseRunListQuery(r.URL.Query())
+		if len(failures) != 0 {
+			writeValidationProblem(w, failures)
+			return
+		}
+		page, found, err := server.runs.List(r.Context(), scope, query)
+		if err != nil {
+			server.internalError(w, r, "list Runs", err)
+			return
+		}
+		if !found {
+			writeStatusProblem(w, http.StatusNotFound)
+			return
+		}
+		items := make([]api.RunResponse, len(page.Runs))
+		for index, value := range page.Runs {
+			items[index] = toRunResponse(scope.ProjectID, value)
+		}
+		var nextCursor *string
+		if page.NextCursor != nil {
+			encoded, encodeErr := encodeRunCursor(*page.NextCursor)
+			if encodeErr != nil {
+				server.internalError(w, r, "encode Run cursor", encodeErr)
+				return
+			}
+			nextCursor = &encoded
+		}
+		writeJSON(w, http.StatusOK, api.RunPageResponse{Items: items, NextCursor: nextCursor})
+	case http.MethodPost:
+		if _, ok = server.writeMonitors(w, r, scope.OrganizationID); !ok {
+			return
+		}
+		if server.manualRuns == nil {
+			writeCodedProblem(w, http.StatusServiceUnavailable, runManualUnavailableCode,
+				"Service Unavailable", runManualUnavailableMessage)
+			return
+		}
+		value, err := server.manualRuns.Trigger(r.Context(), scope)
+		switch {
+		case errors.Is(err, run.ErrManualTargetNotFound):
+			writeStatusProblem(w, http.StatusNotFound)
+		case errors.Is(err, run.ErrManualTargetUnconfigured):
+			writeCodedProblem(w, http.StatusConflict, runManualUnconfiguredCode,
+				"Conflict", runManualUnconfiguredMessage)
+		case errors.Is(err, run.ErrManualCapacity):
+			writeStatusProblem(w, http.StatusTooManyRequests)
+		case err != nil:
+			server.internalError(w, r, "trigger manual Run", err)
+		default:
+			w.Header().Set("Location", r.URL.Path+"/"+string(value.ID))
+			writeJSON(w, http.StatusCreated, toRunResponse(scope.ProjectID, value))
+		}
+	default:
+		methodNotAllowed(w, http.MethodGet, http.MethodPost)
 	}
-	writeJSON(w, http.StatusOK, api.RunPageResponse{Items: items, NextCursor: nextCursor})
 }
 
 func (server *Server) monitorRun(w http.ResponseWriter, r *http.Request) {

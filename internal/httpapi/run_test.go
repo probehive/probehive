@@ -369,3 +369,158 @@ func TestRunQueryAPIValidatesParametersAndFullScope(t *testing.T) {
 	)
 	assertProblem(t, wrongMonitor, http.StatusNotFound, "Not Found", "")
 }
+
+type stubManualRunService struct {
+	value  run.Run
+	err    error
+	scopes []run.Scope
+}
+
+func (service *stubManualRunService) Trigger(
+	_ context.Context, scope run.Scope,
+) (run.Run, error) {
+	service.scopes = append(service.scopes, scope)
+	return service.value, service.err
+}
+
+func completedManualHTTPRun(
+	t *testing.T, id, organizationID, monitorID string, requestedFor time.Time,
+) run.Run {
+	t.Helper()
+	value, err := run.Claim(
+		run.ID(id),
+		run.Slot{
+			OrganizationID: organizationID,
+			MonitorID:      monitorID,
+			RevisionNumber: 1,
+			Location:       "local",
+			ScheduledFor:   requestedFor,
+		},
+		run.KindManual,
+		"manual-worker-secret",
+		requestedFor.Add(time.Minute),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := value.Complete(
+		run.OutcomePassed, requestedFor, requestedFor.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	return value
+}
+
+func TestManualRunAPIExecutesWithWriteAuthorization(t *testing.T) {
+	manualRuns := &stubManualRunService{}
+	environment := newTestEnvironment(t, true, 0, func(config *Config) {
+		config.ManualRuns = manualRuns
+	})
+	token := environment.bootstrapAdministrator(t)
+	organizationID, projectID, monitorID := seedRunQueryMonitor(t, environment)
+	environment.grantMembership(t, organizationID, organization.RoleAdministrator)
+	manualRuns.value = completedManualHTTPRun(
+		t, "00000000-0000-7000-8000-000000000020",
+		organizationID, monitorID, environment.clock.Now(),
+	)
+	base := "/api/v1/organizations/" + organizationID + "/projects/" + projectID +
+		"/monitors/" + monitorID + "/runs"
+
+	response := environment.request(
+		t, environment.client, http.MethodPost, base, "",
+		environment.server.URL, token,
+	)
+	if response.StatusCode != http.StatusCreated {
+		t.Fatalf("manual Run = %d, body %s", response.StatusCode, response.Body)
+	}
+	if response.Header.Get("Location") != base+"/"+string(manualRuns.value.ID) {
+		t.Fatalf("manual Run Location = %q", response.Header.Get("Location"))
+	}
+	var value api.RunResponse
+	if err := json.Unmarshal(response.Body, &value); err != nil {
+		t.Fatal(err)
+	}
+	if value.ID != string(manualRuns.value.ID) || value.Kind != string(run.KindManual) ||
+		value.Outcome == nil || *value.Outcome != string(run.OutcomePassed) ||
+		value.LeaseExpiresAt != nil {
+		t.Fatalf("manual Run response = %#v", value)
+	}
+	if len(manualRuns.scopes) != 1 || manualRuns.scopes[0] != (run.Scope{
+		OrganizationID: organizationID, ProjectID: projectID, MonitorID: monitorID,
+	}) {
+		t.Fatalf("manual Run scopes = %#v", manualRuns.scopes)
+	}
+
+	missingAntiforgery := environment.request(
+		t, environment.client, http.MethodPost, base, "",
+		environment.server.URL, "",
+	)
+	assertProblem(
+		t, missingAntiforgery, http.StatusBadRequest,
+		antiforgeryInvalidTitle, antiforgeryInvalidDetail,
+	)
+	if len(manualRuns.scopes) != 1 {
+		t.Fatalf("missing antiforgery reached the manual Run service")
+	}
+
+	environment.grantMembership(t, organizationID, organization.RoleViewer)
+	forbidden := environment.request(
+		t, environment.client, http.MethodPost, base, "",
+		environment.server.URL, token,
+	)
+	assertProblem(t, forbidden, http.StatusForbidden, "Forbidden", "")
+	if len(manualRuns.scopes) != 1 {
+		t.Fatalf("Viewer reached the manual Run service %d times", len(manualRuns.scopes))
+	}
+}
+
+func TestManualRunAPIMappingsAndAvailability(t *testing.T) {
+	for _, testCase := range []struct {
+		name       string
+		serviceErr error
+		configure  bool
+		status     int
+		code       string
+	}{
+		{
+			name: "worker disabled", status: http.StatusServiceUnavailable,
+			code: runManualUnavailableCode,
+		},
+		{
+			name: "Monitor missing", configure: true,
+			serviceErr: run.ErrManualTargetNotFound,
+			status:     http.StatusNotFound, code: notFoundCode,
+		},
+		{
+			name: "Monitor unconfigured", configure: true,
+			serviceErr: run.ErrManualTargetUnconfigured,
+			status:     http.StatusConflict, code: runManualUnconfiguredCode,
+		},
+		{
+			name: "capacity occupied", configure: true,
+			serviceErr: run.ErrManualCapacity,
+			status:     http.StatusTooManyRequests, code: rateLimitedCode,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			manualRuns := &stubManualRunService{err: testCase.serviceErr}
+			configure := func(config *Config) {}
+			if testCase.configure {
+				configure = func(config *Config) { config.ManualRuns = manualRuns }
+			}
+			environment := newTestEnvironment(t, true, 0, configure)
+			token := environment.bootstrapAdministrator(t)
+			organizationID, projectID, monitorID := seedRunQueryMonitor(t, environment)
+			environment.grantMembership(t, organizationID, organization.RoleAdministrator)
+			response := environment.request(
+				t, environment.client, http.MethodPost,
+				"/api/v1/organizations/"+organizationID+"/projects/"+projectID+
+					"/monitors/"+monitorID+"/runs",
+				"", environment.server.URL, token,
+			)
+			problem := decodeProblem(t, response)
+			if response.StatusCode != testCase.status || problem.Code != testCase.code {
+				t.Fatalf("manual Run failure = %d, %#v", response.StatusCode, problem)
+			}
+		})
+	}
+}

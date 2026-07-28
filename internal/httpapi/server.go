@@ -26,11 +26,17 @@ type Clock interface {
 	Now() time.Time
 }
 
+// ManualRunService executes explicitly requested Runs for the HTTP adapter.
+type ManualRunService interface {
+	Trigger(context.Context, run.Scope) (run.Run, error)
+}
+
 type Config struct {
 	Organizations               *organization.Service
 	Users                       *user.Service
 	Monitors                    *monitor.Service
 	Runs                        *run.QueryService
+	ManualRuns                  ManualRunService
 	MonitorHealth               *health.Service
 	Incidents                   *incident.Service
 	Sessions                    user.SessionStore
@@ -49,6 +55,7 @@ type Server struct {
 	users         *user.Service
 	monitors      *monitor.Service
 	runs          *run.QueryService
+	manualRuns    ManualRunService
 	monitorHealth *health.Service
 	incidents     *incident.Service
 	sessions      user.SessionStore
@@ -88,7 +95,8 @@ func New(config Config) (*Server, error) {
 	server := &Server{
 		organizations: config.Organizations, users: config.Users, monitors: config.Monitors,
 		sessions: config.Sessions, antiforgery: config.Antiforgery, clock: config.Clock,
-		runs: config.Runs, monitorHealth: config.MonitorHealth, incidents: config.Incidents,
+		runs: config.Runs, manualRuns: config.ManualRuns,
+		monitorHealth: config.MonitorHealth, incidents: config.Incidents,
 		ready: config.Ready, random: config.Random, logger: config.Logger,
 		development:  config.Development,
 		publicOrigin: publicOrigin,

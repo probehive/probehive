@@ -70,12 +70,13 @@ const (
 // SchedulerConfig composes a Scheduler. Every collaborator is a port, so the whole tick is
 // exercisable without a database, an HTTP server, or a clock that moves on its own.
 type SchedulerConfig struct {
-	Source   MonitorSource
-	Store    Store
-	Executor Executor
-	Clock    Clock
-	UUIDs    IDGenerator
-	Logger   *slog.Logger
+	Source         MonitorSource
+	Store          Store
+	Executor       Executor
+	Clock          Clock
+	UUIDs          IDGenerator
+	Logger         *slog.Logger
+	ExecutionSlots *ExecutionSlots
 
 	// Location is the Probe Location identifier every claimed slot carries.
 	Location string
@@ -136,6 +137,13 @@ func NewScheduler(config SchedulerConfig) (*Scheduler, error) {
 	}
 	if config.Concurrency <= 0 {
 		config.Concurrency = DefaultConcurrency
+	}
+	if config.ExecutionSlots == nil {
+		var err error
+		config.ExecutionSlots, err = NewExecutionSlots(config.Concurrency)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if config.Logger == nil {
 		config.Logger = slog.New(slog.DiscardHandler)
@@ -205,7 +213,6 @@ func (scheduler *Scheduler) Tick(ctx context.Context, now time.Time) (TickResult
 		mutex  sync.Mutex
 		result = TickResult{Considered: len(monitors)}
 		group  sync.WaitGroup
-		slots  = make(chan struct{}, scheduler.config.Concurrency)
 	)
 	for _, schedulable := range monitors {
 		due, previous, ok := scheduler.plan(schedulable, now)
@@ -218,11 +225,13 @@ func (scheduler *Scheduler) Tick(ctx context.Context, now time.Time) (TickResult
 		}
 		scheduler.attempted[schedulable.MonitorID] = due
 
+		if err := scheduler.config.ExecutionSlots.Acquire(ctx); err != nil {
+			break
+		}
 		group.Add(1)
-		slots <- struct{}{}
 		go func() {
 			defer group.Done()
-			defer func() { <-slots }()
+			defer scheduler.config.ExecutionSlots.Release()
 			// Backfill runs inside the pool rather than in the loop above: on the first tick
 			// after a restart every Monitor has missed slots to record, and doing that
 			// serially would make startup cost one round trip per Monitor per missed slot.

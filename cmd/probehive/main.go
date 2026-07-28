@@ -92,11 +92,24 @@ func serve(logger *slog.Logger) error {
 	runQueries := run.NewQueryService(database.Runs())
 	healthService := health.NewService(database.Health(), systemClock, identifiers)
 	incidentService := incident.NewService(database.Incidents(), systemClock, identifiers)
+	var runtime *workerRuntime
+	if workerConfiguration.enabled {
+		runtime, err = newWorkerRuntime(
+			database, workerConfiguration, systemClock, identifiers, logger)
+		if err != nil {
+			return err
+		}
+	}
+	var manualRuns *run.ManualRunner
+	if runtime != nil {
+		manualRuns = runtime.manualRuns
+	}
 	handler, err := httpapi.New(httpapi.Config{
 		Organizations:               organizations,
 		Users:                       users,
 		Monitors:                    monitors,
 		Runs:                        runQueries,
+		ManualRuns:                  manualRuns,
 		MonitorHealth:               healthService,
 		Incidents:                   incidentService,
 		Sessions:                    database.Sessions(),
@@ -117,7 +130,7 @@ func serve(logger *slog.Logger) error {
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		WriteTimeout:      workerConfiguration.executionCeiling + 15*time.Second,
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    1 << 20,
 	}
@@ -129,11 +142,7 @@ func serve(logger *slog.Logger) error {
 	// operator can run an API-only replica. Its goroutines stop on the same signal the HTTP
 	// server does, and serve() waits for them before returning.
 	var workers sync.WaitGroup
-	if workerConfiguration.enabled {
-		runtime, err := newWorkerRuntime(database, workerConfiguration, systemClock, identifiers, logger)
-		if err != nil {
-			return err
-		}
+	if runtime != nil {
 		dispatcher, err := newOutboxDispatcher(
 			database, healthService, incidentService, runtime.confirmations,
 			systemClock, identifiers, logger)

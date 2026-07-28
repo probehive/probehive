@@ -821,6 +821,52 @@ func TestListSchedulableReturnsActiveMonitorsWithTheirLatestRevision(t *testing.
 	if err := value.Validate(); err != nil {
 		t.Fatalf("ListSchedulable() returned an unschedulable projection: %v", err)
 	}
+
+	// Manual requests are explicit and therefore load the latest configured revision even
+	// when the scheduler correctly excludes a draft or paused Monitor.
+	for _, testCase := range []struct {
+		name      string
+		monitorID monitor.ID
+		wantURL   string
+	}{
+		{name: "draft", monitorID: draft.ID, wantURL: "draft.example.test"},
+		{name: "paused", monitorID: paused.ID, wantURL: "paused.example.test"},
+	} {
+		t.Run("manual "+testCase.name, func(t *testing.T) {
+			target, found, err := store.LoadManualTarget(t.Context(), run.Scope{
+				OrganizationID: string(organizationValue.ID),
+				ProjectID:      string(project.ID),
+				MonitorID:      string(testCase.monitorID),
+			})
+			if err != nil || !found {
+				t.Fatalf("LoadManualTarget() = found %v, error %v", found, err)
+			}
+			if target.RevisionNumber != 1 ||
+				!bytes.Contains(target.CheckConfiguration, []byte(testCase.wantURL)) {
+				t.Fatalf("manual target = %#v", target)
+			}
+		})
+	}
+
+	unconfigured := seedMonitor(t, database, 435, organizationValue, project, testTime())
+	for name, scope := range map[string]run.Scope{
+		"unconfigured": {
+			OrganizationID: string(organizationValue.ID),
+			ProjectID:      string(project.ID),
+			MonitorID:      string(unconfigured.ID),
+		},
+		"wrong Project": {
+			OrganizationID: string(organizationValue.ID),
+			ProjectID:      testUUID(999),
+			MonitorID:      string(draft.ID),
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, found, err := store.LoadManualTarget(t.Context(), scope); err != nil || found {
+				t.Fatalf("LoadManualTarget() = found %v, error %v", found, err)
+			}
+		})
+	}
 }
 
 // The interval round-trips through persistence, and changing it is an ordinary update that
