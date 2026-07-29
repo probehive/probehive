@@ -1,0 +1,44 @@
+name: Feature request
+description: Propose an improvement to the open-source ProbeHive product
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the user problem before proposing a solution. Hosted billing, managed-fleet operations, and other cloud-only behavior do not belong in this repository.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or operator problem should ProbeHive solve?
+      placeholder: Explain who is affected, when the problem occurs, and why existing behavior is insufficient.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the smallest useful outcome, including expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe existing workarounds or other approaches you considered.
+  - type: textarea
+    id: consequences
+    attributes:
+      label: Security and compatibility considerations
+      description: Note any effects on authentication, authorization, tenant isolation, outbound access, published contracts, migrations, deployment, or retention.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checklist
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: I reviewed the contribution guidance.
+          required: true
+        - label: This proposal belongs in the open-source self-hosted product.
+          required: true
