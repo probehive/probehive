@@ -695,6 +695,10 @@ The current React client makes exactly these calls:
 | create Organization | antiforgery-authenticated JSON `POST /api/v1/organizations`; parse `OrganizationResponse`; `created` is true only when status is `201`, false for the `200` replay |
 | rename Organization | antiforgery-authenticated JSON `PUT /api/v1/organizations/{id}/name`; parse `OrganizationResponse` |
 | get Organization | `GET /api/v1/organizations/{encodeURIComponent(id)}`; parse `OrganizationResponse` |
+| list Monitors | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors`; parse `MonitorResponse[]` |
+| create HTTP Monitor | antiforgery-authenticated JSON `POST` to the Monitor collection; parse the Draft `MonitorResponse` |
+| create HTTP revision | antiforgery-authenticated JSON `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions`; send schema version 1 and `{ url }`, then parse `MonitorRevisionResponse` |
+| activate Monitor | antiforgery-authenticated JSON `PUT /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/state`; send `active` and parse `MonitorResponse` |
 
 `GET` calls set no custom headers. Unsafe calls set `Content-Type: application/json`
 and the exact dynamic antiforgery header. The fetch calls do not spell out
@@ -703,8 +707,10 @@ accepts same-origin cookies. Do not require `credentials: include`, bearer token
 `Accept` header, local storage, or a frontend-visible session token. Non-success bodies
 are parsed as the Problem Details shape in section 1.
 
-The current frontend makes no Monitor API calls; Monitor compatibility is exercised by
-the API test suite and ADR 0014.
+The default-Project form creates a Draft, adds its first HTTP revision, and activates it.
+The client retains the successfully created Draft between failed steps and invalidates the
+scoped Monitor list after every attempt. A validation retry therefore continues the same
+Monitor instead of creating a duplicate.
 
 ## 12. Playwright and E2E Launch Contract
 

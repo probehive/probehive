@@ -32,6 +32,13 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   // The slug is immutable, so it still reads default.
   await expect(page.getByText('default', { exact: true })).toBeVisible()
 
+  // The default Project can immediately hold a fully configured HTTP Monitor.
+  await page.getByLabel('Monitor name').fill('ProbeHive API')
+  await page.getByLabel('Target URL').fill('http://127.0.0.1:5080/readyz')
+  await page.getByRole('button', { name: 'Create and activate' }).click()
+  await expect(page.getByText('ProbeHive API is active.')).toBeVisible()
+  await expect(page.getByRole('row', { name: /ProbeHive API Active/ })).toBeVisible()
+
   // Sign out to exercise the login journey with the created credentials.
   await page.getByRole('button', { name: 'Sign out' }).click()
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()

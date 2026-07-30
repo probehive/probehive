@@ -45,8 +45,9 @@ The current foundation implements:
 - Auditable Monitor health evaluation with explicit failure and recovery confirmation Runs, honest Phase 1 quorum counts, and staleness handling.
 - Automatic per-Monitor Incidents with open, acknowledge, and resolve lifecycle, immutable timelines, scoped keyset query APIs, and PostgreSQL-backed outbox dispatch.
 - A React administration application in English and Simplified Chinese, rendering instants in the viewer's time zone, with Playwright browser journeys.
+- Default-Project Monitor inventory and a recoverable first-HTTP-Monitor flow that creates a Draft, records its target revision, and activates it without duplicating partial work.
 
-Alert delivery, status pages, Agents, frontend Monitor, Run, Health, and Incident screens, and packaged releases remain under development.
+Alert delivery, status pages, Agents, frontend Run, Health, and Incident screens, and packaged releases remain under development.
 
 ## Get Started
 

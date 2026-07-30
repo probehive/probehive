@@ -2,7 +2,7 @@ import { screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 
 import type { OrganizationResponse } from '../api/organizations'
-import { jsonResponse, renderWithProviders } from '../test/renderWithProviders.tsx'
+import { jsonResponse, mockFetchRoutes, renderWithProviders } from '../test/renderWithProviders.tsx'
 import OrganizationPage from './OrganizationPage.tsx'
 
 const organization: OrganizationResponse = {
@@ -28,13 +28,19 @@ function renderPage(organizationId: string) {
 }
 
 test('renders the organization and its default project', async () => {
-  const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(200, organization))
+  const monitorURL = `/api/v1/organizations/${organization.id}/projects/${organization.defaultProject.id}/monitors`
+  const fetchMock = mockFetchRoutes({
+    [monitorURL]: () => jsonResponse(200, []),
+    [`/api/v1/organizations/${organization.id}`]: () => jsonResponse(200, organization),
+  })
   renderPage(organization.id)
 
   expect(await screen.findByRole('heading', { name: 'Acme Monitoring' })).toBeInTheDocument()
   expect(screen.getByText('acme')).toBeInTheDocument()
   expect(screen.getByText('Default')).toBeInTheDocument()
+  expect(await screen.findByText('No Monitors yet.')).toBeInTheDocument()
   expect(fetchMock).toHaveBeenCalledWith(`/api/v1/organizations/${organization.id}`)
+  expect(fetchMock).toHaveBeenCalledWith(monitorURL)
 })
 
 test('reports an unknown organization', async () => {

@@ -3,7 +3,7 @@
   --text-muted: #6b6375;
   --bg: #ffffff;
   --border: #e5e4e7;
-  --accent: #b8860b;
+  --accent: #825f07;
   --error: #b3261e;
   --success: #1e6b3a;
 
@@ -35,7 +35,7 @@ body {
 
 .app-main {
   margin: 0 auto;
-  max-width: 40rem;
+  max-width: 68rem;
   padding: 1.5rem;
 }
 
@@ -53,7 +53,8 @@ label {
   gap: 0.25rem;
 }
 
-input {
+input,
+select {
   border: 1px solid var(--border);
   border-radius: 0.25rem;
   font: inherit;
@@ -75,6 +76,23 @@ button {
 
 button:disabled {
   opacity: 0.6;
+}
+
+.button-secondary {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.button-compact {
+  margin: 0;
+  padding: 0.35rem 0.65rem;
+  white-space: nowrap;
+}
+
+.muted,
+.form-context {
+  color: var(--text-muted);
 }
 
 .field-errors {
@@ -125,4 +143,142 @@ dd {
 .app-session {
   color: var(--text-muted);
   font-size: 0.9rem;
+}
+
+.monitor-section {
+  border-top: 1px solid var(--border);
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+}
+
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.monitor-table {
+  border-collapse: collapse;
+  min-width: 50rem;
+  width: 100%;
+}
+
+.monitor-table th,
+.monitor-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.monitor-table thead th {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.monitor-table tbody th {
+  font-weight: 600;
+}
+
+.monitor-state {
+  font-weight: 600;
+}
+
+.monitor-state[data-state='active'] {
+  color: var(--success);
+}
+
+.monitor-state[data-state='archived'] {
+  color: var(--text-muted);
+}
+
+.monitor-form {
+  display: grid;
+  gap: 0.75rem 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 42rem;
+}
+
+.form-field {
+  min-width: 0;
+}
+
+.form-field input {
+  width: 100%;
+}
+
+.form-field-wide {
+  grid-column: 1 / -1;
+}
+
+.form-actions {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.form-actions button {
+  margin-top: 0;
+}
+
+@media (max-width: 40rem) {
+  .app-header {
+    align-items: stretch;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .app-language {
+    margin-inline-start: 0;
+  }
+
+  .app-session {
+    flex-basis: 100%;
+  }
+
+  .monitor-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .form-field-wide {
+    grid-column: auto;
+  }
+
+  .monitor-table {
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .monitor-table th,
+  .monitor-table td {
+    padding-inline: 0.35rem;
+  }
+
+  .monitor-table th:nth-child(4),
+  .monitor-table td:nth-child(4),
+  .monitor-table th:nth-child(5),
+  .monitor-table td:nth-child(5) {
+    display: none;
+  }
+
+  .monitor-table th:nth-child(1),
+  .monitor-table td:nth-child(1) {
+    width: 34%;
+  }
+
+  .monitor-table th:nth-child(2),
+  .monitor-table td:nth-child(2) {
+    width: 20%;
+  }
+
+  .monitor-table th:nth-child(3),
+  .monitor-table td:nth-child(3) {
+    width: 18%;
+  }
+
+  .monitor-table th:nth-child(6),
+  .monitor-table td:nth-child(6) {
+    width: 28%;
+  }
 }
