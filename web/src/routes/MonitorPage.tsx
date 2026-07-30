@@ -13,6 +13,7 @@ import {
   type RunResponse,
 } from '../api/runs'
 import { useTranslation } from '../i18n/context'
+import MonitorHealthSection from './MonitorHealthSection'
 
 const runLookbackDays = 30
 const runPageSize = 25
@@ -411,6 +412,12 @@ export default function MonitorPage() {
         <div><dt>{t('monitor.updated')}</dt><dd>{formatDateTime(monitor.data.updatedAt)}</dd></div>
         <div><dt>{t('monitor.identifier')}</dt><dd><code>{monitor.data.id}</code></dd></div>
       </dl>
+
+      <MonitorHealthSection
+        organizationId={organizationId}
+        projectId={projectId}
+        monitorId={monitorId}
+      />
 
       <section className="runs-section" aria-labelledby="runs-heading">
         <div className="section-heading">

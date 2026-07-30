@@ -270,6 +270,81 @@ dd {
 .run-detail-section h2 {
   margin-top: 0;
 }
+.health-section {
+  border-top: 1px solid var(--border);
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+}
+
+.health-section h2 {
+  margin-top: 0;
+}
+
+.health-section h3 {
+  font-size: 1rem;
+  margin: 1.25rem 0 0.75rem;
+}
+
+.health-summary {
+  margin: 0;
+}
+
+.health-state {
+  align-items: center;
+  display: inline-flex;
+  font-weight: 700;
+  gap: 0.45rem;
+}
+
+.health-state::before {
+  background: currentColor;
+  border-radius: 50%;
+  content: '';
+  height: 0.55rem;
+  width: 0.55rem;
+}
+
+.health-state[data-state='healthy'] {
+  color: var(--success);
+}
+
+.health-state[data-state='degraded'] {
+  color: var(--accent);
+}
+
+.health-state[data-state='down'] {
+  color: var(--error);
+}
+
+.health-state[data-state='unknown'] {
+  color: var(--text-muted);
+}
+
+.health-counts {
+  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  margin: 0;
+}
+
+.health-counts div {
+  min-width: 0;
+  padding: 0.75rem 0.5rem 0.75rem 0;
+}
+
+.health-counts dd {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.health-evidence-section {
+  border-top: 1px solid var(--border);
+  margin-top: 1.25rem;
+  padding-top: 0.1rem;
+}
 
 .runs-table {
   border-collapse: collapse;
