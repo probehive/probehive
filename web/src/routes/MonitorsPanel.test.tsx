@@ -54,6 +54,10 @@ test('lists existing Monitors with their operational state', async () => {
   renderPanel()
 
   expect(await screen.findByRole('row', { name: /Homepage Active/ })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: /Homepage/ })).toHaveAttribute(
+    'href',
+    `/organizations/${organizationId}/projects/${projectId}/monitors/${monitorId}`,
+  )
   expect(screen.getByText('60 seconds')).toBeInTheDocument()
   expect(screen.getByText('v1')).toBeInTheDocument()
 })

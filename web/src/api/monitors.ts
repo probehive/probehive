@@ -39,6 +39,10 @@ export function listMonitors(organizationId: string, projectId: string): Promise
   return getJson<MonitorResponse[]>(collectionPath(organizationId, projectId))
 }
 
+export function getMonitor(organizationId: string, projectId: string, monitorId: string): Promise<MonitorResponse> {
+  return getJson<MonitorResponse>(monitorPath(organizationId, projectId, monitorId))
+}
+
 export async function createHTTPMonitor(
   organizationId: string,
   projectId: string,

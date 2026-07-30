@@ -7,6 +7,7 @@ import App from './App.tsx'
 import RequireAuth from './auth/RequireAuth.tsx'
 import { TranslationProvider } from './i18n/useTranslation.tsx'
 import LoginPage from './routes/LoginPage.tsx'
+import MonitorPage from './routes/MonitorPage.tsx'
 import OrganizationPage from './routes/OrganizationPage.tsx'
 import OrganizationsPage from './routes/OrganizationsPage.tsx'
 import SetupPage from './routes/SetupPage.tsx'
@@ -32,6 +33,15 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <OrganizationsPage /> },
           { path: 'organizations/:organizationId', element: <OrganizationPage /> },
+          {
+            path: 'organizations/:organizationId/projects/:projectId/monitors/:monitorId',
+            element: <MonitorPage />,
+          },
+          {
+            path:
+              'organizations/:organizationId/projects/:projectId/monitors/:monitorId/runs/:runId',
+            element: <MonitorPage />,
+          },
         ],
       },
     ],

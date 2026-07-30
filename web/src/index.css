@@ -193,6 +193,169 @@ dd {
   color: var(--text-muted);
 }
 
+.monitor-link,
+.run-detail-link,
+.breadcrumb a,
+.run-detail-section > p a {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration-color: var(--border);
+  text-underline-offset: 0.2em;
+}
+
+.monitor-link:hover,
+.run-detail-link:hover,
+.breadcrumb a:hover,
+.run-detail-section > p a:hover {
+  text-decoration-color: currentColor;
+}
+
+.breadcrumb {
+  margin-bottom: 1rem;
+}
+
+.eyebrow {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin: 0 0 0.2rem;
+  text-transform: uppercase;
+}
+
+.monitor-heading {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.monitor-heading h1 {
+  margin: 0;
+}
+
+.monitor-summary,
+.detail-grid {
+  display: grid;
+  gap: 0.8rem 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.monitor-summary {
+  border-bottom: 1px solid var(--border);
+  margin: 1.25rem 0 0;
+  padding-bottom: 1.25rem;
+}
+
+.monitor-summary div,
+.detail-grid div {
+  min-width: 0;
+}
+
+.monitor-summary dd,
+.detail-grid dd {
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+}
+
+.runs-section,
+.run-detail-section,
+.observation-section {
+  border-top: 1px solid var(--border);
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+}
+
+.section-heading h2,
+.section-heading p,
+.run-detail-section h2 {
+  margin-top: 0;
+}
+
+.runs-table {
+  border-collapse: collapse;
+  min-width: 48rem;
+  width: 100%;
+}
+
+.runs-table th,
+.runs-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.runs-table thead th {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.runs-table tr[data-selected='true'] {
+  background: #f7f7f8;
+}
+
+.run-outcome {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.run-outcome[data-outcome='passed'] {
+  color: var(--success);
+}
+
+.run-outcome[data-outcome='failed'],
+.run-outcome[data-outcome='errored'],
+.run-outcome[data-outcome='timedout'],
+.run-outcome[data-outcome='leaseExpired'] {
+  color: var(--error);
+}
+
+.run-outcome[data-outcome='cancelled'],
+.run-outcome[data-outcome='skipped'] {
+  color: var(--text-muted);
+}
+
+.run-outcome[data-outcome='inProgress'] {
+  color: var(--accent);
+}
+
+.load-more {
+  margin-top: 1rem;
+}
+
+.run-detail-icon {
+  display: none;
+}
+
+.confirmation-detail {
+  border-top: 1px solid var(--border);
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+}
+
+.confirmation-detail summary {
+  cursor: pointer;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.observation-section h3,
+.observation-section h4 {
+  margin-bottom: 0.8rem;
+}
+
+.visually-hidden {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
 .monitor-form {
   display: grid;
   gap: 0.75rem 1rem;
@@ -280,5 +443,65 @@ dd {
   .monitor-table th:nth-child(6),
   .monitor-table td:nth-child(6) {
     width: 28%;
+  }
+
+  .monitor-heading {
+    align-items: flex-start;
+  }
+
+  .monitor-summary,
+  .detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .runs-table {
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .runs-table th,
+  .runs-table td {
+    overflow-wrap: anywhere;
+    padding-inline: 0.35rem;
+  }
+
+  .runs-table th:nth-child(3),
+  .runs-table td:nth-child(3),
+  .runs-table th:nth-child(4),
+  .runs-table td:nth-child(4),
+  .runs-table th:nth-child(5),
+  .runs-table td:nth-child(5) {
+    display: none;
+  }
+
+  .runs-table th:nth-child(1),
+  .runs-table td:nth-child(1) {
+    width: 28%;
+  }
+
+  .runs-table th:nth-child(2),
+  .runs-table td:nth-child(2) {
+    width: 57%;
+  }
+
+  .runs-table th:nth-child(6),
+  .runs-table td:nth-child(6) {
+    text-align: center;
+    width: 15%;
+  }
+
+  .run-detail-link {
+    display: inline-flex;
+    font-size: 1.25rem;
+    justify-content: center;
+    min-width: 2rem;
+  }
+
+  .run-detail-text {
+    display: none;
+  }
+
+  .run-detail-icon {
+    display: inline;
   }
 }

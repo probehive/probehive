@@ -46,8 +46,9 @@ The current foundation implements:
 - Automatic per-Monitor Incidents with open, acknowledge, and resolve lifecycle, immutable timelines, scoped keyset query APIs, and PostgreSQL-backed outbox dispatch.
 - A React administration application in English and Simplified Chinese, rendering instants in the viewer's time zone, with Playwright browser journeys.
 - Default-Project Monitor inventory and a recoverable first-HTTP-Monitor flow that creates a Draft, records its target revision, and activates it without duplicating partial work.
+- A Monitor-scoped Run evidence screen with 30-day keyset history, deep-linked Run detail, and bounded HTTP Observation detail.
 
-Alert delivery, status pages, Agents, frontend Run, Health, and Incident screens, and packaged releases remain under development.
+Alert delivery, status pages, Agents, frontend Health and Incident screens, and packaged releases remain under development.
 
 ## Get Started
 

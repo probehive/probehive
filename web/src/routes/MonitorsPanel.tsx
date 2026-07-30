@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router'
 
 import {
   activateMonitor,
@@ -155,7 +156,15 @@ export default function MonitorsPanel({ organizationId, projectId }: MonitorsPan
             <tbody>
               {query.data.map((monitor) => (
                 <tr key={monitor.id}>
-                  <th scope="row">{monitor.name}</th>
+                  <th scope="row">
+                    <Link
+                      className="monitor-link"
+                      to={`/organizations/${organizationId}/projects/${projectId}/monitors/${monitor.id}`}
+                    >
+                      {monitor.name}
+                      <span aria-hidden="true"> &rarr;</span>
+                    </Link>
+                  </th>
                   <td>
                     <span className="monitor-state" data-state={monitor.state}>
                       {stateLabels[monitor.state]}
