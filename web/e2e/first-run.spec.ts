@@ -13,6 +13,7 @@ interface CreatedMonitor {
 // usable, the administrator signs out and back in, and provisions a second
 // Organization (ADR 0012, ADR 0013, ADR 0018).
 test('first run: setup lands on a provisioned Organization, then sign in and add another', async ({ page }) => {
+  test.setTimeout(120_000)
   // A fresh installation routes every visitor to first-administrator setup.
   await page.goto('/')
   await expect(page).toHaveURL(/\/setup$/)
@@ -87,6 +88,38 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   // application's antiforgery cache after the out-of-band seeding request above.
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Run evidence' })).toBeVisible()
+
+  // A scheduled failure plus its confirmation creates an open Incident. Poll the
+  // real API for that durable state, then acknowledge it through the browser UI.
+  await page.getByRole('link', { name: 'Back to Organization' }).click()
+  await page.getByLabel('Monitor name').fill('Unavailable Service')
+  await page.getByLabel('Interval (seconds)').fill('30')
+  await page.getByLabel('Target URL').fill('http://127.0.0.1:5080/not-found')
+  const failingMonitorResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST' &&
+    response.url().endsWith('/monitors') &&
+    response.status() === 201,
+  )
+  await page.getByRole('button', { name: 'Create and activate' }).click()
+  const failingMonitor = await (await failingMonitorResponse).json() as CreatedMonitor
+  await expect(page.getByText('Unavailable Service is active.')).toBeVisible()
+  await expect.poll(async () => page.evaluate(async (scope) => {
+    const response = await fetch(
+      `/api/v1/organizations/${scope.organizationId}/projects/${scope.projectId}` +
+      `/monitors/${scope.id}/incidents?pageSize=1`,
+    )
+    const body = await response.json() as { items: unknown[] }
+    return body.items.length
+  }, failingMonitor), { timeout: 60_000 }).toBe(1)
+
+  await page.getByRole('link', { name: 'Unavailable Service' }).click()
+  const openIncidentRow = page.getByRole('row').filter({ hasText: 'Open' })
+  await openIncidentRow.getByRole('link', { name: 'View Incident evidence' }).click()
+  const incidentDetail = page.getByRole('region', { name: 'Incident evidence' })
+  await incidentDetail.getByRole('button', { name: 'Acknowledge Incident' }).click()
+  await expect(incidentDetail.getByText('Incident acknowledged.')).toBeVisible()
+  await expect(incidentDetail.locator('.incident-state')).toHaveText('Acknowledged')
+  await expect(incidentDetail.locator('.incident-timeline-heading strong').last()).toHaveText('Acknowledged')
 
   // Sign out to exercise the login journey with the created credentials.
   await page.getByRole('button', { name: 'Sign out' }).click()

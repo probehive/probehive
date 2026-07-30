@@ -217,4 +217,136 @@ test('renders Incident lifecycle, immutable timeline, quorum, and causal Runs', 
     .toHaveAttribute('href', `${monitorRoute}/runs/${recoveryRunId}`)
   expect(within(detail).getByRole('link', { name: en['incident.detail.backToList'] }))
     .toHaveAttribute('href', monitorRoute)
+  expect(within(detail).queryByRole('button', { name: en['incident.acknowledge.submit'] }))
+    .not.toBeInTheDocument()
+})
+
+test('acknowledges an open Incident and refreshes its state and timeline', async () => {
+  const acknowledgementEntry = {
+    id: '019f8f3d-5bb0-77e0-a62c-e575926ad433',
+    incidentVersion: 2,
+    kind: 'acknowledged' as const,
+    healthTransitionId: null,
+    actorUserId,
+    oldHealthState: null,
+    newHealthState: null,
+    policyVersion: null,
+    causalRunId: null,
+    causalRunScheduledFor: null,
+    counts: null,
+    occurredAt: '2026-07-30T02:05:00Z',
+  }
+  const acknowledgedIncident: IncidentResponse = {
+    ...olderIncident,
+    state: 'acknowledged',
+    version: 2,
+    acknowledgedBy: actorUserId,
+    acknowledgedAt: acknowledgementEntry.occurredAt,
+    updatedAt: acknowledgementEntry.occurredAt,
+    timeline: [...olderIncident.timeline, acknowledgementEntry],
+  }
+  let currentIncident = olderIncident
+  const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+    const url = requestURL(input)
+    if (url === `${incidentsURL}/${olderIncidentId}/acknowledge` && init?.method === 'POST') {
+      currentIncident = acknowledgedIncident
+      return Promise.resolve(jsonResponse(200, acknowledgedIncident))
+    }
+    if (url === `${incidentsURL}/${olderIncidentId}`) {
+      return Promise.resolve(jsonResponse(200, currentIncident))
+    }
+    if (url.startsWith(`${incidentsURL}?`)) {
+      return Promise.resolve(jsonResponse(200, { items: [currentIncident], nextCursor: null }))
+    }
+    return Promise.reject(new Error(`Unexpected fetch: ${url}`))
+  })
+  renderSection(`${monitorRoute}/incidents/${olderIncidentId}`)
+
+  const detailHeading = await screen.findByRole('heading', { name: en['incident.detail.heading'] })
+  const detail = detailHeading.closest('section') as HTMLElement
+  const user = userEvent.setup()
+  const acknowledgeButton = await within(detail)
+    .findByRole('button', { name: en['incident.acknowledge.submit'] })
+  await user.click(acknowledgeButton)
+
+  expect(await within(detail).findByText(en['incident.acknowledge.done'])).toBeInTheDocument()
+  expect(within(detail).getByText(en['incident.state.acknowledged'], { selector: '.incident-state' }))
+    .toHaveAttribute('data-state', 'acknowledged')
+  expect(within(detail).getByText(en['incident.timeline.kind.acknowledged'], {
+    selector: '.incident-timeline-heading strong',
+  })).toBeInTheDocument()
+  expect(within(detail).queryByRole('button', { name: en['incident.acknowledge.submit'] }))
+    .not.toBeInTheDocument()
+  expect(fetchMock).toHaveBeenCalledWith(
+    `${incidentsURL}/${olderIncidentId}/acknowledge`,
+    expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({ 'X-ProbeHive-Antiforgery': 'test-token' }),
+    }),
+  )
+})
+
+test('localizes a rejected acknowledgement from its stable permission code', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+    const url = requestURL(input)
+    if (url === `${incidentsURL}/${olderIncidentId}/acknowledge` && init?.method === 'POST') {
+      return Promise.resolve(jsonResponse(403, {
+        title: 'server wording that must not appear',
+        status: 403,
+        code: 'auth.forbidden',
+      }))
+    }
+    if (url === `${incidentsURL}/${olderIncidentId}`) {
+      return Promise.resolve(jsonResponse(200, olderIncident))
+    }
+    if (url.startsWith(`${incidentsURL}?`)) {
+      return Promise.resolve(jsonResponse(200, { items: [olderIncident], nextCursor: null }))
+    }
+    return Promise.reject(new Error(`Unexpected fetch: ${url}`))
+  })
+  renderSection(`${monitorRoute}/incidents/${olderIncidentId}`)
+
+  const detailHeading = await screen.findByRole('heading', { name: en['incident.detail.heading'] })
+  const detail = detailHeading.closest('section') as HTMLElement
+  const user = userEvent.setup()
+  const acknowledgeButton = await within(detail)
+    .findByRole('button', { name: en['incident.acknowledge.submit'] })
+  await user.click(acknowledgeButton)
+
+  expect(await within(detail).findByText(en['error.auth.forbidden'])).toBeInTheDocument()
+  expect(within(detail).queryByText('server wording that must not appear')).not.toBeInTheDocument()
+  expect(within(detail).getByRole('button', { name: en['incident.acknowledge.submit'] }))
+    .toBeEnabled()
+})
+
+test('localizes the code-less resolved Incident conflict contract', async () => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+    const url = requestURL(input)
+    if (url === `${incidentsURL}/${olderIncidentId}/acknowledge` && init?.method === 'POST') {
+      return Promise.resolve(jsonResponse(409, {
+        title: 'Incident acknowledgement rejected',
+        status: 409,
+        detail: 'A resolved Incident cannot be acknowledged.',
+      }))
+    }
+    if (url === `${incidentsURL}/${olderIncidentId}`) {
+      return Promise.resolve(jsonResponse(200, olderIncident))
+    }
+    if (url.startsWith(`${incidentsURL}?`)) {
+      return Promise.resolve(jsonResponse(200, { items: [olderIncident], nextCursor: null }))
+    }
+    return Promise.reject(new Error(`Unexpected fetch: ${url}`))
+  })
+  renderSection(`${monitorRoute}/incidents/${olderIncidentId}`)
+
+  const detailHeading = await screen.findByRole('heading', { name: en['incident.detail.heading'] })
+  const detail = detailHeading.closest('section') as HTMLElement
+  const user = userEvent.setup()
+  await user.click(await within(detail)
+    .findByRole('button', { name: en['incident.acknowledge.submit'] }))
+
+  expect(await within(detail).findByText(en['incident.acknowledge.conflict']))
+    .toBeInTheDocument()
+  expect(within(detail).queryByText('A resolved Incident cannot be acknowledged.'))
+    .not.toBeInTheDocument()
 })

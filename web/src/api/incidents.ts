@@ -1,5 +1,5 @@
 import type { HealthCountsResponse, HealthState } from './health'
-import { getJson } from './http'
+import { getJson, postJson } from './http'
 
 export type IncidentState = 'open' | 'acknowledged' | 'resolved'
 export type IncidentTimelineKind = 'opened' | 'acknowledged' | 'resolved'
@@ -82,4 +82,17 @@ export function getIncident(
   return getJson<IncidentResponse>(
     incidentsPath(organizationId, projectId, monitorId) + '/' + encodeURIComponent(incidentId),
   )
+}
+
+export async function acknowledgeIncident(
+  organizationId: string,
+  projectId: string,
+  monitorId: string,
+  incidentId: string,
+): Promise<IncidentResponse> {
+  const response = await postJson(
+    incidentsPath(organizationId, projectId, monitorId) + '/' +
+      encodeURIComponent(incidentId) + '/acknowledge',
+  )
+  return (await response.json()) as IncidentResponse
 }

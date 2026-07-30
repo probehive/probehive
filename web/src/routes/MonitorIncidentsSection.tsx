@@ -1,10 +1,11 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 
 import type { HealthCountsResponse, HealthState } from '../api/health'
 import { ApiError } from '../api/http'
 import {
+  acknowledgeIncident,
   getIncident,
   listIncidents,
   type IncidentResponse,
@@ -15,6 +16,23 @@ import {
 import { useTranslation } from '../i18n/context'
 
 const incidentPageSize = 25
+
+function incidentsQueryKey(
+  organizationId: string,
+  projectId: string,
+  monitorId: string,
+) {
+  return ['incidents', organizationId, projectId, monitorId] as const
+}
+
+function incidentQueryKey(
+  organizationId: string,
+  projectId: string,
+  monitorId: string,
+  incidentId: string,
+) {
+  return [...incidentsQueryKey(organizationId, projectId, monitorId), incidentId] as const
+}
 
 function incidentRoute(
   organizationId: string,
@@ -243,12 +261,33 @@ function IncidentDetails({
   monitorId: string
   incidentId: string
 }) {
-  const { t, locale, formatDateTime } = useTranslation()
+  const { t, locale, formatDateTime, translateProblem } = useTranslation()
   const number = new Intl.NumberFormat(locale)
+  const queryClient = useQueryClient()
+  const listQueryKey = incidentsQueryKey(organizationId, projectId, monitorId)
+  const detailQueryKey = incidentQueryKey(organizationId, projectId, monitorId, incidentId)
   const query = useQuery({
-    queryKey: ['incidents', organizationId, projectId, monitorId, incidentId],
+    queryKey: detailQueryKey,
     queryFn: () => getIncident(organizationId, projectId, monitorId, incidentId),
   })
+  const acknowledgement = useMutation({
+    mutationFn: () => acknowledgeIncident(organizationId, projectId, monitorId, incidentId),
+    onSuccess: async (value) => {
+      queryClient.setQueryData(detailQueryKey, value)
+      await queryClient.invalidateQueries({ queryKey: listQueryKey, exact: true })
+    },
+    onError: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: detailQueryKey, exact: true }),
+        queryClient.invalidateQueries({ queryKey: listQueryKey, exact: true }),
+      ])
+    },
+  })
+  const acknowledgementError = acknowledgement.error instanceof ApiError
+    ? acknowledgement.error.status === 409 && acknowledgement.error.problem.code === undefined
+      ? t('incident.acknowledge.conflict')
+      : translateProblem(acknowledgement.error.problem)
+    : t('incident.acknowledge.failed')
 
   return (
     <section className="incident-detail-section" aria-labelledby="incident-detail-heading">
@@ -319,6 +358,26 @@ function IncidentDetails({
             )}
           </dl>
 
+          {query.data.state === 'open' && (
+            <div className="incident-detail-actions">
+              <button
+                type="button"
+                onClick={() => acknowledgement.mutate()}
+                disabled={acknowledgement.isPending}
+              >
+                {acknowledgement.isPending
+                  ? t('incident.acknowledge.pending')
+                  : t('incident.acknowledge.submit')}
+              </button>
+            </div>
+          )}
+          {acknowledgement.isSuccess && (
+            <p className="success" role="status">{t('incident.acknowledge.done')}</p>
+          )}
+          {acknowledgement.isError && (
+            <p className="error" role="alert">{acknowledgementError}</p>
+          )}
+
           <h4>{t('incident.timeline.heading')}</h4>
           {query.data.timeline.length === 0 ? (
             <p className="muted">{t('incident.timeline.empty')}</p>
@@ -354,7 +413,7 @@ export default function MonitorIncidentsSection({
 }) {
   const { t } = useTranslation()
   const query = useInfiniteQuery({
-    queryKey: ['incidents', organizationId, projectId, monitorId],
+    queryKey: incidentsQueryKey(organizationId, projectId, monitorId),
     queryFn: ({ pageParam }) => listIncidents(organizationId, projectId, monitorId, {
       pageSize: incidentPageSize,
       cursor: pageParam === '' ? undefined : pageParam,
@@ -393,6 +452,7 @@ export default function MonitorIncidentsSection({
       )}
       {incidentId && (
         <IncidentDetails
+          key={incidentId}
           organizationId={organizationId}
           projectId={projectId}
           monitorId={monitorId}

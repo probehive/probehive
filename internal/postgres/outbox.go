@@ -48,14 +48,18 @@ RETURNING entry.id, entry.organization_id, entry.topic, entry.payload,
 	entries := make([]outbox.Entry, 0, limit)
 	for rows.Next() {
 		var entry outbox.Entry
+		var gapFirstSeenAt *time.Time
 		if err := rows.Scan(&entry.ID, &entry.OrganizationID, &entry.Topic, &entry.Payload,
 			&entry.Attempts, &entry.CreatedAt, &entry.AvailableAt,
 			&entry.LeaseHolder, &entry.LeaseExpiresAt,
-			&entry.GapFirstSeenAt); err != nil {
+			&gapFirstSeenAt); err != nil {
 			return nil, fmt.Errorf("scan outbox entry: %w", err)
 		}
 		entry.CreatedAt, entry.AvailableAt = entry.CreatedAt.UTC(), entry.AvailableAt.UTC()
 		entry.LeaseExpiresAt = entry.LeaseExpiresAt.UTC()
+		if gapFirstSeenAt != nil {
+			entry.GapFirstSeenAt = gapFirstSeenAt.UTC()
+		}
 		entries = append(entries, entry)
 	}
 	if err := rows.Err(); err != nil {

@@ -421,6 +421,16 @@ dd {
   margin-bottom: 0.75rem;
 }
 
+.incident-detail-actions {
+  align-items: center;
+  display: flex;
+  margin-top: 1rem;
+}
+
+.incident-detail-actions button {
+  margin-top: 0;
+}
+
 .incident-timeline {
   border-top: 1px solid var(--border);
   list-style: none;
