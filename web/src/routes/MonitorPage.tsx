@@ -15,6 +15,8 @@ import {
 import { useTranslation } from '../i18n/context'
 import MonitorHealthSection from './MonitorHealthSection'
 import MonitorIncidentsSection from './MonitorIncidentsSection'
+import RenameMonitorForm from './RenameMonitorForm'
+import { monitorQueryKey } from './monitorQueries'
 
 const runLookbackDays = 30
 const runPageSize = 25
@@ -359,7 +361,7 @@ export default function MonitorPage() {
   const { t, formatDateTime } = useTranslation()
   const notBefore = runsNotBefore()
   const monitor = useQuery({
-    queryKey: ['monitors', organizationId, projectId, monitorId],
+    queryKey: monitorQueryKey(organizationId, projectId, monitorId),
     queryFn: () => getMonitor(organizationId, projectId, monitorId),
   })
   const runs = useInfiniteQuery({
@@ -413,6 +415,8 @@ export default function MonitorPage() {
         <div><dt>{t('monitor.updated')}</dt><dd>{formatDateTime(monitor.data.updatedAt)}</dd></div>
         <div><dt>{t('monitor.identifier')}</dt><dd><code>{monitor.data.id}</code></dd></div>
       </dl>
+
+      <RenameMonitorForm monitor={monitor.data} />
 
       <MonitorHealthSection
         organizationId={organizationId}

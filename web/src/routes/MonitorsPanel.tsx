@@ -12,6 +12,7 @@ import {
   type MonitorState,
 } from '../api/monitors'
 import { useTranslation } from '../i18n/context'
+import { monitorsQueryKey } from './monitorQueries'
 
 interface MonitorsPanelProps {
   organizationId: string
@@ -22,10 +23,6 @@ interface SetupRequest {
   name: string
   url: string
   intervalSeconds: number
-}
-
-function monitorsQueryKey(organizationId: string, projectId: string) {
-  return ['monitors', organizationId, projectId] as const
 }
 
 function validationMessages(

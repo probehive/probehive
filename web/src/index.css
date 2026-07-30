@@ -257,6 +257,15 @@ dd {
   overflow-wrap: anywhere;
 }
 
+.monitor-rename-section {
+  margin-top: 1.25rem;
+}
+
+.monitor-rename-section h2 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+
 .runs-section,
 .run-detail-section,
 .observation-section {

@@ -43,6 +43,19 @@ export function getMonitor(organizationId: string, projectId: string, monitorId:
   return getJson<MonitorResponse>(monitorPath(organizationId, projectId, monitorId))
 }
 
+export async function renameMonitor(
+  organizationId: string,
+  projectId: string,
+  monitorId: string,
+  name: string,
+): Promise<MonitorResponse> {
+  const response = await putJson(
+    `${monitorPath(organizationId, projectId, monitorId)}/name`,
+    { name },
+  )
+  return (await response.json()) as MonitorResponse
+}
+
 export async function createHTTPMonitor(
   organizationId: string,
   projectId: string,

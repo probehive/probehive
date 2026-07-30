@@ -52,6 +52,18 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await expect(page.getByText('ProbeHive API is active.')).toBeVisible()
   await expect(page.getByRole('row', { name: /ProbeHive API Active/ })).toBeVisible()
 
+  await page.getByRole('link', { name: 'ProbeHive API' }).click()
+  const renameMonitor = page.getByRole('region', { name: 'Rename Monitor' })
+  await renameMonitor.getByLabel('Monitor name').fill('ProbeHive Readiness')
+  await renameMonitor.getByRole('button', { name: 'Rename', exact: true }).click()
+  await expect(renameMonitor.getByText('Monitor renamed.')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'ProbeHive Readiness' })).toBeVisible()
+
+  // The detail and inventory use distinct query keys. Returning to the
+  // Organization proves the successful mutation refreshed both views.
+  await page.getByRole('link', { name: 'Back to Organization' }).click()
+  await expect(page.getByRole('row', { name: /ProbeHive Readiness Active/ })).toBeVisible()
+
   // Seed one deterministic completed Run through the existing API, then exercise
   // the new read-only Monitor -> Run -> Observation browser path.
   const manualRun = await page.evaluate(async (scope) => {
@@ -72,7 +84,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   expect(manualRun.status).toBe(201)
   expect(manualRun.body.outcome).toBe('passed')
 
-  await page.getByRole('link', { name: 'ProbeHive API' }).click()
+  await page.getByRole('link', { name: 'ProbeHive Readiness' }).click()
   await expect(page.getByRole('heading', { name: 'Runs' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Health' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Incidents' })).toBeVisible()
@@ -92,15 +104,17 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   // A scheduled failure plus its confirmation creates an open Incident. Poll the
   // real API for that durable state, then acknowledge it through the browser UI.
   await page.getByRole('link', { name: 'Back to Organization' }).click()
-  await page.getByLabel('Monitor name').fill('Unavailable Service')
-  await page.getByLabel('Interval (seconds)').fill('30')
-  await page.getByLabel('Target URL').fill('http://127.0.0.1:5080/not-found')
+  const createMonitorForm = page.getByRole('form', { name: 'Create and activate HTTP Monitor' })
+  await expect(createMonitorForm).toBeVisible()
+  await createMonitorForm.getByLabel('Monitor name').fill('Unavailable Service')
+  await createMonitorForm.getByLabel('Interval (seconds)').fill('30')
+  await createMonitorForm.getByLabel('Target URL').fill('http://127.0.0.1:5080/not-found')
   const failingMonitorResponse = page.waitForResponse((response) =>
     response.request().method() === 'POST' &&
     response.url().endsWith('/monitors') &&
     response.status() === 201,
   )
-  await page.getByRole('button', { name: 'Create and activate' }).click()
+  await createMonitorForm.getByRole('button', { name: 'Create and activate' }).click()
   const failingMonitor = await (await failingMonitorResponse).json() as CreatedMonitor
   await expect(page.getByText('Unavailable Service is active.')).toBeVisible()
   await expect.poll(async () => page.evaluate(async (scope) => {

@@ -284,4 +284,13 @@ export const zhCN: Catalog = {
   'error.request.origin.rejected': '请求来源不被信任。',
   'error.request.malformed': '无法解析该请求。',
   'error.server.internalError': '出现异常，请重试。',
+  'monitor.rename.heading': '重命名监控',
+  'monitor.rename.form': '重命名监控',
+  'monitor.rename.name': '监控名称',
+  'monitor.rename.submit': '重命名',
+  'monitor.rename.submitting': '正在重命名...',
+  'monitor.rename.done': '监控已重命名。',
+  'monitor.rename.failed': '无法重命名该监控。',
+  'error.monitor.concurrentUpdate': '重命名期间该监控已被修改，请重试。',
+  'error.monitor.archived.readOnly': '已归档的监控不能重命名。',
 }
