@@ -39,6 +39,11 @@ const router = createBrowserRouter([
           },
           {
             path:
+              'organizations/:organizationId/projects/:projectId/monitors/:monitorId/incidents/:incidentId',
+            element: <MonitorPage />,
+          },
+          {
+            path:
               'organizations/:organizationId/projects/:projectId/monitors/:monitorId/runs/:runId',
             element: <MonitorPage />,
           },

@@ -346,6 +346,184 @@ dd {
   padding-top: 0.1rem;
 }
 
+.incidents-section,
+.incident-detail-section {
+  border-top: 1px solid var(--border);
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+}
+
+.incidents-section h2,
+.incident-detail-section h3 {
+  margin-top: 0;
+}
+
+.incidents-table {
+  border-collapse: collapse;
+  min-width: 44rem;
+  width: 100%;
+}
+
+.incidents-table th,
+.incidents-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.incidents-table thead th {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.incidents-table tr[data-selected='true'] {
+  background: #f7f7f8;
+}
+
+.incident-state {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.incident-state[data-state='open'] {
+  color: var(--error);
+}
+
+.incident-state[data-state='acknowledged'] {
+  color: var(--accent);
+}
+
+.incident-state[data-state='resolved'] {
+  color: var(--success);
+}
+
+.incident-detail-link,
+.incident-detail-section > p a {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration-color: var(--border);
+  text-underline-offset: 0.2em;
+}
+
+.incident-detail-link:hover,
+.incident-detail-section > p a:hover {
+  text-decoration-color: currentColor;
+}
+
+.incident-detail-icon {
+  display: none;
+}
+
+.incident-detail-section h4 {
+  margin-bottom: 0.75rem;
+}
+
+.incident-timeline {
+  border-top: 1px solid var(--border);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.incident-timeline-entry {
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 0;
+}
+
+.incident-timeline-heading {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  justify-content: space-between;
+}
+
+.incident-timeline-heading time {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.incident-timeline-details {
+  margin: 0.75rem 0 0;
+}
+
+.incident-timeline-entry h5 {
+  font-size: 0.9rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.incident-counts {
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  margin: 0;
+}
+
+.incident-counts div {
+  min-width: 0;
+  padding: 0.5rem 0.5rem 0.5rem 0;
+}
+
+.incident-counts dd {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+@media (max-width: 40rem) {
+  .incidents-table {
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .incidents-table th,
+  .incidents-table td {
+    overflow-wrap: anywhere;
+    padding-inline: 0.35rem;
+  }
+
+  .incidents-table th:nth-child(3),
+  .incidents-table td:nth-child(3),
+  .incidents-table th:nth-child(4),
+  .incidents-table td:nth-child(4) {
+    display: none;
+  }
+
+  .incidents-table th:nth-child(1),
+  .incidents-table td:nth-child(1) {
+    width: 30%;
+  }
+
+  .incidents-table th:nth-child(2),
+  .incidents-table td:nth-child(2) {
+    width: 55%;
+  }
+
+  .incidents-table th:nth-child(5),
+  .incidents-table td:nth-child(5) {
+    text-align: center;
+    width: 15%;
+  }
+
+  .incident-detail-link {
+    display: inline-flex;
+    font-size: 1.25rem;
+    justify-content: center;
+    min-width: 2rem;
+  }
+
+  .incident-detail-text {
+    display: none;
+  }
+
+  .incident-detail-icon {
+    display: inline;
+  }
+}
+
 .runs-table {
   border-collapse: collapse;
   min-width: 48rem;

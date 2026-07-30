@@ -47,9 +47,10 @@ The current foundation implements:
 - A React administration application in English and Simplified Chinese, rendering instants in the viewer's time zone, with Playwright browser journeys.
 - Default-Project Monitor inventory and a recoverable first-HTTP-Monitor flow that creates a Draft, records its target revision, and activates it without duplicating partial work.
 - A Monitor Health evidence view with current and stable state, complete quorum counts, confirmation candidates, and causal Run links.
+- A Monitor-scoped Incident evidence view with cursor history, lifecycle state, an immutable timeline, complete quorum counts, and causal Run links.
 - A Monitor-scoped Run evidence screen with 30-day keyset history, deep-linked Run detail, and bounded HTTP Observation detail.
 
-Alert delivery, status pages, Agents, the frontend Incident screen, and packaged releases remain under development.
+Alert delivery, status pages, Agents, and packaged releases remain under development.
 
 ## Get Started
 

@@ -74,6 +74,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await page.getByRole('link', { name: 'ProbeHive API' }).click()
   await expect(page.getByRole('heading', { name: 'Runs' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Health' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Incidents' })).toBeVisible()
   const manualRow = page.getByRole('row').filter({ hasText: 'Manual' }).filter({ hasText: 'Passed' })
   await manualRow.getByRole('link', { name: 'View evidence' }).click()
   await expect(page.getByRole('heading', { name: 'Run evidence' })).toBeVisible()

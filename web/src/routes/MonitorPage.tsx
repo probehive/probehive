@@ -14,6 +14,7 @@ import {
 } from '../api/runs'
 import { useTranslation } from '../i18n/context'
 import MonitorHealthSection from './MonitorHealthSection'
+import MonitorIncidentsSection from './MonitorIncidentsSection'
 
 const runLookbackDays = 30
 const runPageSize = 25
@@ -353,8 +354,8 @@ function RunDetails({
 }
 
 export default function MonitorPage() {
-  const { organizationId = '', projectId = '', monitorId = '', runId } =
-    useParams<'organizationId' | 'projectId' | 'monitorId' | 'runId'>()
+  const { organizationId = '', projectId = '', monitorId = '', runId, incidentId } =
+    useParams<'organizationId' | 'projectId' | 'monitorId' | 'runId' | 'incidentId'>()
   const { t, formatDateTime } = useTranslation()
   const notBefore = runsNotBefore()
   const monitor = useQuery({
@@ -417,6 +418,13 @@ export default function MonitorPage() {
         organizationId={organizationId}
         projectId={projectId}
         monitorId={monitorId}
+      />
+
+      <MonitorIncidentsSection
+        organizationId={organizationId}
+        projectId={projectId}
+        monitorId={monitorId}
+        incidentId={incidentId}
       />
 
       <section className="runs-section" aria-labelledby="runs-heading">
