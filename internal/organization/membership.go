@@ -19,6 +19,7 @@ const (
 	PermissionIncidentRead      Permission = "incident.read"
 	PermissionAlertRead         Permission = "alert.read"
 	PermissionIncidentWrite     Permission = "incident.write"
+	PermissionIntegrationManage Permission = "integration.manage"
 	PermissionMemberRead        Permission = "member.read"
 	PermissionMemberWrite       Permission = "member.write"
 )

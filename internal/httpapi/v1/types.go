@@ -302,6 +302,28 @@ type ValidationError struct {
 	Message string `json:"message"`
 }
 
+type WebhookIntegrationResponse struct {
+	ID                  string    `json:"id"`
+	OrganizationID      string    `json:"organizationId"`
+	Name                string    `json:"name"`
+	DestinationURL      string    `json:"destinationUrl"`
+	Enabled             bool      `json:"enabled"`
+	Version             int64     `json:"version"`
+	ActiveSecretVersion int64     `json:"activeSecretVersion"`
+	CreatedAt           time.Time `json:"createdAt"`
+	UpdatedAt           time.Time `json:"updatedAt"`
+}
+
+type CreateWebhookIntegrationResponse struct {
+	Integration   WebhookIntegrationResponse `json:"integration"`
+	SigningSecret string                     `json:"signingSecret"`
+}
+
+type CreateWebhookIntegrationRequest struct {
+	Name           *string `json:"name"`
+	DestinationURL *string `json:"destinationUrl"`
+}
+
 type ProblemDetails struct {
 	Type   string                       `json:"type"`
 	Title  string                       `json:"title"`

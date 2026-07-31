@@ -10,6 +10,7 @@
     { "name": "Setup" },
     { "name": "Authentication" },
     { "name": "Organizations" },
+    { "name": "Integrations" },
     { "name": "Monitors" },
     { "name": "Runs" },
     { "name": "Incidents" }
@@ -284,6 +285,64 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" },
           "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/webhook-integrations": {
+      "parameters": [{ "$ref": "#/components/parameters/OrganizationID" }],
+      "get": {
+        "tags": ["Integrations"],
+        "operationId": "listWebhookIntegrations",
+        "summary": "List signed Webhook Integrations",
+        "description": "Requires integration.manage. Returns Administrator-only destination configuration and never returns signing secrets or encrypted-secret metadata.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "The Organization's Webhook Integrations in creation order.",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/WebhookIntegrationResponse" } }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      },
+      "post": {
+        "tags": ["Integrations"],
+        "operationId": "createWebhookIntegration",
+        "summary": "Create a disabled signed Webhook Integration",
+        "description": "Requires integration.manage and antiforgery. Generates an active signing secret, returns it exactly once, and stores only AES-256-GCM ciphertext. The Integration remains disabled because delivery is not implemented by this slice.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CreateWebhookIntegrationRequest" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The disabled Integration and its one-time signing secret.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Prevents storage of the one-time signing secret response.",
+                "schema": { "type": "string", "const": "no-store" }
+              }
+            },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateWebhookIntegrationResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
           "405": { "$ref": "#/components/responses/MethodNotAllowed" }
         }
       }
@@ -1378,6 +1437,61 @@
         "properties": {
           "email": { "type": ["string", "null"] },
           "password": { "type": ["string", "null"] }
+        }
+      },
+      "WebhookIntegrationResponse": {
+        "type": "object",
+        "required": ["id", "organizationId", "name", "destinationUrl", "enabled", "version", "activeSecretVersion", "createdAt", "updatedAt"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "organizationId": { "type": "string", "format": "uuid" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 100, "x-probehive-length-unit": "utf16-code-units" },
+          "destinationUrl": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "pattern": "^https://[^?#]+$",
+            "description": "Absolute HTTPS URL without user information, a query string, or a fragment; the server enforces a 2,048-byte limit.",
+            "x-probehive-max-bytes": 2048
+          },
+          "enabled": { "type": "boolean", "const": false, "description": "This slice creates disabled Integrations and performs no delivery." },
+          "version": { "type": "integer", "format": "int64", "minimum": 1 },
+          "activeSecretVersion": { "type": "integer", "format": "int64", "minimum": 1 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateWebhookIntegrationResponse": {
+        "type": "object",
+        "required": ["integration", "signingSecret"],
+        "properties": {
+          "integration": { "$ref": "#/components/schemas/WebhookIntegrationResponse" },
+          "signingSecret": {
+            "type": "string",
+            "writeOnly": true,
+            "pattern": "^phwh_[A-Za-z0-9_-]{43}$",
+            "description": "Returned exactly once. The complete encoded value is the future HMAC key."
+          }
+        }
+      },
+      "CreateWebhookIntegrationRequest": {
+        "type": "object",
+        "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown.",
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "required": ["name", "destinationUrl"],
+        "properties": {
+          "name": {
+            "type": ["string", "null"],
+            "maxLength": 100,
+            "x-probehive-length-unit": "utf16-code-units"
+          },
+          "destinationUrl": {
+            "type": ["string", "null"],
+            "format": "uri",
+            "maxLength": 2048,
+            "pattern": "^https://[^?#]+$",
+            "x-probehive-max-bytes": 2048
+          }
         }
       },
       "CreateOrganizationRequest": {

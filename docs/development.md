@@ -47,6 +47,45 @@ The supported environment variables are:
 | `PROBEHIVE_ENVIRONMENT` | `Development` enables plain-HTTP development cookies and OpenAPI | production behavior |
 | `PROBEHIVE_CREDENTIAL_ATTEMPTS_PER_MINUTE` | shared setup/login permits per client address in each fixed minute | `10` |
 | `PROBEHIVE_PUBLIC_ORIGIN` | exact external `http://host` or `https://host` origin used behind a gateway | request scheme and Host |
+| `PROBEHIVE_WEBHOOK_KEYRING` | ordered `keyId:base64url32` AES-256-GCM keys; first key is active and retained secrets are rewrapped at startup | Webhook creation unavailable |
+
+### Webhook wrapping-key operations
+
+`PROBEHIVE_WEBHOOK_KEYRING` is a comma-separated list with no surrounding whitespace.
+Each entry is `keyId:base64url`. The 1-32 character id starts with a lowercase ASCII letter
+or digit; its remaining characters may also contain periods, underscores, and hyphens. The
+unpadded base64url value decodes to exactly 32 cryptographically random bytes. The first entry is active for new encryption;
+later entries are retained only to decrypt and rewrap existing rows. For local development,
+one key can be generated without writing it to the repository:
+
+```bash
+KEY=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n')
+export PROBEHIVE_WEBHOOK_KEYRING="key-2026-07:$KEY"
+```
+
+Rotate a wrapping key without losing access to signing secrets:
+
+1. Generate a new independent 32-byte key with a new id, prepend it to the deployed
+   keyring, and retain every prior key.
+2. Restart each API process with that complete keyring. Startup authenticates retained
+   ciphertext and rewraps old-key rows under the new first key before serving requests.
+3. Confirm that every non-retired row names the new id:
+
+   ```sql
+   SELECT DISTINCT wrapping_key_id
+   FROM webhook_signing_secrets
+   WHERE state <> 'retired';
+   ```
+
+4. Only after all processes use the new keyring and the query returns only the new id,
+   remove old keys in a later deployment.
+
+Back up the complete keyring in the operator's secret backup system, separately from the
+database but with the same recovery coverage. A database backup is not restorable while
+any retained row refers to a key id whose material is missing. Never commit, log, or place
+real keyring values in database backups or general configuration archives. An empty
+keyring permits startup only when no retained Webhook secret exists; creation then returns
+`503` until a keyring is configured.
 
 The embedded worker executes checks inside the same process (ADR 0020) and is configured
 separately. Every value below is an operator ceiling or floor; user configuration may be

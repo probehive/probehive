@@ -4,7 +4,7 @@ Status: working implementation specification for the unreleased initial vertical
 
 This document defines the observable backend behavior of the initial vertical slice. It is maintained with
 the v1 API, check validation, PostgreSQL adapters and migrations, API tests, React
-client, Playwright journey, and ADRs 0012-0028. The web application and browser
+client, Playwright journey, and ADRs 0012-0030. The web application and browser
 journey are contract consumers and remain synchronized with this specification.
 
 ADRs remain normative. Where the current implementation and an ADR differ, this
@@ -132,6 +132,8 @@ absent.
 | `IncidentTimelineResponse` | timeline UUID, Incident version and kind; nullable health transition, actor, health states, policy, causal Run, slot, and counts; occurrence timestamp |
 | `AlertPageResponse` | `items: AlertResponse[]`; `nextCursor: nullable opaque string` |
 | `AlertResponse` | Alert, Organization, Project, Monitor, and source Incident UUIDs; positive source Incident version; kind `incident.opened` or `incident.resolved`; source occurrence and projection creation timestamps |
+| `WebhookIntegrationResponse` | Integration and Organization UUIDs; name; Administrator-visible HTTPS destination URL; `enabled: false`; positive Integration and active-secret versions; creation/update timestamps |
+| `CreateWebhookIntegrationResponse` | `integration: WebhookIntegrationResponse`; `signingSecret: string` returned exactly once |
 
 Request shapes are:
 
@@ -140,6 +142,7 @@ Request shapes are:
 | `CreateFirstAdministratorRequest` | `email`, `displayName`, `password` (nullable strings at decoding boundary; required by validation) |
 | `LoginRequest` | `email`, `password` (nullable strings at decoding boundary) |
 | `CreateOrganizationRequest` | `slug`, `displayName` (nullable strings at decoding boundary; required by validation) |
+| `CreateWebhookIntegrationRequest` | `name`, `destinationUrl` (nullable strings at decoding boundary; required by validation) |
 | `CreateMonitorRequest` | `name`, `checkType` strings |
 | `RenameOrganizationRequest` | `displayName` (nullable string at decoding boundary; required by validation) |
 | `RenameMonitorRequest` | `name` string |
@@ -172,6 +175,8 @@ antiforgery and origin rules in section 5 also apply.
 | `POST /api/v1/organizations` | Instance admin, unsafe | first create: `201 OrganizationResponse` and `Location: /api/v1/organizations/{id}`; identical replay: `200 OrganizationResponse` without creating state | `400`, `409`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}` | `organization.read` | `200 OrganizationResponse` | `404`, `401`, `403` |
 | `PUT /api/v1/organizations/{organizationId}/name` | `organization.write`, unsafe | `200 OrganizationResponse` with the new display name and an unchanged slug | `400`, `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/webhook-integrations` | `integration.manage` | `200 WebhookIntegrationResponse[]` in creation order; never returns signing-secret material | `404`, `401`, `403` |
+| `POST /api/v1/organizations/{organizationId}/webhook-integrations` | `integration.manage`, unsafe | `201 CreateWebhookIntegrationResponse`; creates a disabled Integration and returns its signing secret once | `400`, `404`, `409`, `503` without an operator keyring, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | `monitor.write`, unsafe | `201 MonitorResponse` and canonical monitor `Location` | `400`, `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | `monitor.read` | `200 MonitorResponse[]` in creation order, UUID as tie-breaker | `404` if the Project is not in the Organization; `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}` | `monitor.read` | `200 MonitorResponse` | `404`, `401`, `403` |
@@ -224,8 +229,10 @@ membership of that Organization and checks a permission against its role:
 Organization roles and the permissions they carry are `Administrator` (every permission,
 including ones added in later releases) and `Viewer` (every read permission). The
 permissions in use are `organization.read`, `organization.write`, `monitor.read`,
-`monitor.write`, `incident.read`, `incident.write`, and `alert.read`. The
-permission catalog itself is internal and not published; endpoints document the
+`monitor.write`, `incident.read`, `incident.write`, `alert.read`, and
+`integration.manage`. The last permission deliberately does not end in `.read` because
+Webhook destinations are Administrator-only configuration rather than Viewer evidence.
+The permission catalog itself is internal and not published; endpoints document the
 permission they require. Provisioning makes the creator an `Administrator` member of the
 new Organization in the same transaction, so no Organization exists without a member.
 
@@ -395,6 +402,38 @@ idempotency key. `PUT /api/v1/organizations/{organizationId}/name` applies the s
 Rename moves the replay boundary, which callers must expect: after a rename, provisioning
 the same slug with the pre-rename display name returns `409`, and the current display name
 is what replays with `200` (ADR 0022).
+
+### Signed Webhook Integrations
+
+A Webhook Integration is Organization-scoped Administrator configuration. Its normalized
+name is trimmed Unicode text containing 1-100 UTF-16 code units. Names are unique by exact
+stored string within one Organization; comparison is case-sensitive. The destination is an
+absolute HTTPS URL of at most 2,048 bytes with an authority and without user information,
+a query string, or a fragment. Creation validates URL syntax only: this slice performs no
+DNS lookup, connection, redirect, or delivery.
+
+Creation is transactional and always produces a disabled Integration at version 1 with
+active secret version 1. It generates 32 random bytes, exposes the complete signing key as
+`phwh_` followed by unpadded base64url, and returns that value only in the successful `201`
+response, which carries `Cache-Control: no-store`. Ordinary list responses never contain a
+signing secret, ciphertext, nonce, or
+wrapping-key identifier. PostgreSQL stores only the AES-256-GCM envelope; associated data
+binds the Organization id, Integration id, and secret version. A name conflict creates
+neither the Integration nor its secret.
+
+`GET` returns Integrations for exactly the authorized Organization in `(createdAt, id)`
+order. Both `GET` and `POST` require `integration.manage`, so a Viewer receives `403` and a
+non-member receives the ordinary hidden-scope `404`. The destination URL is deliberately
+visible to Administrators through this configuration endpoint.
+
+The operator keyring is required for creation. Without it, an otherwise valid `POST`
+returns `503` with `webhook.keyring.unavailable`. At process startup every non-retired
+secret must authenticate using a retained wrapping key; old-key envelopes are rewrapped
+under the first configured key. Missing keys, malformed or unauthenticated ciphertext, and
+storage failures stop startup rather than exposing a partially usable Webhook surface.
+Running without a keyring is allowed only while the database has no retained Webhook
+secret. Enablement, signing-secret rotation endpoints, routing, network delivery, Delivery
+Attempts, and audit reads are not implemented by this slice (ADR 0030).
 
 ## 7. Monitor and Revision Semantics
 
@@ -861,6 +900,13 @@ Alert queries:
 
 ```text
 alert.query.pageSize.invalid  alert.query.cursor.invalid
+```
+
+Webhook Integrations:
+
+```text
+webhook.name.invalid  webhook.destinationUrl.invalid  webhook.name.conflict
+webhook.keyring.unavailable
 ```
 `monitor.checkType.unsupported` and `check.checkType.unsupported` describe the same
 condition at two layers; the Monitor use case screens first, and a catalog may map both

@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -28,6 +29,7 @@ import (
 	"github.com/probehive/probehive/internal/run"
 	"github.com/probehive/probehive/internal/user"
 	"github.com/probehive/probehive/internal/uuidv7"
+	"github.com/probehive/probehive/internal/webhook"
 )
 
 const (
@@ -73,6 +75,10 @@ func serve(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	webhookKeyring, err := webhook.ParseKeyring(os.Getenv("PROBEHIVE_WEBHOOK_KEYRING"))
+	if err != nil {
+		return err
+	}
 
 	startupContext, cancelStartup := context.WithTimeout(context.Background(), startupTimeout)
 	defer cancelStartup()
@@ -94,6 +100,12 @@ func serve(logger *slog.Logger) error {
 	healthService := health.NewService(database.Health(), systemClock, identifiers)
 	incidentService := incident.NewService(database.Incidents(), systemClock, identifiers)
 	alertService := alert.NewService(database.Alerts(), systemClock, identifiers)
+	webhookService := webhook.NewService(
+		database.Webhooks(), systemClock, identifiers, rand.Reader, webhookKeyring)
+	if err := webhookService.Initialize(startupContext); err != nil {
+		return fmt.Errorf("initialize Webhook secrets: %w", err)
+	}
+
 	var runtime *workerRuntime
 	if workerConfiguration.enabled {
 		runtime, err = newWorkerRuntime(
@@ -115,6 +127,7 @@ func serve(logger *slog.Logger) error {
 		MonitorHealth:               healthService,
 		Incidents:                   incidentService,
 		Alerts:                      alertService,
+		Webhooks:                    webhookService,
 		Sessions:                    database.Sessions(),
 		Antiforgery:                 database.Antiforgery(),
 		Clock:                       systemClock,

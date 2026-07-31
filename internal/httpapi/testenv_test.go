@@ -25,6 +25,7 @@ import (
 	"github.com/probehive/probehive/internal/organization"
 	"github.com/probehive/probehive/internal/run"
 	"github.com/probehive/probehive/internal/user"
+	"github.com/probehive/probehive/internal/webhook"
 )
 
 type testEnvironment struct {
@@ -40,6 +41,7 @@ type testEnvironment struct {
 	health        *memoryHealthStore
 	incidents     *memoryIncidentStore
 	alerts        *memoryAlertStore
+	webhooks      *memoryWebhookStore
 }
 
 func newTestEnvironment(t *testing.T, development bool, credentialLimit int, configure ...func(*Config)) *testEnvironment {
@@ -60,6 +62,18 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 	healthStore := &memoryHealthStore{monitors: monitors}
 	incidentStore := &memoryIncidentStore{monitors: monitors}
 	alertStore := &memoryAlertStore{monitors: monitors}
+	webhookStore := newMemoryWebhookStore()
+	keyring, err := webhook.NewKeyring([]webhook.WrappingKey{
+		{ID: "test", Key: make([]byte, 32)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	webhookService := webhook.NewService(webhookStore, clock, ids, &testRandomReader{next: 64}, keyring)
+	if err := webhookService.Initialize(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
 	healthService := health.NewService(healthStore, clock, ids)
 	incidentService := incident.NewService(incidentStore, clock, ids)
 	alertService := alert.NewService(alertStore, clock, ids)
@@ -71,6 +85,7 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 		MonitorHealth:               healthService,
 		Incidents:                   incidentService,
 		Alerts:                      alertService,
+		Webhooks:                    webhookService,
 		Sessions:                    sessions,
 		Antiforgery:                 antiforgery,
 		Clock:                       clock,
@@ -98,7 +113,8 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 		users: users, sessions: sessions, antiforgery: antiforgery,
 		organizations: organizations, monitors: monitors,
 		runs: runs, health: healthStore, incidents: incidentStore,
-		alerts: alertStore,
+		alerts:   alertStore,
+		webhooks: webhookStore,
 	}
 	t.Cleanup(server.Close)
 	return environment

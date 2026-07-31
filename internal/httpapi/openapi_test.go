@@ -40,6 +40,7 @@ func TestOpenAPIDocumentDescribesEveryRoute(t *testing.T) {
 		"/api/v1/organizations":                       {"get", "post"},
 		"/api/v1/organizations/{organizationId}":      {"get"},
 		"/api/v1/organizations/{organizationId}/name": {"put"},
+		"/api/v1/organizations/{organizationId}/webhook-integrations":                                                         {"get", "post"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors":                                                {"get", "post"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}":                                    {"get"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/name":                               {"put"},
@@ -144,6 +145,7 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 		"RunPageResponse", "RunResponse", "ConfirmationCauseResponse", "ObservationResponse",
 		"MonitorHealthResponse", "HealthCountsResponse", "IncidentPageResponse", "IncidentResponse", "IncidentTimelineResponse",
 		"AlertPageResponse", "AlertResponse",
+		"WebhookIntegrationResponse", "CreateWebhookIntegrationResponse", "CreateWebhookIntegrationRequest",
 		"ObservationPhasesResponse", "HTTPObservationResponse", "TLSObservationResponse",
 	} {
 		if _, found := document.Components.Schemas[name]; !found {
@@ -153,6 +155,7 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 
 	requestSchemas := []string{
 		"CreateFirstAdministratorRequest", "LoginRequest", "CreateOrganizationRequest",
+		"CreateWebhookIntegrationRequest",
 		"CreateMonitorRequest", "RenameMonitorRequest", "ChangeMonitorStateRequest",
 		"CreateMonitorRevisionRequest",
 	}
@@ -160,6 +163,22 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 		if got := document.Components.Schemas[name].PropertyNameComparison; got != "ascii-case-insensitive" {
 			t.Errorf("%s property-name comparison = %q", name, got)
 		}
+	}
+
+	webhookRequest := document.Components.Schemas["CreateWebhookIntegrationRequest"]
+	webhookName := webhookRequest.Properties["name"]
+	webhookDestination := webhookRequest.Properties["destinationUrl"]
+	if webhookName.LengthUnit != "utf16-code-units" ||
+		webhookDestination.Pattern != "^https://[^?#]+$" || webhookDestination.MaxBytes != 2048 {
+		t.Errorf("Webhook request schema = name %#v, destination %#v", webhookName, webhookDestination)
+	}
+	webhookResponse := document.Components.Schemas["WebhookIntegrationResponse"]
+	if destination := webhookResponse.Properties["destinationUrl"]; destination.Pattern != "^https://[^?#]+$" || destination.MaxBytes != 2048 {
+		t.Errorf("Webhook response destination schema = %#v", destination)
+	}
+	createdWebhook := document.Components.Schemas["CreateWebhookIntegrationResponse"]
+	if signature := createdWebhook.Properties["signingSecret"]; signature.Pattern != "^phwh_[A-Za-z0-9_-]{43}$" {
+		t.Errorf("Webhook one-time secret schema = %#v", signature)
 	}
 
 	httpConfiguration := document.Components.Schemas["HTTPCheckConfigurationV1"]

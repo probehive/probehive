@@ -45,3 +45,4 @@ Every record below is `Accepted` unless its entry says otherwise.
 - [0027: Health evaluation, confirmation Runs, and location quorum](0027-health-evaluation-confirmation-and-quorum.md)
 - [0028: Incident lifecycle and outbox event semantics](0028-incident-lifecycle-and-outbox-events.md)
 - [0029: Alert intent and Delivery Attempt semantics](0029-alert-intent-and-delivery-attempt-semantics.md), which clarifies ADR 0028
+- [0030: Signed Webhook Integration and delivery](0030-signed-webhook-integration-and-delivery.md), which clarifies ADR 0029
