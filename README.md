@@ -44,13 +44,14 @@ The current foundation implements:
 - Fully scoped Run history and Observation query APIs with bounded keyset pagination and stable filters.
 - Auditable Monitor health evaluation with explicit failure and recovery confirmation Runs, honest Phase 1 quorum counts, and staleness handling.
 - Automatic per-Monitor Incidents with open, acknowledge, and resolve lifecycle, immutable timelines, scoped keyset query APIs, and PostgreSQL-backed outbox dispatch.
+- Immutable Alert intents for Incident opening and confirmed recovery, with Monitor-scoped audit history that makes no delivery claim.
 - A React administration application in English and Simplified Chinese, rendering instants in the viewer's time zone, with Playwright browser journeys.
 - Default-Project Monitor inventory, a recoverable first-HTTP-Monitor flow, and authorized lifecycle, name, and execution-interval controls.
 - A Monitor Health evidence view with current and stable state, complete quorum counts, confirmation candidates, and causal Run links.
 - A Monitor-scoped Incident view with cursor history, lifecycle state, an immutable timeline, complete quorum counts, causal Run links, and authorized acknowledgement.
 - A Monitor-scoped Run evidence screen with 30-day keyset history, deep-linked Run detail, and bounded HTTP Observation detail.
 
-Alert delivery, status pages, Agents, and packaged releases remain under development.
+External Alert delivery, status pages, Agents, and packaged releases remain under development.
 
 ## Get Started
 

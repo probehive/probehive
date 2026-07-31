@@ -145,6 +145,23 @@ type IncidentTimelineResponse struct {
 	OccurredAt            time.Time             `json:"occurredAt"`
 }
 
+type AlertPageResponse struct {
+	Items      []AlertResponse `json:"items"`
+	NextCursor *string         `json:"nextCursor"`
+}
+
+type AlertResponse struct {
+	ID              string    `json:"id"`
+	OrganizationID  string    `json:"organizationId"`
+	ProjectID       string    `json:"projectId"`
+	MonitorID       string    `json:"monitorId"`
+	IncidentID      string    `json:"incidentId"`
+	IncidentVersion int64     `json:"incidentVersion"`
+	Kind            string    `json:"kind"`
+	OccurredAt      time.Time `json:"occurredAt"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
 type MonitorRevisionResponse struct {
 	ID                 string          `json:"id"`
 	MonitorID          string          `json:"monitorId"`

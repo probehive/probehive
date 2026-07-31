@@ -74,7 +74,7 @@ func TestMigrationsAreConcurrentSafeAndIdempotent(t *testing.T) {
 		"processed_outbox_events", "dead_letter_outbox_entries",
 		"health_candidates", "monitor_health", "health_transitions",
 		"incident_projection_cursors", "incidents",
-		"incident_timeline_entries",
+		"incident_timeline_entries", "alerts",
 	}
 	for _, table := range requiredTables {
 		if !relationExists(t, database, table) {

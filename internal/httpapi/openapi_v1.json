@@ -555,6 +555,37 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/alerts": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" },
+        { "$ref": "#/components/parameters/AlertPageSize" },
+        { "$ref": "#/components/parameters/AlertCursor" }
+      ],
+      "get": {
+        "tags": ["Alerts"],
+        "operationId": "listMonitorAlerts",
+        "summary": "List immutable Alert intents for one Monitor",
+        "description": "Requires alert.read. Returns Incident-derived Alert intents, not a claim that any notification was attempted or delivered. Results are newest-first by occurredAt and Alert id.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "One bounded Alert page.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AlertPageResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents": {
       "parameters": [
         { "$ref": "#/components/parameters/OrganizationID" },
@@ -858,6 +889,18 @@
         "in": "query",
         "description": "Opaque nextCursor returned by the preceding Incident page.",
         "schema": { "type": "string", "minLength": 1 }
+      },
+      "AlertPageSize": {
+        "name": "pageSize",
+        "in": "query",
+        "description": "Maximum Alerts in this page.",
+        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 }
+      },
+      "AlertCursor": {
+        "name": "cursor",
+        "in": "query",
+        "description": "Opaque nextCursor returned by the preceding Alert page.",
+        "schema": { "type": "string", "minLength": 1 }
       }
     },
     "headers": {
@@ -1125,6 +1168,32 @@
           "locationFault": { "type": "integer", "minimum": 0 },
           "indeterminate": { "type": "integer", "minimum": 0 },
           "missing": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "AlertPageResponse": {
+        "type": "object",
+        "required": ["items", "nextCursor"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/AlertResponse" }
+          },
+          "nextCursor": { "type": ["string", "null"], "minLength": 1 }
+        }
+      },
+      "AlertResponse": {
+        "type": "object",
+        "required": ["id", "organizationId", "projectId", "monitorId", "incidentId", "incidentVersion", "kind", "occurredAt", "createdAt"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "organizationId": { "type": "string", "format": "uuid" },
+          "projectId": { "type": "string", "format": "uuid" },
+          "monitorId": { "type": "string", "format": "uuid" },
+          "incidentId": { "type": "string", "format": "uuid" },
+          "incidentVersion": { "type": "integer", "format": "int64", "minimum": 1 },
+          "kind": { "type": "string", "enum": ["incident.opened", "incident.resolved"] },
+          "occurredAt": { "type": "string", "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" }
         }
       },
       "IncidentPageResponse": {

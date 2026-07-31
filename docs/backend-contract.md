@@ -130,6 +130,8 @@ absent.
 | `IncidentPageResponse` | `items: IncidentResponse[]`; `nextCursor: nullable opaque string` |
 | `IncidentResponse` | scoped UUIDs; lifecycle `state` and `version`; opening transition; nullable acknowledgement and resolution identity/timestamps; created/updated timestamps; `timeline: IncidentTimelineResponse[]` |
 | `IncidentTimelineResponse` | timeline UUID, Incident version and kind; nullable health transition, actor, health states, policy, causal Run, slot, and counts; occurrence timestamp |
+| `AlertPageResponse` | `items: AlertResponse[]`; `nextCursor: nullable opaque string` |
+| `AlertResponse` | Alert, Organization, Project, Monitor, and source Incident UUIDs; positive source Incident version; kind `incident.opened` or `incident.resolved`; source occurrence and projection creation timestamps |
 
 Request shapes are:
 
@@ -181,6 +183,7 @@ antiforgery and origin rules in section 5 also apply.
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}` | `monitor.read` | `200 MonitorRevisionResponse` | `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/health` | `monitor.read` | `200 MonitorHealthResponse` | `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents` | `incident.read` | `200 IncidentPageResponse`, newest first by `(createdAt, id)` | `400`, `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/alerts` | `alert.read` | `200 AlertPageResponse`, newest first by `(occurredAt, id)` | `400`, `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}` | `incident.read` | `200 IncidentResponse` with timeline | `404`, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}/acknowledge` | `incident.write`, unsafe | `200 IncidentResponse`; repeat acknowledgement is idempotent | `400`, `404`, `409` when resolved, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs` | `monitor.read` | `200 RunPageResponse`, newest first by `(scheduledFor, id)` | `400`, `404`, `401`, `403` |
@@ -221,7 +224,7 @@ membership of that Organization and checks a permission against its role:
 Organization roles and the permissions they carry are `Administrator` (every permission,
 including ones added in later releases) and `Viewer` (every read permission). The
 permissions in use are `organization.read`, `organization.write`, `monitor.read`,
-`monitor.write`, `incident.read`, and `incident.write`. The
+`monitor.write`, `incident.read`, `incident.write`, and `alert.read`. The
 permission catalog itself is internal and not published; endpoints document the
 permission they require. Provisioning makes the creator an `Administrator` member of the
 new Organization in the same transaction, so no Organization exists without a member.
@@ -590,6 +593,11 @@ All listed columns are `NOT NULL` unless marked nullable.
   unresolved automatic Incident per Monitor, immutable versioned timeline entries, and
   aggregate-version ordering for the projector. Health timeline entries either carry all
   eight quorum counts or none.
+- `alerts`: immutable Incident-derived notification intents with Organization, Project,
+  Monitor, source Incident and source Incident version identity, kind, source occurrence,
+  and projection creation timestamps. The Organization, Incident, and Incident-version
+  tuple is unique for idempotent projection.
+
 ### Tenant foreign-key invariants
 
 
@@ -662,15 +670,33 @@ final page. Every list, detail, and acknowledgement lookup carries Organization,
 and Monitor scope. A resolved acknowledgement returns `409` with title
 `Incident acknowledgement rejected`.
 
+### Alert intents
+
+An Incident opening creates one `incident.opened` Alert and confirmed recovery creates one
+`incident.resolved` Alert. Acknowledgement creates none. Alerts are immutable,
+render-neutral intents: they contain no localized prose, Monitor-name snapshot, target,
+recipient, route, secret, or provider payload. Alert existence does not mean a notification
+was attempted, sent, suppressed, or delivered; no Delivery Attempt is created until a
+separately accepted channel contract exists.
+
+Alert lists are newest-first by descending `(occurredAt, id)` and use the same default 50,
+range 1 through 100, opaque exclusive cursor, and final null `nextCursor` rules as Incident
+lists. Every lookup carries Organization, Project, and Monitor scope.
+
 ### Internal outbox event contract
 
 The internal PostgreSQL outbox topics are `run.recorded.v1`,
-`run.confirmation.requested.v1`, and `health.transitioned.v1`. They are internal durable
+`run.confirmation.requested.v1`, `health.transitioned.v1`, and
+`incident.transitioned.v1`. They are internal durable
 facts, not public webhooks. Every camelCase payload has `eventId` equal to its owning row,
 `organizationId`, `occurredAt`, `aggregateType`, `aggregateId`, `aggregateVersion`, and
 the ADR-defined causation where applicable. Consumers verify row/payload Organization,
 ignore additional object members, reject invalid required enums, serialize each aggregate,
 and mark the event id processed transactionally.
+
+Opening and resolving an Incident writes `incident.transitioned.v1` in the same transaction
+as its timeline change. The Alert projector verifies the immutable source timeline fact and
+creates the matching Alert in the same transaction that marks the event processed.
 
 Dispatch is at least once with no global or tenant FIFO promise: 60-second leases, batches
 up to 32, concurrency up to 4, 12 attempts, exponential retry from one second to five
@@ -829,6 +855,12 @@ Incident queries:
 
 ```text
 incident.query.pageSize.invalid  incident.query.cursor.invalid
+```
+
+Alert queries:
+
+```text
+alert.query.pageSize.invalid  alert.query.cursor.invalid
 ```
 `monitor.checkType.unsupported` and `check.checkType.unsupported` describe the same
 condition at two layers; the Monitor use case screens first, and a catalog may map both

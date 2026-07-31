@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const TopicIncidentTransitionedV1 = "incident.transitioned.v1"
+
 type State string
 
 const (
@@ -91,6 +93,20 @@ type HealthTransitionedV1 struct {
 	PolicyVersion    string    `json:"policyVersion"`
 }
 
+type IncidentTransitionedV1 struct {
+	EventID          string    `json:"eventId"`
+	OrganizationID   string    `json:"organizationId"`
+	OccurredAt       time.Time `json:"occurredAt"`
+	AggregateType    string    `json:"aggregateType"`
+	AggregateID      string    `json:"aggregateId"`
+	AggregateVersion int64     `json:"aggregateVersion"`
+	CausationID      string    `json:"causationId"`
+	IncidentID       string    `json:"incidentId"`
+	ProjectID        string    `json:"projectId"`
+	MonitorID        string    `json:"monitorId"`
+	Transition       string    `json:"transition"`
+}
+
 type Scope struct {
 	OrganizationID string
 	ProjectID      string
@@ -122,8 +138,9 @@ func (scope Scope) Validate() error {
 }
 
 type ProcessIDs struct {
-	IncidentID string
-	TimelineID string
+	IncidentID   string
+	TimelineID   string
+	AlertEventID string
 }
 
 type Store interface {
@@ -171,7 +188,13 @@ func (service *Service) HandleHealthTransition(ctx context.Context, eventID, org
 	if err != nil {
 		return err
 	}
-	return service.store.ProcessHealthTransition(ctx, event, ProcessIDs{IncidentID: incidentID, TimelineID: timelineID}, now)
+	alertEventID, err := service.uuids.NewUUIDv7(now)
+	if err != nil {
+		return err
+	}
+	return service.store.ProcessHealthTransition(ctx, event, ProcessIDs{
+		IncidentID: incidentID, TimelineID: timelineID, AlertEventID: alertEventID,
+	}, now)
 }
 
 func (service *Service) List(ctx context.Context, scope Scope, query ListQuery) (Page, bool, error) {

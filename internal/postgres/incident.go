@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -98,7 +99,7 @@ FOR UPDATE OF m`, event.TransitionID, event.OrganizationID).Scan(
 			}
 			if !found {
 				if err := insertIncidentOpened(
-					ctx, transaction, event, ids, causalRunID, causalRunScheduled, counts, occurredAt); err != nil {
+					ctx, transaction, event, ids, causalRunID, causalRunScheduled, counts, occurredAt, now); err != nil {
 					return err
 				}
 			} else {
@@ -113,7 +114,7 @@ FOR UPDATE OF m`, event.TransitionID, event.OrganizationID).Scan(
 		if found {
 			if err := resolveIncident(
 				ctx, transaction, active, event, ids.TimelineID,
-				causalRunID, causalRunScheduled, counts, occurredAt); err != nil {
+				ids.AlertEventID, causalRunID, causalRunScheduled, counts, occurredAt, now); err != nil {
 				return err
 			}
 		}
@@ -174,7 +175,7 @@ FOR UPDATE`, organizationID, monitorID))
 func insertIncidentOpened(
 	ctx context.Context, transaction pgx.Tx, event incident.HealthTransitionedV1,
 	ids incident.ProcessIDs, causalRunID *string, causalRunScheduled *time.Time,
-	counts incident.Counts, occurredAt time.Time,
+	counts incident.Counts, occurredAt, queuedAt time.Time,
 ) error {
 	if _, err := transaction.Exec(ctx, `
 INSERT INTO incidents (
@@ -203,14 +204,18 @@ INSERT INTO incident_timeline_entries (
 		occurredAt.UTC()); err != nil {
 		return fmt.Errorf("append Incident opening timeline: %w", err)
 	}
-	return nil
+	return insertIncidentTransitionedEvent(
+		ctx, transaction, event, ids.IncidentID, 1, "opened",
+		ids.AlertEventID, occurredAt, queuedAt,
+	)
 }
 
 func resolveIncident(
 	ctx context.Context, transaction pgx.Tx, value incident.Incident,
 	event incident.HealthTransitionedV1, timelineID string,
+	alertEventID string,
 	causalRunID *string, causalRunScheduled *time.Time,
-	counts incident.Counts, occurredAt time.Time,
+	counts incident.Counts, occurredAt, queuedAt time.Time,
 ) error {
 	version := value.Version + 1
 	if _, err := transaction.Exec(ctx, `
@@ -238,6 +243,39 @@ INSERT INTO incident_timeline_entries (
 		counts.Failing, counts.LocationFault, counts.Indeterminate, counts.Missing,
 		occurredAt.UTC()); err != nil {
 		return fmt.Errorf("append Incident resolution timeline: %w", err)
+	}
+	return insertIncidentTransitionedEvent(
+		ctx, transaction, event, value.ID, version, "resolved",
+		alertEventID, occurredAt, queuedAt,
+	)
+}
+
+func insertIncidentTransitionedEvent(
+	ctx context.Context, transaction pgx.Tx, source incident.HealthTransitionedV1,
+	incidentID string, version int64, transition, eventID string,
+	occurredAt, queuedAt time.Time,
+) error {
+	if eventID == "" {
+		return errors.New("an Incident Alert event identifier is required")
+	}
+	payload, err := json.Marshal(incident.IncidentTransitionedV1{
+		EventID: eventID, OrganizationID: source.OrganizationID,
+		OccurredAt: occurredAt.UTC(), AggregateType: "incident",
+		AggregateID: incidentID, AggregateVersion: version,
+		CausationID: source.EventID, IncidentID: incidentID,
+		ProjectID: source.ProjectID, MonitorID: source.MonitorID,
+		Transition: transition,
+	})
+	if err != nil {
+		return fmt.Errorf("encode incident.transitioned.v1: %w", err)
+	}
+	if _, err := transaction.Exec(ctx, `
+INSERT INTO outbox_entries (
+    id, organization_id, topic, payload, attempts, created_at, available_at
+) VALUES ($1,$2,$3,$4,0,$5,$5)`,
+		eventID, source.OrganizationID, incident.TopicIncidentTransitionedV1,
+		payload, queuedAt.UTC()); err != nil {
+		return fmt.Errorf("enqueue incident.transitioned.v1: %w", err)
 	}
 	return nil
 }

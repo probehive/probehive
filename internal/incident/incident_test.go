@@ -42,7 +42,10 @@ func (ids *incidentTestIDs) NewUUIDv7(time.Time) (string, error) {
 	if ids.next == 1 {
 		return "00000000-0000-7000-8000-000000000101", nil
 	}
-	return "00000000-0000-7000-8000-000000000102", nil
+	if ids.next == 2 {
+		return "00000000-0000-7000-8000-000000000102", nil
+	}
+	return "00000000-0000-7000-8000-000000000103", nil
 }
 
 func validHealthTransitionEvent(now time.Time) HealthTransitionedV1 {
@@ -74,7 +77,9 @@ func TestHandleHealthTransitionValidatesEnvelopeAndPreservesEventIdentity(t *tes
 		t.Fatal(err)
 	}
 	if store.calls != 1 || store.event.EventID != event.EventID ||
-		store.ids.IncidentID == "" || store.ids.TimelineID == "" || store.ids.IncidentID == store.ids.TimelineID {
+		store.ids.IncidentID == "" || store.ids.TimelineID == "" ||
+		store.ids.AlertEventID == "" || store.ids.IncidentID == store.ids.TimelineID ||
+		store.ids.TimelineID == store.ids.AlertEventID {
 		t.Fatalf("stored transition = %#v, ids %#v", store.event, store.ids)
 	}
 

@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/probehive/probehive/internal/alert"
 	"github.com/probehive/probehive/internal/check"
 	"github.com/probehive/probehive/internal/clock"
 	"github.com/probehive/probehive/internal/health"
@@ -92,6 +93,7 @@ func serve(logger *slog.Logger) error {
 	runQueries := run.NewQueryService(database.Runs())
 	healthService := health.NewService(database.Health(), systemClock, identifiers)
 	incidentService := incident.NewService(database.Incidents(), systemClock, identifiers)
+	alertService := alert.NewService(database.Alerts(), systemClock, identifiers)
 	var runtime *workerRuntime
 	if workerConfiguration.enabled {
 		runtime, err = newWorkerRuntime(
@@ -112,6 +114,7 @@ func serve(logger *slog.Logger) error {
 		ManualRuns:                  manualRuns,
 		MonitorHealth:               healthService,
 		Incidents:                   incidentService,
+		Alerts:                      alertService,
 		Sessions:                    database.Sessions(),
 		Antiforgery:                 database.Antiforgery(),
 		Clock:                       systemClock,
@@ -144,7 +147,7 @@ func serve(logger *slog.Logger) error {
 	var workers sync.WaitGroup
 	if runtime != nil {
 		dispatcher, err := newOutboxDispatcher(
-			database, healthService, incidentService, runtime.confirmations,
+			database, healthService, incidentService, alertService, runtime.confirmations,
 			systemClock, identifiers, logger)
 		if err != nil {
 			return err

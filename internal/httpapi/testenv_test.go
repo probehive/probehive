@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/probehive/probehive/internal/alert"
 	"github.com/probehive/probehive/internal/check"
 	"github.com/probehive/probehive/internal/health"
 	api "github.com/probehive/probehive/internal/httpapi/v1"
@@ -38,6 +39,7 @@ type testEnvironment struct {
 	runs          *memoryRunStore
 	health        *memoryHealthStore
 	incidents     *memoryIncidentStore
+	alerts        *memoryAlertStore
 }
 
 func newTestEnvironment(t *testing.T, development bool, credentialLimit int, configure ...func(*Config)) *testEnvironment {
@@ -57,8 +59,10 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 	runService := run.NewQueryService(runs)
 	healthStore := &memoryHealthStore{monitors: monitors}
 	incidentStore := &memoryIncidentStore{monitors: monitors}
+	alertStore := &memoryAlertStore{monitors: monitors}
 	healthService := health.NewService(healthStore, clock, ids)
 	incidentService := incident.NewService(incidentStore, clock, ids)
+	alertService := alert.NewService(alertStore, clock, ids)
 	config := Config{
 		Organizations:               organizationService,
 		Users:                       userService,
@@ -66,6 +70,7 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 		Runs:                        runService,
 		MonitorHealth:               healthService,
 		Incidents:                   incidentService,
+		Alerts:                      alertService,
 		Sessions:                    sessions,
 		Antiforgery:                 antiforgery,
 		Clock:                       clock,
@@ -93,6 +98,7 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 		users: users, sessions: sessions, antiforgery: antiforgery,
 		organizations: organizations, monitors: monitors,
 		runs: runs, health: healthStore, incidents: incidentStore,
+		alerts: alertStore,
 	}
 	t.Cleanup(server.Close)
 	return environment

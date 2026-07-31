@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/probehive/probehive/internal/alert"
 	"github.com/probehive/probehive/internal/health"
 	"github.com/probehive/probehive/internal/incident"
 	"github.com/probehive/probehive/internal/outbox"
@@ -17,6 +18,7 @@ func newOutboxDispatcher(
 	database *postgres.DB,
 	healthService *health.Service,
 	incidentService *incident.Service,
+	alertService *alert.Service,
 	confirmations *run.ConfirmationRunner,
 	systemClock outbox.Clock,
 	identifiers outbox.IDGenerator,
@@ -52,6 +54,17 @@ func newOutboxDispatcher(
 					return outbox.Permanent(outbox.CodeOrganizationMismatch)
 				case errors.Is(err, incident.ErrVersionGap):
 					return outbox.Transient(outbox.CodeAggregateVersionGap)
+				default:
+					return err
+				}
+			}),
+			incident.TopicIncidentTransitionedV1: outbox.HandlerFunc(func(ctx context.Context, entry outbox.Entry) error {
+				err := alertService.HandleIncidentTransition(ctx, entry.ID, entry.OrganizationID, entry.Payload)
+				switch {
+				case errors.Is(err, alert.ErrPayloadInvalid):
+					return outbox.Permanent(outbox.CodePayloadInvalid)
+				case errors.Is(err, alert.ErrOrganizationMismatch):
+					return outbox.Permanent(outbox.CodeOrganizationMismatch)
 				default:
 					return err
 				}

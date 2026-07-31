@@ -49,6 +49,7 @@ func TestOpenAPIDocumentDescribesEveryRoute(t *testing.T) {
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}":         {"get"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/health":                             {"get"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents":                          {"get"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/alerts":                             {"get"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}":             {"get"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}/acknowledge": {"post"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs":                               {"get", "post"},
@@ -131,6 +132,10 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 	if incidentPageSize.Minimum != 1 || incidentPageSize.Maximum != 100 || string(incidentPageSize.Default) != "50" {
 		t.Fatalf("IncidentPageSize schema = %#v", incidentPageSize)
 	}
+	alertPageSize := document.Components.Parameters["AlertPageSize"].Schema
+	if alertPageSize.Minimum != 1 || alertPageSize.Maximum != 100 || string(alertPageSize.Default) != "50" {
+		t.Fatalf("AlertPageSize schema = %#v", alertPageSize)
+	}
 	location := document.Components.Parameters["RunLocation"].Schema
 	if location.MinLength != 1 || location.MaxBytes != 63 {
 		t.Fatalf("RunLocation schema = %#v", location)
@@ -138,6 +143,7 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 	for _, name := range []string{
 		"RunPageResponse", "RunResponse", "ConfirmationCauseResponse", "ObservationResponse",
 		"MonitorHealthResponse", "HealthCountsResponse", "IncidentPageResponse", "IncidentResponse", "IncidentTimelineResponse",
+		"AlertPageResponse", "AlertResponse",
 		"ObservationPhasesResponse", "HTTPObservationResponse", "TLSObservationResponse",
 	} {
 		if _, found := document.Components.Schemas[name]; !found {

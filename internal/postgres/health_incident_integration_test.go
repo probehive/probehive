@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/probehive/probehive/internal/alert"
 	"github.com/probehive/probehive/internal/health"
 	"github.com/probehive/probehive/internal/incident"
 	"github.com/probehive/probehive/internal/run"
@@ -88,14 +89,20 @@ func TestHealthConfirmationAndIncidentLifecycle(t *testing.T) {
 	secondTransition := loadIncidentTransitionEvent(t, database, confirmationIDs.TransitionEventID)
 	if err := incidentStore.ProcessHealthTransition(
 		t.Context(), firstTransition,
-		incident.ProcessIDs{IncidentID: testUUID(1218), TimelineID: testUUID(1219)},
+		incident.ProcessIDs{
+			IncidentID: testUUID(1218), TimelineID: testUUID(1219),
+			AlertEventID: testUUID(1246),
+		},
 		base.Add(7*time.Second)); err != nil {
 		t.Fatalf("ProcessHealthTransition(degraded) error = %v", err)
 	}
-	incidentID, openedTimelineID := testUUID(1220), testUUID(1221)
+	incidentID, openedTimelineID, openedAlertEventID := testUUID(1220), testUUID(1221), testUUID(1241)
 	if err := incidentStore.ProcessHealthTransition(
 		t.Context(), secondTransition,
-		incident.ProcessIDs{IncidentID: incidentID, TimelineID: openedTimelineID},
+		incident.ProcessIDs{
+			IncidentID: incidentID, TimelineID: openedTimelineID,
+			AlertEventID: openedAlertEventID,
+		},
 		base.Add(8*time.Second)); err != nil {
 		t.Fatalf("ProcessHealthTransition(down) error = %v", err)
 	}
@@ -112,6 +119,37 @@ func TestHealthConfirmationAndIncidentLifecycle(t *testing.T) {
 	if opened.State != incident.StateOpen || len(opened.Timeline) != 1 ||
 		opened.Timeline[0].Counts == nil || opened.Timeline[0].Counts.Failing != 1 {
 		t.Fatalf("opened Incident = %#v", opened)
+	}
+
+	alertService := alert.NewService(
+		database.Alerts(), fixedClock{base.Add(9 * time.Second)},
+		&sequenceUUIDs{values: []string{testUUID(1242)}},
+	)
+	if err := alertService.HandleIncidentTransition(
+		t.Context(), openedAlertEventID, string(organizationValue.ID),
+		loadOutboxPayload(t, database, openedAlertEventID),
+	); err != nil {
+		t.Fatalf("HandleIncidentTransition(opened) error = %v", err)
+	}
+	alertService = alert.NewService(
+		database.Alerts(), fixedClock{base.Add(10 * time.Second)},
+		&sequenceUUIDs{values: []string{testUUID(1245)}},
+	)
+	if err := alertService.HandleIncidentTransition(
+		t.Context(), openedAlertEventID, string(organizationValue.ID),
+		loadOutboxPayload(t, database, openedAlertEventID),
+	); err != nil {
+		t.Fatalf("redelivered opened Alert event error = %v", err)
+	}
+	alertScope := alert.Scope{
+		OrganizationID: scope.OrganizationID, ProjectID: scope.ProjectID, MonitorID: scope.MonitorID,
+	}
+	alertPage, found, err := alertService.List(
+		t.Context(), alertScope, alert.ListQuery{PageSize: 50},
+	)
+	if err != nil || !found || len(alertPage.Alerts) != 1 ||
+		alertPage.Alerts[0].Kind != alert.KindIncidentOpened {
+		t.Fatalf("opened Alert page = %#v, found %v, error %v", alertPage, found, err)
 	}
 
 	actorID := seedAdministrator(t, database)
@@ -162,20 +200,29 @@ func TestHealthConfirmationAndIncidentLifecycle(t *testing.T) {
 	fourthTransition := loadIncidentTransitionEvent(t, database, recoveredIDs.TransitionEventID)
 	if err := incidentStore.ProcessHealthTransition(
 		t.Context(), thirdTransition,
-		incident.ProcessIDs{IncidentID: testUUID(1235), TimelineID: testUUID(1236)},
+		incident.ProcessIDs{
+			IncidentID: testUUID(1235), TimelineID: testUUID(1236),
+			AlertEventID: testUUID(1247),
+		},
 		base.Add(time.Minute+7*time.Second)); err != nil {
 		t.Fatalf("ProcessHealthTransition(recovering) error = %v", err)
 	}
-	resolvedTimelineID := testUUID(1237)
+	resolvedTimelineID, resolvedAlertEventID := testUUID(1237), testUUID(1243)
 	if err := incidentStore.ProcessHealthTransition(
 		t.Context(), fourthTransition,
-		incident.ProcessIDs{IncidentID: testUUID(1238), TimelineID: resolvedTimelineID},
+		incident.ProcessIDs{
+			IncidentID: testUUID(1238), TimelineID: resolvedTimelineID,
+			AlertEventID: resolvedAlertEventID,
+		},
 		base.Add(time.Minute+8*time.Second)); err != nil {
 		t.Fatalf("ProcessHealthTransition(healthy) error = %v", err)
 	}
 	if err := incidentStore.ProcessHealthTransition(
 		t.Context(), fourthTransition,
-		incident.ProcessIDs{IncidentID: testUUID(1239), TimelineID: testUUID(1240)},
+		incident.ProcessIDs{
+			IncidentID: testUUID(1239), TimelineID: testUUID(1240),
+			AlertEventID: testUUID(1248),
+		},
 		base.Add(time.Minute+9*time.Second)); err != nil {
 		t.Fatalf("redelivered healthy transition error = %v", err)
 	}
@@ -188,6 +235,25 @@ func TestHealthConfirmationAndIncidentLifecycle(t *testing.T) {
 		len(resolved.Timeline) != 3 || resolved.Timeline[2].ID != resolvedTimelineID ||
 		resolved.Timeline[2].Counts == nil || resolved.Timeline[2].Counts.Passing != 1 {
 		t.Fatalf("resolved Incident = %#v", resolved)
+	}
+
+	alertService = alert.NewService(
+		database.Alerts(), fixedClock{base.Add(time.Minute + 9*time.Second)},
+		&sequenceUUIDs{values: []string{testUUID(1244)}},
+	)
+	if err := alertService.HandleIncidentTransition(
+		t.Context(), resolvedAlertEventID, string(organizationValue.ID),
+		loadOutboxPayload(t, database, resolvedAlertEventID),
+	); err != nil {
+		t.Fatalf("HandleIncidentTransition(resolved) error = %v", err)
+	}
+	alertPage, found, err = alertService.List(
+		t.Context(), alertScope, alert.ListQuery{PageSize: 50},
+	)
+	if err != nil || !found || len(alertPage.Alerts) != 2 ||
+		alertPage.Alerts[0].Kind != alert.KindIncidentResolved ||
+		alertPage.Alerts[1].Kind != alert.KindIncidentOpened {
+		t.Fatalf("resolved Alert page = %#v, found %v, error %v", alertPage, found, err)
 	}
 }
 
@@ -267,4 +333,15 @@ func loadIncidentTransitionEvent(
 		t.Fatalf("unmarshal health.transitioned.v1: %v", err)
 	}
 	return event
+}
+
+func loadOutboxPayload(t *testing.T, database *DB, eventID string) []byte {
+	t.Helper()
+	var payload []byte
+	if err := database.pool.QueryRow(
+		t.Context(), "SELECT payload FROM outbox_entries WHERE id=$1", eventID,
+	).Scan(&payload); err != nil {
+		t.Fatalf("load outbox event %s: %v", eventID, err)
+	}
+	return payload
 }

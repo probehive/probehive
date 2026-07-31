@@ -44,3 +44,4 @@ Every record below is `Accepted` unless its entry says otherwise.
 - [0026: Execution interval ownership, slot derivation, and the embedded scheduler](0026-execution-interval-and-slot-derivation.md), which amends ADR 0021 and clarifies ADR 0014 and ADR 0020
 - [0027: Health evaluation, confirmation Runs, and location quorum](0027-health-evaluation-confirmation-and-quorum.md)
 - [0028: Incident lifecycle and outbox event semantics](0028-incident-lifecycle-and-outbox-events.md)
+- [0029: Alert intent and Delivery Attempt semantics](0029-alert-intent-and-delivery-attempt-semantics.md), which clarifies ADR 0028
