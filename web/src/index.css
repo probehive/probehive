@@ -84,6 +84,10 @@ button:disabled {
   color: var(--text);
 }
 
+.button-danger {
+  background: var(--error);
+}
+
 .button-compact {
   margin: 0;
   padding: 0.35rem 0.65rem;
@@ -257,11 +261,13 @@ dd {
   overflow-wrap: anywhere;
 }
 
+.monitor-lifecycle-section,
 .monitor-rename-section,
 .monitor-interval-section {
   margin-top: 1.25rem;
 }
 
+.monitor-lifecycle-section h2,
 .monitor-rename-section h2,
 .monitor-interval-section h2 {
   font-size: 1rem;
@@ -653,6 +659,27 @@ dd {
   align-items: center;
   display: flex;
   gap: 0.5rem;
+}
+
+.lifecycle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.lifecycle-actions button {
+  margin-top: 0;
+}
+
+.lifecycle-confirmation {
+  border-inline-start: 3px solid var(--error);
+  margin-top: 1rem;
+  max-width: 42rem;
+  padding-inline-start: 1rem;
+}
+
+.lifecycle-confirmation p {
+  margin-top: 0;
 }
 
 .form-actions button {

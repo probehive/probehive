@@ -16,6 +16,7 @@ import { useTranslation } from '../i18n/context'
 import ChangeMonitorIntervalForm from './ChangeMonitorIntervalForm'
 import MonitorHealthSection from './MonitorHealthSection'
 import MonitorIncidentsSection from './MonitorIncidentsSection'
+import MonitorLifecycleControls from './MonitorLifecycleControls'
 import RenameMonitorForm from './RenameMonitorForm'
 import { monitorQueryKey } from './monitorQueries'
 
@@ -417,6 +418,7 @@ export default function MonitorPage() {
         <div><dt>{t('monitor.identifier')}</dt><dd><code>{monitor.data.id}</code></dd></div>
       </dl>
 
+      <MonitorLifecycleControls monitor={monitor.data} />
       <RenameMonitorForm monitor={monitor.data} />
       <ChangeMonitorIntervalForm monitor={monitor.data} />
 

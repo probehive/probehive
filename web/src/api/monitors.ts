@@ -3,6 +3,7 @@ import { getJson, postJson, putJson } from './http'
 export { ApiError } from './http'
 
 export type MonitorState = 'draft' | 'active' | 'paused' | 'archived'
+export type MonitorStateTarget = Exclude<MonitorState, 'draft'>
 
 export interface MonitorResponse {
   id: string
@@ -99,14 +100,23 @@ export async function createHTTPRevision(
   return (await response.json()) as MonitorRevisionResponse
 }
 
-export async function activateMonitor(
+export async function changeMonitorState(
+  organizationId: string,
+  projectId: string,
+  monitorId: string,
+  state: MonitorStateTarget,
+): Promise<MonitorResponse> {
+  const response = await putJson(
+    `${monitorPath(organizationId, projectId, monitorId)}/state`,
+    { state },
+  )
+  return (await response.json()) as MonitorResponse
+}
+
+export function activateMonitor(
   organizationId: string,
   projectId: string,
   monitorId: string,
 ): Promise<MonitorResponse> {
-  const response = await putJson(
-    `${monitorPath(organizationId, projectId, monitorId)}/state`,
-    { state: 'active' },
-  )
-  return (await response.json()) as MonitorResponse
+  return changeMonitorState(organizationId, projectId, monitorId, 'active')
 }

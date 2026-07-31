@@ -310,6 +310,28 @@ export const en = {
   'error.request.origin.rejected': 'The request came from an unexpected origin.',
   'error.request.malformed': 'The request could not be understood.',
   'error.server.internalError': 'Something went wrong. Try again.',
+  'error.monitor.state.activationWithoutRevision':
+    'A Monitor cannot be activated before it has a revision.',
+  'error.monitor.state.transitionNotAllowed':
+    'The Monitor cannot make that state transition.',
+  'monitor.lifecycle.heading': 'Lifecycle',
+  'monitor.lifecycle.activate': 'Activate',
+  'monitor.lifecycle.activating': 'Activating...',
+  'monitor.lifecycle.activated': 'Monitor activated.',
+  'monitor.lifecycle.pause': 'Pause',
+  'monitor.lifecycle.pausing': 'Pausing...',
+  'monitor.lifecycle.paused': 'Monitor paused.',
+  'monitor.lifecycle.archive': 'Archive',
+  'monitor.lifecycle.archiving': 'Archiving...',
+  'monitor.lifecycle.archived': 'Monitor archived.',
+  'monitor.lifecycle.failed': 'The Monitor state could not be changed.',
+  'monitor.lifecycle.activationBlocked': 'Add a revision before activating this Monitor.',
+  'monitor.lifecycle.archivedReadonly': 'This Monitor is archived and read-only.',
+  'monitor.lifecycle.archiveConfirmation': 'Archive Monitor',
+  'monitor.lifecycle.archiveWarning':
+    'Archive this Monitor? Archived Monitors are read-only and cannot be restored.',
+  'monitor.lifecycle.cancel': 'Cancel',
+  'monitor.lifecycle.confirmArchive': 'Archive Monitor',
 } as const
 
 export type MessageKey = keyof typeof en

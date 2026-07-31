@@ -63,9 +63,16 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await executionInterval.getByRole('button', { name: 'Update interval' }).click()
   await expect(executionInterval.getByText('Execution interval updated.')).toBeVisible()
   await expect(page.getByText('300 seconds', { exact: true })).toBeVisible()
+  const lifecycle = page.getByRole('region', { name: 'Lifecycle' })
+  await lifecycle.getByRole('button', { name: 'Pause', exact: true }).click()
+  await expect(lifecycle.getByText('Monitor paused.')).toBeVisible()
+  await expect(page.getByText('Paused', { exact: true })).toBeVisible()
+  await lifecycle.getByRole('button', { name: 'Activate', exact: true }).click()
+  await expect(lifecycle.getByText('Monitor activated.')).toBeVisible()
+  await expect(page.getByText('Active', { exact: true })).toBeVisible()
 
   // The detail and inventory use distinct query keys. Returning to the
-  // Organization proves both successful mutations refreshed both views.
+  // Organization proves successful mutations refreshed both views.
   await page.getByRole('link', { name: 'Back to Organization' }).click()
   const inventoryRow = page.getByRole('row', { name: /ProbeHive Readiness Active/ })
   await expect(inventoryRow).toBeVisible()
