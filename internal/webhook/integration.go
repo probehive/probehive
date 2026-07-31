@@ -15,10 +15,11 @@ import (
 )
 
 const (
-	MaxNameLength        = 100
-	MaxDestinationBytes  = 2048
-	signingSecretBytes   = 32
-	initialSecretVersion = int64(1)
+	MaxNameLength          = 100
+	MaxDestinationBytes    = 2048
+	MaxEnabledIntegrations = 5
+	signingSecretBytes     = 32
+	initialSecretVersion   = int64(1)
 )
 
 const (
@@ -26,6 +27,8 @@ const (
 	DestinationInvalidCode    = "webhook.destinationUrl.invalid"
 	NameConflictCode          = "webhook.name.conflict"
 	KeyringUnavailableCode    = "webhook.keyring.unavailable"
+	EnabledInvalidCode        = "webhook.enabled.invalid"
+	EnabledLimitCode          = "webhook.enabledLimit.exceeded"
 	VersionInvalidCode        = "webhook.version.invalid"
 	ConcurrentUpdateCode      = "webhook.version.conflict"
 	RotationInProgressCode    = "webhook.rotation.inProgress"
@@ -36,6 +39,7 @@ const (
 const (
 	NameValidationMessage        = "A Webhook Integration name is 1 to 100 characters after trimming."
 	DestinationValidationMessage = "A Webhook destination must be an absolute HTTPS URL without user information, a query string, or a fragment."
+	EnabledValidationMessage     = "The Webhook Integration enabled state must be true or false."
 	VersionValidationMessage     = "The Webhook Integration version must be a positive integer."
 )
 
@@ -43,6 +47,7 @@ var (
 	ErrNameConflict          = errors.New("Webhook Integration name already exists")
 	ErrIntegrationNotFound   = errors.New("Webhook Integration was not found")
 	ErrConcurrentUpdate      = errors.New("Webhook Integration changed concurrently")
+	ErrEnabledLimit          = errors.New("Webhook Integration enabled limit was reached")
 	ErrRotationInProgress    = errors.New("Webhook signing-secret rotation is already in progress")
 	ErrPendingSecretMissing  = errors.New("Webhook pending signing secret was not found")
 	ErrRetiringSecretMissing = errors.New("Webhook retiring signing secret was not found")
@@ -74,6 +79,7 @@ type Store interface {
 	Create(context.Context, Integration, StoredSecret) error
 	List(context.Context, string) ([]Integration, error)
 	Find(context.Context, string, string) (Integration, bool, error)
+	SetEnabled(context.Context, string, string, int64, bool, time.Time) (Integration, error)
 	PrepareSecret(context.Context, Integration, StoredSecret, int64) error
 	ActivateSecret(context.Context, string, string, int64, time.Time) (Integration, error)
 	RetireSecret(context.Context, string, string, int64, time.Time) (Integration, error)

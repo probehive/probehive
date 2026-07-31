@@ -19,7 +19,7 @@ type AlertStore struct{ pool *pgxpool.Pool }
 func (database *DB) Alerts() *AlertStore { return &AlertStore{pool: database.pool} }
 
 func (store *AlertStore) ProjectIncidentTransition(
-	ctx context.Context, event alert.IncidentTransitionedV1, value alert.Alert,
+	ctx context.Context, event alert.IncidentTransitionedV1, value alert.Alert, routeIDs alert.IDGenerator,
 ) error {
 	transaction, err := store.pool.Begin(ctx)
 	if err != nil {
@@ -68,7 +68,18 @@ WHERE i.id = $1
 		return alert.ErrPayloadInvalid
 	}
 
-	if _, err := transaction.Exec(ctx, `
+	var lockedOrganizationID string
+	if err := transaction.QueryRow(ctx, `
+SELECT id
+FROM organizations
+WHERE id=$1
+FOR UPDATE`, event.OrganizationID).Scan(&lockedOrganizationID); errors.Is(err, pgx.ErrNoRows) {
+		return alert.ErrPayloadInvalid
+	} else if err != nil {
+		return fmt.Errorf("lock Alert routing Organization: %w", err)
+	}
+
+	tag, err := transaction.Exec(ctx, `
 INSERT INTO alerts (
     id, organization_id, project_id, monitor_id, incident_id,
     incident_version, kind, occurred_at, created_at
@@ -76,8 +87,24 @@ INSERT INTO alerts (
 ON CONFLICT (organization_id, incident_id, incident_version) DO NOTHING`,
 		value.ID, value.OrganizationID, value.ProjectID, value.MonitorID,
 		value.IncidentID, value.IncidentVersion, string(value.Kind),
-		value.OccurredAt.UTC(), value.CreatedAt.UTC()); err != nil {
+		value.OccurredAt.UTC(), value.CreatedAt.UTC())
+	if err != nil {
 		return fmt.Errorf("insert Alert: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		processed, err := outboxEventProcessed(
+			ctx, transaction, event.EventID, event.OrganizationID,
+		)
+		if err != nil {
+			return err
+		}
+		if processed {
+			return nil
+		}
+		return errors.New("Alert source fact already projected without its outbox marker")
+	}
+	if err := routeWebhookDeliveries(ctx, transaction, value, routeIDs); err != nil {
+		return err
 	}
 	if err := markOutboxEventProcessed(
 		ctx, transaction, event.EventID, event.OrganizationID,

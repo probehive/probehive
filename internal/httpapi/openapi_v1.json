@@ -347,6 +347,39 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/state": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/WebhookIntegrationID" }
+      ],
+      "put": {
+        "tags": ["Integrations"],
+        "operationId": "changeWebhookIntegrationState",
+        "summary": "Enable or disable a signed Webhook Integration",
+        "description": "Requires integration.manage and antiforgery. Uses the current Integration version for optimistic concurrency. At most five Integrations may be enabled in one Organization. Newly projected Alerts receive a stable route for every Integration enabled at projection time; no network call or Delivery Attempt is created.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/WebhookIntegrationStateRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The Integration in the requested state. Repeating its current state with the current version does not advance the version.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WebhookIntegrationResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/prepare": {
       "parameters": [
         { "$ref": "#/components/parameters/OrganizationID" },
@@ -1566,7 +1599,7 @@
             "description": "Absolute HTTPS URL without user information, a query string, or a fragment; the server enforces a 2,048-byte limit.",
             "x-probehive-max-bytes": 2048
           },
-          "enabled": { "type": "boolean", "const": false, "description": "This slice creates disabled Integrations and performs no delivery." },
+          "enabled": { "type": "boolean", "description": "Whether future Alert projections create a stable Webhook route for this Integration." },
           "version": { "type": "integer", "format": "int64", "minimum": 1 },
           "activeSecretVersion": { "type": "integer", "format": "int64", "minimum": 1 },
           "createdAt": { "type": "string", "format": "date-time" },
@@ -1606,6 +1639,16 @@
         "x-probehive-property-name-comparison": "ascii-case-insensitive",
         "required": ["version"],
         "properties": {
+          "version": { "type": "integer", "format": "int64", "minimum": 1 }
+        }
+      },
+      "WebhookIntegrationStateRequest": {
+        "type": "object",
+        "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown. Version is the current Integration version and provides optimistic concurrency.",
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "required": ["enabled", "version"],
+        "properties": {
+          "enabled": { "type": "boolean" },
           "version": { "type": "integer", "format": "int64", "minimum": 1 }
         }
       },

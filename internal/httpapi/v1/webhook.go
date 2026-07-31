@@ -9,3 +9,8 @@ type PrepareWebhookSigningSecretResponse struct {
 type WebhookIntegrationVersionRequest struct {
 	Version Integer `json:"version"`
 }
+
+type WebhookIntegrationStateRequest struct {
+	Enabled *bool   `json:"enabled"`
+	Version Integer `json:"version"`
+}

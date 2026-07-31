@@ -77,7 +77,7 @@ type Page struct {
 }
 
 type Store interface {
-	ProjectIncidentTransition(context.Context, IncidentTransitionedV1, Alert) error
+	ProjectIncidentTransition(context.Context, IncidentTransitionedV1, Alert, IDGenerator) error
 	ListAlerts(context.Context, Scope, ListQuery) ([]Alert, bool, bool, error)
 }
 
@@ -125,7 +125,7 @@ func (service *Service) HandleIncidentTransition(
 		IncidentVersion: event.AggregateVersion, Kind: kind,
 		OccurredAt: event.OccurredAt.UTC(), CreatedAt: now,
 	}
-	return service.store.ProjectIncidentTransition(ctx, event, value)
+	return service.store.ProjectIncidentTransition(ctx, event, value, service.uuids)
 }
 
 func (service *Service) List(ctx context.Context, scope Scope, query ListQuery) (Page, bool, error) {

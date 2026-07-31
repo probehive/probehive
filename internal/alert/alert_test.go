@@ -15,7 +15,7 @@ type recordingStore struct {
 }
 
 func (store *recordingStore) ProjectIncidentTransition(
-	_ context.Context, event IncidentTransitionedV1, value Alert,
+	_ context.Context, event IncidentTransitionedV1, value Alert, _ IDGenerator,
 ) error {
 	store.event, store.value = event, value
 	store.calls++

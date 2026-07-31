@@ -151,6 +151,7 @@ func (server *Server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/v1/organizations", server.organizationsRoot)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}", server.organizationItem)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/webhook-integrations", server.webhookIntegrationsRoot)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/state", server.changeWebhookIntegrationState)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/prepare", server.prepareWebhookSigningSecret)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/activate", server.activateWebhookSigningSecret)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/retire", server.retireWebhookSigningSecret)

@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/probehive/probehive/internal/health"
 	"github.com/probehive/probehive/internal/incident"
 	"github.com/probehive/probehive/internal/run"
+	"github.com/probehive/probehive/internal/webhook"
 )
 
 func TestHealthConfirmationAndIncidentLifecycle(t *testing.T) {
@@ -18,6 +20,34 @@ func TestHealthConfirmationAndIncidentLifecycle(t *testing.T) {
 	monitorValue = appendTestRevision(
 		t, database, monitorValue, 1, "{\"url\":\"https://health.example.test\"}")
 	activateMonitor(t, database, &monitorValue)
+
+	webhookKeyring, err := webhook.NewKeyring([]webhook.WrappingKey{{
+		ID: "test", Key: bytes.Repeat([]byte{9}, 32),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	webhookService := webhook.NewService(
+		database.Webhooks(), fixedClock{value: testTime()},
+		&sequenceUUIDs{values: []string{testUUID(1249)}},
+		bytes.NewReader(sequenceBytes(64)), webhookKeyring,
+	)
+	createdWebhook, err := webhookService.Create(t.Context(), webhook.CreateCommand{
+		OrganizationID: string(organizationValue.ID),
+		Name:           "Incident receiver", DestinationURL: "https://hooks.example.test/events",
+	})
+	if err != nil || createdWebhook.Kind != webhook.CreateCreated {
+		t.Fatalf("Create(Webhook) = %#v, %v", createdWebhook, err)
+	}
+	enabled := true
+	enabledWebhook, err := webhookService.SetEnabled(t.Context(), webhook.StateCommand{
+		OrganizationID:  string(organizationValue.ID),
+		IntegrationID:   createdWebhook.Integration.ID,
+		ExpectedVersion: 1, Enabled: &enabled,
+	})
+	if err != nil || enabledWebhook.Kind != webhook.StateUpdated {
+		t.Fatalf("SetEnabled(Webhook) = %#v, %v", enabledWebhook, err)
+	}
 
 	base := testTime().Add(time.Hour)
 	if _, err := database.Runs().EnsurePartitions(
@@ -123,7 +153,7 @@ func TestHealthConfirmationAndIncidentLifecycle(t *testing.T) {
 
 	alertService := alert.NewService(
 		database.Alerts(), fixedClock{base.Add(9 * time.Second)},
-		&sequenceUUIDs{values: []string{testUUID(1242)}},
+		&sequenceUUIDs{values: []string{testUUID(1242), testUUID(1250)}},
 	)
 	if err := alertService.HandleIncidentTransition(
 		t.Context(), openedAlertEventID, string(organizationValue.ID),
@@ -152,6 +182,37 @@ func TestHealthConfirmationAndIncidentLifecycle(t *testing.T) {
 		t.Fatalf("opened Alert page = %#v, found %v, error %v", alertPage, found, err)
 	}
 
+	var deliveryID, routedAlertID, routedIntegrationID string
+	var integrationVersion, secretVersion int64
+	var routedAt time.Time
+	if err := database.pool.QueryRow(t.Context(), `
+SELECT id, alert_id, integration_id, integration_version, secret_version, routed_at
+FROM webhook_deliveries
+WHERE organization_id=$1`, string(organizationValue.ID)).Scan(
+		&deliveryID, &routedAlertID, &routedIntegrationID,
+		&integrationVersion, &secretVersion, &routedAt,
+	); err != nil {
+		t.Fatalf("load opened Alert Webhook route: %v", err)
+	}
+	if deliveryID != testUUID(1250) || routedAlertID != testUUID(1242) ||
+		routedIntegrationID != createdWebhook.Integration.ID ||
+		integrationVersion != 2 || secretVersion != 1 ||
+		!routedAt.Equal(base.Add(9*time.Second)) {
+		t.Fatalf(
+			"Webhook route = %s/%s/%s/%d/%d/%v",
+			deliveryID, routedAlertID, routedIntegrationID,
+			integrationVersion, secretVersion, routedAt,
+		)
+	}
+	disabled := false
+	disabledWebhook, err := webhookService.SetEnabled(t.Context(), webhook.StateCommand{
+		OrganizationID:  string(organizationValue.ID),
+		IntegrationID:   createdWebhook.Integration.ID,
+		ExpectedVersion: 2, Enabled: &disabled,
+	})
+	if err != nil || disabledWebhook.Kind != webhook.StateUpdated {
+		t.Fatalf("SetEnabled(Webhook false) = %#v, %v", disabledWebhook, err)
+	}
 	actorID := seedAdministrator(t, database)
 	acknowledged, found, err := incidentStore.AcknowledgeIncident(
 		t.Context(), incidentScope, incidentID, actorID, testUUID(1222), base.Add(9*time.Second))
@@ -254,6 +315,15 @@ func TestHealthConfirmationAndIncidentLifecycle(t *testing.T) {
 		alertPage.Alerts[0].Kind != alert.KindIncidentResolved ||
 		alertPage.Alerts[1].Kind != alert.KindIncidentOpened {
 		t.Fatalf("resolved Alert page = %#v, found %v, error %v", alertPage, found, err)
+	}
+	var deliveryCount int
+	if err := database.pool.QueryRow(t.Context(), `
+SELECT count(*) FROM webhook_deliveries WHERE organization_id=$1`,
+		string(organizationValue.ID)).Scan(&deliveryCount); err != nil {
+		t.Fatalf("count Webhook routes: %v", err)
+	}
+	if deliveryCount != 1 {
+		t.Fatalf("Webhook route count after disabled resolved Alert = %d", deliveryCount)
 	}
 }
 

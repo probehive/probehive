@@ -144,6 +144,7 @@ Request shapes are:
 | `LoginRequest` | `email`, `password` (nullable strings at decoding boundary) |
 | `CreateOrganizationRequest` | `slug`, `displayName` (nullable strings at decoding boundary; required by validation) |
 | `CreateWebhookIntegrationRequest` | `name`, `destinationUrl` (nullable strings at decoding boundary; required by validation) |
+| `WebhookIntegrationStateRequest` | `enabled: boolean`, `version: positive integer` for optimistic concurrency |
 | `WebhookIntegrationVersionRequest` | `version: positive integer`, the current Integration version for optimistic concurrency |
 | `CreateMonitorRequest` | `name`, `checkType` strings |
 | `RenameOrganizationRequest` | `displayName` (nullable string at decoding boundary; required by validation) |
@@ -179,6 +180,7 @@ antiforgery and origin rules in section 5 also apply.
 | `PUT /api/v1/organizations/{organizationId}/name` | `organization.write`, unsafe | `200 OrganizationResponse` with the new display name and an unchanged slug | `400`, `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/webhook-integrations` | `integration.manage` | `200 WebhookIntegrationResponse[]` in creation order; never returns signing-secret material | `404`, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/webhook-integrations` | `integration.manage`, unsafe | `201 CreateWebhookIntegrationResponse`; creates a disabled Integration and returns its signing secret once | `400`, `404`, `409`, `503` without an operator keyring, `401`, `403` |
+| `PUT /api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/state` | `integration.manage`, unsafe | `200 WebhookIntegrationResponse`; enables or disables future Alert routing, with no version bump for an already-current desired state | `400`, `404`, `409` for stale version or the five-enabled limit, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/prepare` | `integration.manage`, unsafe | `201 PrepareWebhookSigningSecretResponse`; keeps the current secret active and returns the pending secret once | `400`, `404`, `409`, `503` without an operator keyring, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/activate` | `integration.manage`, unsafe | `200 WebhookIntegrationResponse`; activates the pending secret and marks the former active secret retiring | `400`, `404`, `409`, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/retire` | `integration.manage`, unsafe | `200 WebhookIntegrationResponse`; clears the retiring secret's ciphertext and retains audit metadata | `400`, `404`, `409`, `401`, `403` |
@@ -431,6 +433,20 @@ order. Both `GET` and `POST` require `integration.manage`, so a Viewer receives 
 non-member receives the ordinary hidden-scope `404`. The destination URL is deliberately
 visible to Administrators through this configuration endpoint.
 
+State changes use `PUT .../{integrationId}/state` with required `enabled` and current
+positive `version` fields. A stale version returns `409 webhook.version.conflict`.
+Repeating the current state with the current version is idempotent and does not increment
+the version. An Organization may have at most five enabled Integrations; enabling a sixth
+returns `409 webhook.enabledLimit.exceeded`. State changes are serialized per Organization
+so concurrent enables cannot exceed the limit.
+
+Projecting a new `incident.opened` or `incident.resolved` Alert creates one immutable
+`webhook_deliveries` route for every Integration enabled at that instant, in the same
+transaction as the Alert and processed-outbox marker. The route has a stable UUIDv7 delivery
+id and snapshots the Integration version and active secret version. Enabling does not
+backfill older Alerts, and disabling does not remove existing routes. A route is not a
+Delivery Attempt and makes no sent or delivered claim.
+
 The operator keyring is required for creation and rotation preparation. Without it, an
 otherwise valid request returns `503` with `webhook.keyring.unavailable`. At process
 startup every non-retired secret must authenticate using a retained wrapping key; old-key
@@ -456,8 +472,8 @@ retirement time, and retains the bounded Organization, Integration, secret-versi
 creation/activation audit metadata. Without a retiring secret it returns
 `409 webhook.rotation.retiringMissing`.
 
-Enablement, Alert routing, network delivery, Delivery Attempts, and delivery audit reads
-remain unimplemented (ADR 0030).
+Network delivery, Delivery Attempts, retry scheduling, and delivery audit reads remain
+unimplemented (ADR 0030).
 
 ## 7. Monitor and Revision Semantics
 
@@ -931,6 +947,7 @@ Webhook Integrations:
 ```text
 webhook.name.invalid  webhook.destinationUrl.invalid  webhook.name.conflict
 webhook.keyring.unavailable
+webhook.enabled.invalid  webhook.enabledLimit.exceeded
 webhook.version.invalid  webhook.version.conflict  webhook.rotation.inProgress
 webhook.rotation.pendingMissing  webhook.rotation.retiringMissing
 ```

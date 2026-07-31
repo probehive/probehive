@@ -41,6 +41,7 @@ func TestOpenAPIDocumentDescribesEveryRoute(t *testing.T) {
 		"/api/v1/organizations/{organizationId}":      {"get"},
 		"/api/v1/organizations/{organizationId}/name": {"put"},
 		"/api/v1/organizations/{organizationId}/webhook-integrations":                                                         {"get", "post"},
+		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/state":                                   {"put"},
 		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/prepare":                 {"post"},
 		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/activate":                {"post"},
 		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/retire":                  {"post"},
@@ -149,7 +150,7 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 		"MonitorHealthResponse", "HealthCountsResponse", "IncidentPageResponse", "IncidentResponse", "IncidentTimelineResponse",
 		"AlertPageResponse", "AlertResponse",
 		"WebhookIntegrationResponse", "CreateWebhookIntegrationResponse", "CreateWebhookIntegrationRequest",
-		"PrepareWebhookSigningSecretResponse", "WebhookIntegrationVersionRequest",
+		"PrepareWebhookSigningSecretResponse", "WebhookIntegrationVersionRequest", "WebhookIntegrationStateRequest",
 		"ObservationPhasesResponse", "HTTPObservationResponse", "TLSObservationResponse",
 	} {
 		if _, found := document.Components.Schemas[name]; !found {
@@ -160,7 +161,7 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 	requestSchemas := []string{
 		"CreateFirstAdministratorRequest", "LoginRequest", "CreateOrganizationRequest",
 		"CreateWebhookIntegrationRequest",
-		"WebhookIntegrationVersionRequest",
+		"WebhookIntegrationVersionRequest", "WebhookIntegrationStateRequest",
 		"CreateMonitorRequest", "RenameMonitorRequest", "ChangeMonitorStateRequest",
 		"CreateMonitorRevisionRequest",
 	}
@@ -190,6 +191,12 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 	rotationVersion := rotationRequest.Properties["version"]
 	if rotationVersion.Format != "int64" || rotationVersion.Minimum != 1 {
 		t.Errorf("Webhook rotation version schema = %#v", rotationVersion)
+	}
+	stateRequest := document.Components.Schemas["WebhookIntegrationStateRequest"]
+	stateVersion := stateRequest.Properties["version"]
+	if _, found := stateRequest.Properties["enabled"]; !found ||
+		stateVersion.Format != "int64" || stateVersion.Minimum != 1 {
+		t.Errorf("Webhook state request schema = %#v", stateRequest)
 	}
 	preparedWebhook := document.Components.Schemas["PrepareWebhookSigningSecretResponse"]
 	if signature := preparedWebhook.Properties["signingSecret"]; signature.Pattern != "^phwh_[A-Za-z0-9_-]{43}$" {

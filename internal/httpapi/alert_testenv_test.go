@@ -16,7 +16,7 @@ type memoryAlertStore struct {
 }
 
 func (store *memoryAlertStore) ProjectIncidentTransition(
-	context.Context, alert.IncidentTransitionedV1, alert.Alert,
+	context.Context, alert.IncidentTransitionedV1, alert.Alert, alert.IDGenerator,
 ) error {
 	return nil
 }
