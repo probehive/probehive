@@ -332,6 +332,22 @@ export const en = {
     'Archive this Monitor? Archived Monitors are read-only and cannot be restored.',
   'monitor.lifecycle.cancel': 'Cancel',
   'monitor.lifecycle.confirmArchive': 'Archive Monitor',
+
+  'alert.heading': 'Alert intents',
+  'alert.scope': 'Incident opening and confirmed recovery intents. Delivery state is not recorded here.',
+  'alert.loading': 'Loading Alert intents...',
+  'alert.loadFailed': 'The Alert intents could not be loaded.',
+  'alert.empty': 'No Alert intents have been recorded.',
+  'alert.loadMore': 'Load more',
+  'alert.loadingMore': 'Loading...',
+  'alert.kind': 'Intent',
+  'alert.kind.incident.opened': 'Incident opened',
+  'alert.kind.incident.resolved': 'Incident resolved',
+  'alert.occurred': 'Source occurred',
+  'alert.recorded': 'Recorded',
+  'alert.incidentVersion': 'Incident version',
+  'alert.actions': 'Actions',
+  'alert.view': 'View source Incident',
 } as const
 
 export type MessageKey = keyof typeof en

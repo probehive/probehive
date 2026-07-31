@@ -14,6 +14,7 @@ import {
 } from '../api/runs'
 import { useTranslation } from '../i18n/context'
 import ChangeMonitorIntervalForm from './ChangeMonitorIntervalForm'
+import MonitorAlertsSection from './MonitorAlertsSection'
 import MonitorHealthSection from './MonitorHealthSection'
 import MonitorIncidentsSection from './MonitorIncidentsSection'
 import MonitorLifecycleControls from './MonitorLifecycleControls'
@@ -433,6 +434,12 @@ export default function MonitorPage() {
         projectId={projectId}
         monitorId={monitorId}
         incidentId={incidentId}
+      />
+
+      <MonitorAlertsSection
+        organizationId={organizationId}
+        projectId={projectId}
+        monitorId={monitorId}
       />
 
       <section className="runs-section" aria-labelledby="runs-heading">

@@ -139,10 +139,20 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
     const body = await response.json() as { items: unknown[] }
     return body.items.length
   }, failingMonitor), { timeout: 60_000 }).toBe(1)
+  await expect.poll(async () => page.evaluate(async (scope) => {
+    const response = await fetch(
+      `/api/v1/organizations/${scope.organizationId}/projects/${scope.projectId}` +
+      `/monitors/${scope.id}/alerts?pageSize=1`,
+    )
+    const body = await response.json() as { items: unknown[] }
+    return body.items.length
+  }, failingMonitor), { timeout: 60_000 }).toBe(1)
 
   await page.getByRole('link', { name: 'Unavailable Service' }).click()
-  const openIncidentRow = page.getByRole('row').filter({ hasText: 'Open' })
-  await openIncidentRow.getByRole('link', { name: 'View Incident evidence' }).click()
+  const alertIntents = page.getByRole('region', { name: 'Alert intents' })
+  const openedAlertRow = alertIntents.getByRole('row').filter({ hasText: 'Incident opened' })
+  await expect(openedAlertRow).toBeVisible()
+  await openedAlertRow.getByRole('link', { name: 'View source Incident' }).click()
   const incidentDetail = page.getByRole('region', { name: 'Incident evidence' })
   await incidentDetail.getByRole('button', { name: 'Acknowledge Incident' }).click()
   await expect(incidentDetail.getByText('Incident acknowledged.')).toBeVisible()

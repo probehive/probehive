@@ -16,6 +16,8 @@ npm run build   # static production assets in dist/
 
 Production deployments serve the built static assets behind a same-origin gateway together with the API (ADR 0010); there is no Node.js production runtime.
 
+Monitor detail pages expose immutable Alert intents as read-only Incident-derived audit history. The view links each intent to its source Incident and deliberately presents no sent or delivered state because external delivery is not implemented.
+
 ## Localization
 
 English is the source language and `src/i18n/en.ts` is the source catalog. Other locales are typed against it, so a key missing from a locale is a compile error. Adding a locale means adding a catalog and registering it in `src/i18n/locale.ts`; no component changes are needed.

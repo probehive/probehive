@@ -20,6 +20,7 @@ const monitorURL =
 const runsURL = `${monitorURL}/runs`
 const healthURL = `${monitorURL}/health`
 const incidentsURL = `${monitorURL}/incidents`
+const alertsURL = `${monitorURL}/alerts`
 const monitorRoute =
   `/organizations/${organizationId}/projects/${projectId}/monitors/${monitorId}`
 
@@ -163,7 +164,7 @@ test('lists recent Runs and follows the opaque keyset cursor', async () => {
     if (url === healthURL) {
       return Promise.resolve(jsonResponse(200, health))
     }
-    if (url.startsWith(`${incidentsURL}?`)) {
+    if (url.startsWith(`${incidentsURL}?`) || url.startsWith(`${alertsURL}?`)) {
       return Promise.resolve(jsonResponse(200, { items: [], nextCursor: null }))
     }
     if (url.startsWith(`${runsURL}?`)) {
@@ -179,6 +180,7 @@ test('lists recent Runs and follows the opaque keyset cursor', async () => {
   renderPage()
 
   expect(await screen.findByRole('heading', { name: 'Homepage' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: en['alert.heading'] })).toBeInTheDocument()
   expect(await screen.findByRole('row', { name: /Passed/ })).toBeInTheDocument()
 
   const user = userEvent.setup()
@@ -203,7 +205,7 @@ test('loads one Run and its bounded HTTP Observation from the detail endpoints',
     if (url === healthURL) {
       return Promise.resolve(jsonResponse(200, health))
     }
-    if (url.startsWith(`${incidentsURL}?`)) {
+    if (url.startsWith(`${incidentsURL}?`) || url.startsWith(`${alertsURL}?`)) {
       return Promise.resolve(jsonResponse(200, { items: [], nextCursor: null }))
     }
     if (url.startsWith(`${runsURL}?`)) {
@@ -238,7 +240,7 @@ test('does not request an Observation for a skipped Run', async () => {
     if (url === healthURL) {
       return Promise.resolve(jsonResponse(200, health))
     }
-    if (url.startsWith(`${incidentsURL}?`)) {
+    if (url.startsWith(`${incidentsURL}?`) || url.startsWith(`${alertsURL}?`)) {
       return Promise.resolve(jsonResponse(200, { items: [], nextCursor: null }))
     }
     if (url.startsWith(`${runsURL}?`)) {
@@ -266,7 +268,7 @@ test('distinguishes an expired execution lease from an in-progress Run', async (
     if (url === healthURL) {
       return Promise.resolve(jsonResponse(200, health))
     }
-    if (url.startsWith(`${incidentsURL}?`)) {
+    if (url.startsWith(`${incidentsURL}?`) || url.startsWith(`${alertsURL}?`)) {
       return Promise.resolve(jsonResponse(200, { items: [], nextCursor: null }))
     }
     if (url.startsWith(`${runsURL}?`)) {
@@ -293,7 +295,7 @@ test('renders evaluated health, quorum counts, and confirmation causality', asyn
     if (url === healthURL) {
       return Promise.resolve(jsonResponse(200, health))
     }
-    if (url.startsWith(`${incidentsURL}?`)) {
+    if (url.startsWith(`${incidentsURL}?`) || url.startsWith(`${alertsURL}?`)) {
       return Promise.resolve(jsonResponse(200, { items: [], nextCursor: null }))
     }
     if (url.startsWith(`${runsURL}?`)) {
@@ -336,7 +338,7 @@ test('treats a missing health projection as not evaluated instead of Unknown', a
     if (url === healthURL) {
       return Promise.resolve(jsonResponse(404, { status: 404 }))
     }
-    if (url.startsWith(`${incidentsURL}?`)) {
+    if (url.startsWith(`${incidentsURL}?`) || url.startsWith(`${alertsURL}?`)) {
       return Promise.resolve(jsonResponse(200, { items: [], nextCursor: null }))
     }
     if (url.startsWith(`${runsURL}?`)) {
