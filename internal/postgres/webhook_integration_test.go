@@ -19,7 +19,7 @@ func TestWebhookIntegrationPersistsCiphertextAndRewrapsKeys(t *testing.T) {
 	now := testTime()
 	service := webhook.NewService(
 		database.Webhooks(), fixedClock{value: now},
-		&sequenceUUIDs{values: []string{testUUID(1501)}},
+		&sequenceUUIDs{values: []string{testUUID(1501), testUUID(1502)}},
 		bytes.NewReader(sequenceBytes(128)), oldRing,
 	)
 	result, err := service.Create(t.Context(), webhook.CreateCommand{
@@ -52,7 +52,7 @@ WHERE organization_id=$1 AND integration_id=$2 AND secret_version=1`,
 	}
 	conflict, err := service.Create(t.Context(), webhook.CreateCommand{
 		OrganizationID: string(organizationValue.ID),
-		Name:           "primary receiver",
+		Name:           "Primary receiver",
 		DestinationURL: "https://other.example.test/events",
 	})
 	if err != nil || conflict.Kind != webhook.CreateConflict {

@@ -3,7 +3,6 @@ package webhook
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -23,20 +22,31 @@ const (
 )
 
 const (
-	NameInvalidCode        = "webhook.name.invalid"
-	DestinationInvalidCode = "webhook.destinationUrl.invalid"
-	NameConflictCode       = "webhook.name.conflict"
-	KeyringUnavailableCode = "webhook.keyring.unavailable"
+	NameInvalidCode           = "webhook.name.invalid"
+	DestinationInvalidCode    = "webhook.destinationUrl.invalid"
+	NameConflictCode          = "webhook.name.conflict"
+	KeyringUnavailableCode    = "webhook.keyring.unavailable"
+	VersionInvalidCode        = "webhook.version.invalid"
+	ConcurrentUpdateCode      = "webhook.version.conflict"
+	RotationInProgressCode    = "webhook.rotation.inProgress"
+	PendingSecretMissingCode  = "webhook.rotation.pendingMissing"
+	RetiringSecretMissingCode = "webhook.rotation.retiringMissing"
 )
 
 const (
 	NameValidationMessage        = "A Webhook Integration name is 1 to 100 characters after trimming."
 	DestinationValidationMessage = "A Webhook destination must be an absolute HTTPS URL without user information, a query string, or a fragment."
+	VersionValidationMessage     = "The Webhook Integration version must be a positive integer."
 )
 
 var (
-	ErrNameConflict  = errors.New("Webhook Integration name already exists")
-	ErrSecretChanged = errors.New("Webhook signing secret changed concurrently")
+	ErrNameConflict          = errors.New("Webhook Integration name already exists")
+	ErrIntegrationNotFound   = errors.New("Webhook Integration was not found")
+	ErrConcurrentUpdate      = errors.New("Webhook Integration changed concurrently")
+	ErrRotationInProgress    = errors.New("Webhook signing-secret rotation is already in progress")
+	ErrPendingSecretMissing  = errors.New("Webhook pending signing secret was not found")
+	ErrRetiringSecretMissing = errors.New("Webhook retiring signing secret was not found")
+	ErrSecretChanged         = errors.New("Webhook signing secret changed concurrently")
 )
 
 type Integration struct {
@@ -63,6 +73,10 @@ type StoredSecret struct {
 type Store interface {
 	Create(context.Context, Integration, StoredSecret) error
 	List(context.Context, string) ([]Integration, error)
+	Find(context.Context, string, string) (Integration, bool, error)
+	PrepareSecret(context.Context, Integration, StoredSecret, int64) error
+	ActivateSecret(context.Context, string, string, int64, time.Time) (Integration, error)
+	RetireSecret(context.Context, string, string, int64, time.Time) (Integration, error)
 	ListRetainedSecrets(context.Context) ([]StoredSecret, error)
 	ReplaceEnvelope(context.Context, StoredSecret, Envelope) error
 }
@@ -187,20 +201,9 @@ func (service *Service) Create(ctx context.Context, command CreateCommand) (Crea
 		return CreateResult{}, err
 	}
 
-	randomSecret := make([]byte, signingSecretBytes)
-	if _, err := io.ReadFull(service.random, randomSecret); err != nil {
-		return CreateResult{}, fmt.Errorf("generate Webhook signing secret: %w", err)
-	}
-	signingSecret := "phwh_" + base64.RawURLEncoding.EncodeToString(randomSecret)
-	clear(randomSecret)
-	associatedData := secretAssociatedData(value.OrganizationID, value.ID, initialSecretVersion)
-	envelope, err := service.keyring.Seal([]byte(signingSecret), associatedData, service.random)
+	stored, signingSecret, err := service.newStoredSecret(value, initialSecretVersion, "active", now)
 	if err != nil {
 		return CreateResult{}, err
-	}
-	stored := StoredSecret{
-		OrganizationID: value.OrganizationID, IntegrationID: value.ID,
-		Version: initialSecretVersion, State: "active", Envelope: envelope, CreatedAt: now,
 	}
 	if err := service.store.Create(ctx, value, stored); err != nil {
 		if errors.Is(err, ErrNameConflict) {

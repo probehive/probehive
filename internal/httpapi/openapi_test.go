@@ -41,6 +41,9 @@ func TestOpenAPIDocumentDescribesEveryRoute(t *testing.T) {
 		"/api/v1/organizations/{organizationId}":      {"get"},
 		"/api/v1/organizations/{organizationId}/name": {"put"},
 		"/api/v1/organizations/{organizationId}/webhook-integrations":                                                         {"get", "post"},
+		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/prepare":                 {"post"},
+		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/activate":                {"post"},
+		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/retire":                  {"post"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors":                                                {"get", "post"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}":                                    {"get"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/name":                               {"put"},
@@ -146,6 +149,7 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 		"MonitorHealthResponse", "HealthCountsResponse", "IncidentPageResponse", "IncidentResponse", "IncidentTimelineResponse",
 		"AlertPageResponse", "AlertResponse",
 		"WebhookIntegrationResponse", "CreateWebhookIntegrationResponse", "CreateWebhookIntegrationRequest",
+		"PrepareWebhookSigningSecretResponse", "WebhookIntegrationVersionRequest",
 		"ObservationPhasesResponse", "HTTPObservationResponse", "TLSObservationResponse",
 	} {
 		if _, found := document.Components.Schemas[name]; !found {
@@ -156,6 +160,7 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 	requestSchemas := []string{
 		"CreateFirstAdministratorRequest", "LoginRequest", "CreateOrganizationRequest",
 		"CreateWebhookIntegrationRequest",
+		"WebhookIntegrationVersionRequest",
 		"CreateMonitorRequest", "RenameMonitorRequest", "ChangeMonitorStateRequest",
 		"CreateMonitorRevisionRequest",
 	}
@@ -179,6 +184,16 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 	createdWebhook := document.Components.Schemas["CreateWebhookIntegrationResponse"]
 	if signature := createdWebhook.Properties["signingSecret"]; signature.Pattern != "^phwh_[A-Za-z0-9_-]{43}$" {
 		t.Errorf("Webhook one-time secret schema = %#v", signature)
+	}
+
+	rotationRequest := document.Components.Schemas["WebhookIntegrationVersionRequest"]
+	rotationVersion := rotationRequest.Properties["version"]
+	if rotationVersion.Format != "int64" || rotationVersion.Minimum != 1 {
+		t.Errorf("Webhook rotation version schema = %#v", rotationVersion)
+	}
+	preparedWebhook := document.Components.Schemas["PrepareWebhookSigningSecretResponse"]
+	if signature := preparedWebhook.Properties["signingSecret"]; signature.Pattern != "^phwh_[A-Za-z0-9_-]{43}$" {
+		t.Errorf("Webhook prepared one-time secret schema = %#v", signature)
 	}
 
 	httpConfiguration := document.Components.Schemas["HTTPCheckConfigurationV1"]

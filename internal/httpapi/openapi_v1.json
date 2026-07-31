@@ -347,6 +347,112 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/prepare": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/WebhookIntegrationID" }
+      ],
+      "post": {
+        "tags": ["Integrations"],
+        "operationId": "prepareWebhookSigningSecret",
+        "summary": "Prepare a new Webhook signing secret",
+        "description": "Requires integration.manage and antiforgery. Starts a two-phase rotation, keeps the current secret active, and returns the pending secret exactly once. No second rotation may begin until the pending secret is activated and the former secret is retired.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/WebhookIntegrationVersionRequest" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The advanced Integration and its one-time pending signing secret.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Prevents storage of the one-time signing secret response.",
+                "schema": { "type": "string", "const": "no-store" }
+              }
+            },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PrepareWebhookSigningSecretResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/activate": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/WebhookIntegrationID" }
+      ],
+      "post": {
+        "tags": ["Integrations"],
+        "operationId": "activateWebhookSigningSecret",
+        "summary": "Activate the prepared Webhook signing secret",
+        "description": "Requires integration.manage and antiforgery. Makes the single pending secret active for future calls and leaves the former active secret retiring.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/WebhookIntegrationVersionRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The Integration with its new active secret version.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WebhookIntegrationResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/retire": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/WebhookIntegrationID" }
+      ],
+      "post": {
+        "tags": ["Integrations"],
+        "operationId": "retireWebhookSigningSecret",
+        "summary": "Retire the former Webhook signing secret",
+        "description": "Requires integration.manage and antiforgery. Removes ciphertext for the single retiring secret while retaining bounded version and timestamp audit metadata.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/WebhookIntegrationVersionRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The Integration after the former secret is retired.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WebhookIntegrationResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors": {
       "parameters": [
         { "$ref": "#/components/parameters/OrganizationID" },
@@ -856,6 +962,12 @@
     "parameters": {
       "OrganizationID": {
         "name": "organizationId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "WebhookIntegrationID": {
+        "name": "integrationId",
         "in": "path",
         "required": true,
         "schema": { "type": "string", "format": "uuid" }
@@ -1472,6 +1584,29 @@
             "pattern": "^phwh_[A-Za-z0-9_-]{43}$",
             "description": "Returned exactly once. The complete encoded value is the future HMAC key."
           }
+        }
+      },
+      "PrepareWebhookSigningSecretResponse": {
+        "type": "object",
+        "required": ["integration", "secretVersion", "signingSecret"],
+        "properties": {
+          "integration": { "$ref": "#/components/schemas/WebhookIntegrationResponse" },
+          "secretVersion": { "type": "integer", "format": "int64", "minimum": 2 },
+          "signingSecret": {
+            "type": "string",
+            "writeOnly": true,
+            "pattern": "^phwh_[A-Za-z0-9_-]{43}$",
+            "description": "Returned exactly once for the pending secret version."
+          }
+        }
+      },
+      "WebhookIntegrationVersionRequest": {
+        "type": "object",
+        "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown. Version is the current Integration version and provides optimistic concurrency.",
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "required": ["version"],
+        "properties": {
+          "version": { "type": "integer", "format": "int64", "minimum": 1 }
         }
       },
       "CreateWebhookIntegrationRequest": {
