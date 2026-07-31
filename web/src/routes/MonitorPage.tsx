@@ -13,6 +13,7 @@ import {
   type RunResponse,
 } from '../api/runs'
 import { useTranslation } from '../i18n/context'
+import ChangeMonitorIntervalForm from './ChangeMonitorIntervalForm'
 import MonitorHealthSection from './MonitorHealthSection'
 import MonitorIncidentsSection from './MonitorIncidentsSection'
 import RenameMonitorForm from './RenameMonitorForm'
@@ -417,6 +418,7 @@ export default function MonitorPage() {
       </dl>
 
       <RenameMonitorForm monitor={monitor.data} />
+      <ChangeMonitorIntervalForm monitor={monitor.data} />
 
       <MonitorHealthSection
         organizationId={organizationId}

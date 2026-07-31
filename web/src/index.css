@@ -257,11 +257,13 @@ dd {
   overflow-wrap: anywhere;
 }
 
-.monitor-rename-section {
+.monitor-rename-section,
+.monitor-interval-section {
   margin-top: 1.25rem;
 }
 
-.monitor-rename-section h2 {
+.monitor-rename-section h2,
+.monitor-interval-section h2 {
   font-size: 1rem;
   margin: 0 0 0.75rem;
 }

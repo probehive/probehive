@@ -56,6 +56,19 @@ export async function renameMonitor(
   return (await response.json()) as MonitorResponse
 }
 
+export async function changeMonitorInterval(
+  organizationId: string,
+  projectId: string,
+  monitorId: string,
+  intervalSeconds: number,
+): Promise<MonitorResponse> {
+  const response = await putJson(
+    `${monitorPath(organizationId, projectId, monitorId)}/interval`,
+    { intervalSeconds },
+  )
+  return (await response.json()) as MonitorResponse
+}
+
 export async function createHTTPMonitor(
   organizationId: string,
   projectId: string,

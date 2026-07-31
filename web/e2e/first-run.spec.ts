@@ -58,11 +58,18 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await renameMonitor.getByRole('button', { name: 'Rename', exact: true }).click()
   await expect(renameMonitor.getByText('Monitor renamed.')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'ProbeHive Readiness' })).toBeVisible()
+  const executionInterval = page.getByRole('region', { name: 'Execution interval' })
+  await executionInterval.getByLabel('Interval (seconds)').fill('300')
+  await executionInterval.getByRole('button', { name: 'Update interval' }).click()
+  await expect(executionInterval.getByText('Execution interval updated.')).toBeVisible()
+  await expect(page.getByText('300 seconds', { exact: true })).toBeVisible()
 
   // The detail and inventory use distinct query keys. Returning to the
-  // Organization proves the successful mutation refreshed both views.
+  // Organization proves both successful mutations refreshed both views.
   await page.getByRole('link', { name: 'Back to Organization' }).click()
-  await expect(page.getByRole('row', { name: /ProbeHive Readiness Active/ })).toBeVisible()
+  const inventoryRow = page.getByRole('row', { name: /ProbeHive Readiness Active/ })
+  await expect(inventoryRow).toBeVisible()
+  await expect(inventoryRow.getByText('300 seconds')).toBeVisible()
 
   // Seed one deterministic completed Run through the existing API, then exercise
   // the new read-only Monitor -> Run -> Observation browser path.
