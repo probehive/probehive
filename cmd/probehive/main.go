@@ -154,7 +154,7 @@ func serve(logger *slog.Logger) error {
 	stopContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// The embedded worker shares this process (ADR 0020) and can be switched off so an
+	// The embedded worker shares this process and can be switched off so an
 	// operator can run an API-only replica. Its goroutines stop on the same signal the HTTP
 	// server does, and serve() waits for them before returning.
 	var workers sync.WaitGroup

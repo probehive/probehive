@@ -1,7 +1,7 @@
--- Run, Observation, and outbox storage (ADR 0021, amended by ADR 0025).
+-- Run, Observation, and outbox storage.
 --
--- Both high-volume tables are range-partitioned by month on scheduled_for. ADR 0021 named
--- started_at; ADR 0025 amended it because PostgreSQL requires a unique constraint on a
+-- Both high-volume tables are range-partitioned by month on scheduled_for rather than
+-- started_at because PostgreSQL requires a unique constraint on a
 -- partitioned table to include every partition-key column, which made the idempotent run
 -- identity below impossible, and because a skipped Run never started and so has no
 -- started_at to partition on.
@@ -25,10 +25,10 @@ CREATE TABLE runs (
     lease_expires_at timestamp with time zone,
     created_at timestamp with time zone NOT NULL,
     -- The primary key includes the partition key because PostgreSQL requires it. Identity
-    -- for scheduling purposes is the slot index below, not this key (ADR 0021).
+    -- for scheduling purposes is the slot index below, not this key.
     CONSTRAINT pk_runs PRIMARY KEY (id, scheduled_for),
     -- The composite reference is how tenant identity is enforced rather than trusted: a Run
-    -- cannot name a Monitor belonging to another Organization (ADR 0009).
+    -- cannot name a Monitor belonging to another Organization.
     CONSTRAINT fk_runs_monitors FOREIGN KEY (monitor_id, organization_id)
         REFERENCES monitors (id, organization_id) ON DELETE CASCADE,
     CONSTRAINT ck_runs_revision_number CHECK (revision_number >= 1),
@@ -38,7 +38,7 @@ CREATE TABLE runs (
         OR outcome IN ('passed', 'failed', 'errored', 'timedout', 'cancelled', 'skipped')
     ),
     -- A Run is in flight if and only if it holds a lease, so "claimed" has exactly one
-    -- spelling and a finished Run cannot keep a claim alive (ADR 0025).
+    -- spelling and a finished Run cannot keep a claim alive.
     CONSTRAINT ck_runs_lease_matches_outcome CHECK (
         (outcome IS NULL) = (lease_expires_at IS NOT NULL)
         AND (lease_holder IS NULL) = (lease_expires_at IS NULL)
@@ -53,9 +53,9 @@ CREATE TABLE runs (
     )
 ) PARTITION BY RANGE (scheduled_for);
 
--- The idempotent run identity of ADR 0021: one Monitor Revision, one Probe Location, one due
+-- The idempotent run identity: one Monitor Revision, one Probe Location, one due
 -- instant is one execution. Duplicate lease delivery, a retry, or a restarted worker cannot
--- produce a second row. Manual Runs are exempt, as ADR 0021 requires: asking twice is a
+-- produce a second row. Manual Runs are exempt, by design: asking twice is a
 -- request rather than a duplicate.
 CREATE UNIQUE INDEX ux_runs_slot ON runs (monitor_id, revision_number, location, scheduled_for)
     WHERE kind <> 'manual';
@@ -70,18 +70,18 @@ CREATE TABLE observations (
     run_id uuid NOT NULL,
     scheduled_for timestamp with time zone NOT NULL,
     organization_id uuid NOT NULL,
-    -- A stable probe.* code or an outbound.* denial reason (ADR 0019, ADR 0023, ADR 0024).
+    -- A stable probe.* code or an outbound.* denial reason.
     -- Null for a passed Run.
     failure_code character varying(100),
     failure_class character varying(100),
     -- Durations are microsecond integers because they are measured monotonically as integers
-    -- and comparing them is arithmetic, not calendar arithmetic (ADR 0025).
+    -- and comparing them is arithmetic, not calendar arithmetic.
     duration_microseconds bigint NOT NULL,
     connect_microseconds bigint NOT NULL,
     tls_microseconds bigint NOT NULL,
     first_byte_microseconds bigint NOT NULL,
     -- The HTTP detail group is present when a response arrived, whatever the outcome. It
-    -- belongs to the first check type; a second check type brings its own (ADR 0025).
+    -- belongs to the first check type; a second check type brings its own.
     http_status_code integer,
     http_protocol character varying(20),
     http_redirect_count integer,
@@ -126,7 +126,7 @@ CREATE INDEX ix_observations_organization_scheduled_for
     ON observations (organization_id, scheduled_for DESC);
 
 -- The outbox is a queue, not a record: entries are drained and deleted, so it is neither
--- partitioned nor subject to a retention window (ADR 0025). Consumers are at-least-once and
+-- partitioned nor subject to a retention window. Consumers are at-least-once and
 -- idempotent on id.
 CREATE TABLE outbox_entries (
     id uuid NOT NULL,

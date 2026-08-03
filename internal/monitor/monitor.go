@@ -10,7 +10,7 @@ import (
 	"unicode/utf16"
 )
 
-// Stable error codes. A code is contract under ADR 0019; the English text beside
+// Stable error codes. Each code is part of the published contract; the English text beside
 // it is documentation and may be reworded freely.
 const (
 	NameInvalidCode               = "monitor.name.invalid"
@@ -39,12 +39,12 @@ const (
 	RevisionRejectedTitle           = "Monitor revision rejected"
 )
 
-// Execution interval bounds, in whole seconds (ADR 0026). The interval is a Monitor field
+// Execution interval bounds, in whole seconds. The interval is a Monitor field
 // rather than check configuration: the scheduler must read it without decoding a
 // check-type-specific document, and every check type would otherwise repeat it.
 //
 // An operator may raise the effective minimum for an installation but never lower it past
-// MinIntervalSeconds. Unlike the timeout ceilings of ADR 0024 this is a floor, because a
+// MinIntervalSeconds. Unlike timeout ceilings, this is a floor because a
 // shorter interval is more load rather than less.
 const (
 	MinIntervalSeconds     = 30
@@ -78,7 +78,7 @@ type Monitor struct {
 	State          State
 	// IntervalSeconds is how often the Monitor is due. Changing it is an ordinary mutable
 	// update and appends no Revision: a Revision snapshots check configuration, and how
-	// often a check runs is scheduling policy rather than check semantics (ADR 0026).
+	// often a check runs is scheduling policy rather than check semantics.
 	IntervalSeconds      int
 	LatestRevisionNumber int
 	CreatedAt            time.Time
@@ -152,7 +152,7 @@ func (value *Monitor) Rename(name string, now time.Time) error {
 }
 
 // ChangeInterval sets how often a non-archived Monitor is due. It appends no Revision and
-// never changes lifecycle state (ADR 0026).
+// never changes lifecycle state.
 func (value *Monitor) ChangeInterval(intervalSeconds int, now time.Time) error {
 	if value.State == StateArchived {
 		return errors.New(ArchivedReadOnlyDetail)
@@ -170,7 +170,7 @@ func (value *Monitor) ChangeInterval(intervalSeconds int, now time.Time) error {
 }
 
 // LifecycleError is a rejected lifecycle transition. It carries the stable code
-// clients localize from (ADR 0019) alongside the current English message.
+// clients localize from alongside the current English message.
 type LifecycleError struct {
 	Code    string
 	Message string
@@ -283,7 +283,7 @@ func NewRevision(
 }
 
 // ValidationFailure is one field-level use-case validation failure. Code is the
-// stable contract identifier (ADR 0019); Message is current English documentation.
+// stable contract identifier; Message is current English documentation.
 type ValidationFailure struct {
 	Code    string
 	Field   string
@@ -303,7 +303,6 @@ func NormalizeName(candidate string) (string, bool) {
 // ValidateIntervalSeconds validates a whole-second execution interval against the platform
 // bounds. An operator floor is applied at scheduling time rather than here, so raising an
 // installation's minimum does not silently rewrite Monitors already configured below it
-// (ADR 0026).
 func ValidateIntervalSeconds(candidate int) (int, bool) {
 	if candidate < MinIntervalSeconds || candidate > MaxIntervalSeconds {
 		return 0, false

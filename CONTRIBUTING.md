@@ -7,7 +7,9 @@ Thank you for helping improve ProbeHive. The project welcomes focused bug fixes,
 - Search existing issues and pull requests before opening a duplicate.
 - Discuss substantial features, public contract changes, new protocols, new dependencies, and architectural changes before implementation.
 - Keep proposals aligned with the current self-hosted installation and operability milestone. A future direction is not implementation scope merely because it appears in project planning.
-- Apply the [ADR gate](docs/adr/README.md#when-an-adr-is-required). Most local and reversible implementation choices do not need an ADR.
+- Read the [architecture baseline](docs/architecture.md) when a change may affect a durable
+  boundary. Do not add separate decision-record files; keep reversible choices in code,
+  tests, configuration, or the introducing commit.
 - Report vulnerabilities privately according to [SECURITY.md](SECURITY.md).
 - Follow the community standards in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) in all project spaces.
 - Keep contributions focused on the complete self-hosted product. Hosted billing, managed-fleet operations, fraud controls, and other commercial service behavior do not belong in this repository.

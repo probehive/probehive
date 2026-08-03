@@ -72,7 +72,7 @@ func TestObservationValidateRejectsUnusableRecords(t *testing.T) {
 }
 
 // A denial class is meaningless without the outbound reason that carried it, but a bare
-// failure code is ordinary: most probe failures name no address class at all (ADR 0023).
+// failure code is ordinary: most probe failures name no address class at all.
 func TestObservationAcceptsACodeWithoutAClass(t *testing.T) {
 	t.Parallel()
 	value := testObservation()

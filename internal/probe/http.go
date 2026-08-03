@@ -23,7 +23,7 @@ import (
 const DefaultUserAgent = "ProbeHive"
 
 // Built-in operator ceilings. They apply when configuration names no value, because an
-// executor that reads a missing ceiling as "unbounded" fails open (ADR 0024).
+// executor that reads a missing ceiling as "unbounded" fails open.
 const (
 	// DefaultMaxTimeout matches the largest timeout check configuration may request, so the
 	// built-in ceiling constrains nothing an operator did not already allow.
@@ -63,7 +63,7 @@ type Settings struct {
 	// RootCAs are the certificate authorities trusted in addition to nothing else when set,
 	// and the host's roots when nil. It exists so an installation with an internal
 	// certificate authority can monitor its own TLS endpoints. There is deliberately no
-	// setting that skips verification (ADR 0024).
+	// setting that skips verification.
 	RootCAs *x509.CertPool
 }
 
@@ -127,11 +127,11 @@ func NewHTTPExecutor(dialer *outbound.Dialer, settings Settings, clock Clock) (*
 func (*HTTPExecutor) CheckType() string { return check.HTTPCheckType }
 
 // Execute performs one HTTP check and reports what happened. It never returns an error: an
-// unreachable target is a measurement rather than a failure to measure (ADR 0024).
+// unreachable target is a measurement rather than a failure to measure.
 //
 // The configuration is the validated one from internal/check. Its timeout and redirect budget
 // are clamped to the operator ceilings again here, so a stored revision that predates a
-// tightened ceiling cannot exceed it (ADR 0020).
+// tightened ceiling cannot exceed it.
 func (executor *HTTPExecutor) Execute(ctx context.Context, configuration check.HTTPConfiguration) Observation {
 	startedAt := executor.clock.Now()
 	began := time.Now()
@@ -231,7 +231,7 @@ func (executor *HTTPExecutor) transport(trace *executionTrace, timeout time.Dura
 	return &http.Transport{
 		// Proxy is nil deliberately rather than by omission. The package default reads
 		// proxy environment variables, which would send every request to an address the
-		// outbound policy never validated - the enforcement point inverted (ADR 0024).
+		// outbound policy never validated - the enforcement point inverted.
 		Proxy:       nil,
 		DialContext: trace.dial(executor.dialer.DialContext),
 		// The transport does its own TLS over the connection the dialer returns, so the
@@ -330,7 +330,7 @@ func timedOut(err error) bool {
 
 // executionTrace collects phase timings. Its callbacks run on the transport's goroutines, so
 // every field is guarded; first value wins, because a later redirect hop may reuse a
-// connection and report a zero that would read as an anomaly (ADR 0024).
+// connection and report a zero that would read as an anomaly.
 type executionTrace struct {
 	mutex           sync.Mutex
 	began           time.Time

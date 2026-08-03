@@ -1,4 +1,4 @@
-// Package alert owns immutable notification intents and their query model (ADR 0029).
+// Package alert owns immutable notification intents and their query model.
 package alert
 
 import (

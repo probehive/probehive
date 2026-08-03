@@ -207,7 +207,7 @@ func withURL(fragment string) json.RawMessage {
 }
 
 // assertFailures compares the stable code and field path of each failure in order.
-// English prose is documentation under ADR 0019 and is deliberately not asserted, so
+// English prose is documentation and is deliberately not asserted, so
 // copy edits do not break tests.
 func assertFailures(t *testing.T, got [][3]string, want [][2]string) {
 	t.Helper()

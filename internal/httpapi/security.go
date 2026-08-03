@@ -93,7 +93,7 @@ func (server *Server) requireAuthentication(w http.ResponseWriter, r *http.Reque
 }
 
 // requireInstanceAdministrator gates the narrow set of instance-scoped operations the
-// instance role still owns: bootstrap and creating Organizations (ADR 0017). It grants
+// instance role still owns: bootstrap and creating Organizations. It grants
 // no access to the monitoring data of any Organization.
 func (server *Server) requireInstanceAdministrator(w http.ResponseWriter, r *http.Request) (*authenticatedSession, bool) {
 	principal, ok := server.requireAuthentication(w, r)
@@ -110,7 +110,7 @@ func (server *Server) requireInstanceAdministrator(w http.ResponseWriter, r *htt
 // requireOrganizationPermission resolves the caller's membership of one Organization and
 // checks a permission against its role. A caller who is not a member gets 404 so a real
 // Organization is indistinguishable from one that does not exist; 403 is reserved for a
-// member whose role is insufficient, where existence is already known (ADR 0017).
+// member whose role is insufficient, where existence is already known.
 func (server *Server) requireOrganizationPermission(
 	w http.ResponseWriter, r *http.Request, organizationID string, permission organization.Permission,
 ) (*authenticatedSession, bool) {

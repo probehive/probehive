@@ -21,9 +21,8 @@ import (
 	"github.com/probehive/probehive/internal/webhookhttp"
 )
 
-// Worker defaults. Every one of them is an operator ceiling or floor that ADR 0020 requires
-// to be configuration rather than code; the values here are what an installation that
-// configures nothing gets.
+// Worker settings default to the operator ceilings and floors below. Each remains
+// configurable; these values apply when an installation configures nothing.
 const (
 	defaultProbeLocation    = run.DefaultLocation
 	defaultOutboundProfile  = string(outbound.ProfilePrivate)
@@ -37,10 +36,10 @@ const (
 
 // probeExecutor adapts internal/probe to the scheduler's executor port.
 //
-// This is the only place probe.Observation becomes run.Observation. ADR 0025 keeps the two
-// shapes separate because a feature package imports no protocol client and a protocol package
-// imports no persistence; the translation belongs to the composition that owns both, and a
-// change to either shape that is not mirrored here fails to compile.
+// This is the only place probe.Observation becomes run.Observation. The two
+// shapes stay separate because a feature package imports no protocol client and a
+// protocol package imports no persistence. The composition owning both performs the
+// translation, and an unmirrored shape change fails to compile.
 type probeExecutor struct {
 	executor *probe.Executor
 }
@@ -133,8 +132,7 @@ func readWorkerSettings() (workerSettings, error) {
 		return workerSettings{}, err
 	}
 	// The operator floor may be raised but never lowered past the platform minimum, which is
-	// what keeps an installation from configuring a frequency the Monitor validator rejects
-	// (ADR 0026).
+	// what keeps an installation from configuring a frequency the Monitor validator rejects.
 	if settings.minimumInterval < time.Duration(monitor.MinIntervalSeconds)*time.Second {
 		return workerSettings{}, fmt.Errorf(
 			"PROBEHIVE_MINIMUM_INTERVAL_SECONDS cannot go below the platform minimum of %d seconds",
@@ -233,7 +231,7 @@ func readResolvers() ([]netip.AddrPort, error) {
 
 // readRootCAs loads an installation's internal certificate authorities. They are added to a
 // pool that replaces the host's roots, so an operator who names a file gets exactly the trust
-// they configured. There is no setting that skips verification (ADR 0024).
+// they configured. There is no setting that skips verification.
 func readRootCAs() (*x509.CertPool, error) {
 	path := strings.TrimSpace(os.Getenv("PROBEHIVE_PROBE_ROOT_CA_FILE"))
 	if path == "" {
@@ -271,7 +269,7 @@ func newWorkerRuntime(
 	}
 	// Named resolvers confine every query to reviewed servers; without them the host's own
 	// resolver is used, which is operator-controlled in the weaker sense that the operator
-	// controls the machine. Neither is tenant-selectable, which is what ADR 0007 requires.
+	// controls the machine. Tenant configuration cannot select either resolver.
 	// Refusing to start without an explicit list would make the API unavailable over a
 	// worker setting, so the fallback is the documented one rather than a failure.
 	resolver := outbound.SystemResolver()
@@ -343,7 +341,7 @@ func newWorkerRuntime(
 
 // serveMaintenance creates partitions ahead of time and drops the ones that have aged out.
 //
-// ADR 0021 makes this a required operational component rather than an optimization: there is
+// Partition maintenance is required rather than optional: there is
 // no default partition, so an installation whose maintenance never runs eventually fails to
 // insert a Run. It runs once at startup so a fresh installation can store its first Run
 // before the first interval elapses.

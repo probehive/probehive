@@ -46,7 +46,7 @@ func NewDialer(policy Policy, resolver Resolver, connectTimeout time.Duration) *
 func (dialer *Dialer) Policy() Policy { return dialer.policy }
 
 // DialContext validates and connects. It accepts only the TCP networks: a new protocol
-// category needs its own threat model before it gets a connection from here (ADR 0007).
+// category needs its own threat model before it gets a connection from here.
 func (dialer *Dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	lookupNetwork, err := lookupNetworkFor(network)
 	if err != nil {

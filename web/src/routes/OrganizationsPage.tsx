@@ -6,7 +6,7 @@ import { useOrganizations } from './useOrganizations'
 
 /**
  * The signed-in landing page. Setup provisions the installation Organization
- * (ADR 0018), so this normally lists at least one and the create form is an
+ * so this normally lists at least one and the create form is an
  * option rather than a required step.
  */
 export default function OrganizationsPage() {

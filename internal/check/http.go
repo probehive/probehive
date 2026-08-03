@@ -29,8 +29,8 @@ const (
 	DefaultMethod            = "GET"
 )
 
-// Stable error codes for check configuration validation. A code is contract under
-// ADR 0019; the English text beside it is documentation and may be reworded freely.
+// Stable error codes for check configuration validation. Each code is stable once
+// published; the English text beside it may be reworded freely.
 // The bounded-integer fields build their codes as check.http.<subject>.notInteger
 // and check.http.<subject>.outOfRange.
 const (

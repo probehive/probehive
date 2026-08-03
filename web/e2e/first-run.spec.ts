@@ -11,7 +11,7 @@ interface CreatedMonitor {
 
 // The first critical journey: a fresh installation is set up and is immediately
 // usable, the administrator signs out and back in, and provisions a second
-// Organization (ADR 0012, ADR 0013, ADR 0018).
+// Organization.
 test('first run: setup lands on a provisioned Organization, then sign in and add another', async ({ page }) => {
   test.setTimeout(120_000)
   // A fresh installation routes every visitor to first-administrator setup.
@@ -31,7 +31,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await expect(page.getByRole('heading', { name: 'Default Project' })).toBeVisible()
   await expect(page.getByText(administratorEmail)).toBeVisible()
 
-  // The installation Organization is named Default until it is renamed (ADR 0022).
+  // The installation Organization is named Default until it is renamed.
   await page.getByRole('textbox', { name: 'Display name' }).fill('My Services')
   await page.getByRole('button', { name: 'Rename', exact: true }).click()
   await expect(page.getByText('Organization renamed.')).toBeVisible()

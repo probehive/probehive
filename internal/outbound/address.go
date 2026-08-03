@@ -34,8 +34,8 @@ const (
 	ClassZoned Class = "zoned"
 )
 
-// metadataAddresses are the cloud instance-metadata endpoints denied by every profile
-// (ADR 0007). Most sit inside a link-local or private range and would be denied anyway; they
+// metadataAddresses are the cloud instance-metadata endpoints denied by every profile.
+// Most sit inside a link-local or private range and would be denied anyway; they
 // are listed explicitly because an operator allow list may legitimately open those ranges on
 // a private location, and reaching metadata must not come along with that.
 //

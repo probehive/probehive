@@ -5,7 +5,7 @@ import { configDefaults, defineConfig } from 'vitest/config'
 export default defineConfig({
   plugins: [react()],
   server: {
-    // Development-only convenience; production uses a same-origin gateway (ADR 0010).
+    // Development-only convenience; production uses a same-origin gateway.
     // The browser Host header must be preserved (no changeOrigin) so the API's
     // same-origin validation of Origin/Referer accepts proxied unsafe requests.
     proxy: {

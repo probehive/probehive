@@ -11,13 +11,13 @@ import (
 
 // Executor executes a stored check configuration by dispatching to the executor for its check
 // type. It is the seam a worker calls: a Monitor Revision holds a check type, an integer
-// schema version, and canonical configuration JSON (ADR 0014), and that is exactly what this
+// schema version, and canonical configuration JSON, and that is exactly what this
 // takes.
 //
 // The configuration is validated again here rather than trusted. The API validates it when a
 // revision is written, but a revision written by an older build, edited in the database, or
 // restored from a backup has not passed the validator this build contains, and execution is
-// the last place to notice (ADR 0020).
+// the last place to notice.
 type Executor struct {
 	httpExecutor *HTTPExecutor
 }
@@ -39,7 +39,7 @@ func (executor *Executor) Supports(checkType string) bool {
 // returns an Observation rather than an error: a configuration this build cannot execute is
 // an errored Run, which is a thing an operator can see, not a value a caller might drop.
 //
-// A rejected configuration reports the first stable validation code of ADR 0019 as its
+// A rejected configuration reports its first stable validation code as the
 // failure, because "the URL is missing" explains an errored Run and "invalid configuration"
 // does not.
 func (executor *Executor) Execute(ctx context.Context, checkType string, schemaVersion int, configuration json.RawMessage) Observation {

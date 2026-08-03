@@ -55,7 +55,7 @@ func TestMonthSuffixRoundTrips(t *testing.T) {
 	}
 }
 
-// An unrecognised suffix means the partition is not ours to manage (ADR 0025), so parsing
+// An unrecognised suffix means the partition is not ours to manage, so parsing
 // must reject rather than guess.
 func TestParseMonthSuffixRejectsUnrecognisedNames(t *testing.T) {
 	t.Parallel()
@@ -87,7 +87,7 @@ func TestRetentionValidation(t *testing.T) {
 }
 
 // A partition is dropped only once its entire range has aged out, which is what makes
-// effective retention exceed the configured window by up to a month (ADR 0025).
+// effective retention exceed the configured window by up to a month.
 func TestRetentionExpiresOnlyWhollyAgedPartitions(t *testing.T) {
 	t.Parallel()
 	retention := Retention{Days: 30}

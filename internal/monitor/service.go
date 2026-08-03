@@ -20,7 +20,7 @@ type UUIDGenerator interface {
 
 // CheckValidator is the narrow port consumed by Monitor use cases. Each failure triple
 // contains stable code at index 0, field path at index 1, and current English message at
-// index 2 (ADR 0019), preserving encounter order.
+// index 2, preserving encounter order.
 type CheckValidator interface {
 	IsSupported(string) bool
 	Validate(string, int, json.RawMessage) (json.RawMessage, [][3]string)
@@ -231,7 +231,7 @@ func (service *Service) Rename(ctx context.Context, scope Scope, requestedName s
 
 // ChangeInterval validates before lookup, then applies an optimistic mutation. It follows
 // Rename rather than CreateRevision because an interval is scheduling policy and appends no
-// revision history (ADR 0026).
+// revision history.
 func (service *Service) ChangeInterval(ctx context.Context, scope Scope, intervalSeconds int) (UpdateResult, error) {
 	if _, valid := ValidateIntervalSeconds(intervalSeconds); !valid {
 		return UpdateResult{Kind: UpdateInvalid, Failures: []ValidationFailure{

@@ -38,7 +38,7 @@ func (server *Server) listOrganizations(w http.ResponseWriter, r *http.Request) 
 }
 
 func (server *Server) createOrganization(w http.ResponseWriter, r *http.Request) {
-	// Creating an Organization stays an instance-scoped operation (ADR 0017); the
+	// Creating an Organization stays an instance-scoped operation; the
 	// creator becomes its first Administrator inside the provisioning transaction.
 	principal, ok := server.protectUnsafe(w, r, server.requireInstanceAdministrator)
 	if !ok {

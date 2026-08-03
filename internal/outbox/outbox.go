@@ -1,4 +1,4 @@
-// Package outbox owns bounded at-least-once dispatch for internal fact events (ADR 0028).
+// Package outbox owns bounded at-least-once dispatch for internal fact events.
 package outbox
 
 import (

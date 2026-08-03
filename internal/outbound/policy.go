@@ -1,7 +1,7 @@
 // Package outbound owns the shared outbound-access policy and the validating dialer that is
 // its single enforcement point. Every destination influenced by a tenant, a monitored
 // target, or user-supplied configuration reaches the network through this package: probes,
-// redirects, webhooks, and notification deliveries alike (ADR 0007, ADR 0020).
+// redirects, webhooks, and notification deliveries alike.
 //
 // The package is standard-library-only and deliberately protocol-blind. It decides where a
 // connection may go and returns a connection bound to an address it validated; it never
@@ -49,7 +49,7 @@ const maxLabelLength = 63
 // the two ports the only current check type uses.
 var defaultAllowedPorts = []uint16{80, 443}
 
-// ProfileName selects a built-in policy profile (ADR 0020).
+// ProfileName selects a built-in policy profile.
 type ProfileName string
 
 const (

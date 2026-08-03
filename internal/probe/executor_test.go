@@ -40,7 +40,7 @@ func TestExecutorRunsAStoredConfiguration(t *testing.T) {
 
 // A stored revision reaches execution long after it was written. These are the cases where
 // the validator this build contains disagrees with what is stored, and each one is an errored
-// Run rather than a dropped error (ADR 0020).
+// Run rather than a dropped error.
 func TestExecutorRejectsAConfigurationItCannotExecute(t *testing.T) {
 	t.Parallel()
 	executor := newDispatchingExecutor(t, 443)

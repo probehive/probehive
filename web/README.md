@@ -14,7 +14,8 @@ npm run e2e     # Playwright journeys against the real API and a disposable data
 npm run build   # static production assets in dist/
 ```
 
-Production deployments serve the built static assets behind a same-origin gateway together with the API (ADR 0010); there is no Node.js production runtime.
+Production deployments serve the built static assets behind a same-origin gateway
+together with the API; there is no Node.js production runtime.
 
 Monitor detail pages expose immutable Alert intents as read-only Incident-derived audit history. The view links each intent to its source Incident and deliberately presents no sent or delivered state because external delivery is not implemented.
 
@@ -24,4 +25,6 @@ English is the source language and `src/i18n/en.ts` is the source catalog. Other
 
 User-visible text never appears inline in a component — it comes from a catalog key. Instants, numbers, and plurals are formatted with `Intl` rather than translated, so times render in the viewer's own time zone while the wire stays UTC.
 
-API responses are always English (ADR 0019). The client localizes from the stable error code each Problem Details response carries and falls back to the server's message for a code the catalog does not know.
+API responses are always English. The client localizes from the stable error code
+each Problem Details response carries and falls back to the server's message for a
+code the catalog does not know.

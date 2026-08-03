@@ -13,7 +13,7 @@ CREATE TABLE organization_members (
 CREATE INDEX ix_organization_members_user_id ON organization_members (user_id);
 
 -- Backfill so an installation that predates membership does not lose access to its own
--- data the moment enforcement lands (ADR 0017). The original creator was never recorded,
+-- data the moment enforcement lands. The original creator was never recorded,
 -- so every instance Administrator becomes an Organization Administrator of every existing
 -- Organization. This is a one-time upgrade path, not ongoing behavior: after this
 -- migration the only writer of memberships is the provisioning use case.

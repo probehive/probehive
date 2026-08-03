@@ -262,7 +262,7 @@ func TestTickLeavesAHeldSlotAlone(t *testing.T) {
 	}
 }
 
-// The misfire policy of ADR 0021, bounded by ADR 0026: a restart records the missed slots it
+// The bounded misfire policy: a restart records the missed slots it
 // is allowed to and stops at the bound.
 func TestTickRecordsMissedSlotsUpToTheBound(t *testing.T) {
 	t.Parallel()
@@ -316,7 +316,7 @@ func TestTickStopsBackfillAtTheFirstExistingSlot(t *testing.T) {
 	}
 }
 
-// ADR 0021 requires a worker that lost its lease to discard its result. The scheduler must
+// A worker that lost its lease must discard its result. The scheduler must
 // treat that as an ordinary outcome rather than an error to retry.
 func TestTickDiscardsAResultWhoseLeaseWasLost(t *testing.T) {
 	t.Parallel()
@@ -407,7 +407,7 @@ func TestTickReportsAFailedListing(t *testing.T) {
 }
 
 // A shutdown mid-execution frees the slot rather than leaving it claimed until the lease
-// expires (ADR 0021).
+// expires.
 func TestTickReleasesTheSlotWhenTheContextIsCancelled(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.July, 27, 10, 30, 0, 0, time.UTC)
@@ -467,7 +467,6 @@ func TestNewSchedulerRejectsAnIncompleteComposition(t *testing.T) {
 }
 
 // Concurrency is bounded so the embedded worker cannot consume the API process it shares
-// (ADR 0020).
 func TestTickBoundsConcurrentExecutions(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.July, 27, 10, 30, 0, 0, time.UTC)
@@ -560,8 +559,8 @@ func TestTickDoesNotBackfillBeforeAMonitorWasSchedulable(t *testing.T) {
 		t.Fatalf("Tick() = %#v, want the current slot still claimed", result)
 	}
 
-	// A Monitor that has been active for a long while keeps the misfire recording that
-	// ADR 0021 asks for.
+	// A Monitor that has been active for a long while still uses the normal misfire
+	// policy.
 	longActive := testSchedulable()
 	longActive.MonitorID = "00000000-0000-7000-8000-000000000099"
 	longActive.NotBefore = now.Add(-24 * time.Hour)

@@ -1,6 +1,4 @@
--- Durable signed Webhook calls, leases, retry scheduling, and append-only audit evidence
--- (ADRs 0029 and 0030).
-
+-- Durable signed Webhook calls, leases, retry scheduling, and append-only audit evidence.
 ALTER TABLE webhook_deliveries
     ADD COLUMN available_at timestamp with time zone,
     ADD COLUMN attempt_count bigint NOT NULL DEFAULT 0,

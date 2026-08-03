@@ -7,7 +7,7 @@ import { organizationsQueryKey } from './useOrganizations'
 
 /**
  * Changes an Organization's display name. The slug stays fixed because it is the
- * idempotency key for provisioning (ADR 0022).
+ * idempotency key for provisioning.
  */
 export default function RenameOrganizationForm({ organization }: { organization: OrganizationResponse }) {
   const [displayName, setDisplayName] = useState(organization.displayName)

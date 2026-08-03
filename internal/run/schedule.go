@@ -9,7 +9,7 @@ import (
 )
 
 // Schedulable is the projection of one active Monitor that the scheduler needs to put it on
-// the clock and hand it to an executor (ADR 0026).
+// the clock and hand it to an executor.
 //
 // It is deliberately not monitor.Monitor: a feature package imports no sibling feature
 // implementation, and the scheduler needs a revision's configuration rather than a Monitor's
@@ -55,7 +55,7 @@ func (value Schedulable) Validate() error {
 	return nil
 }
 
-// EffectiveInterval applies the operator floor. ADR 0026 makes the operator limit a minimum
+// EffectiveInterval applies the operator floor. The operator limit is a minimum
 // rather than a maximum, because a shorter interval is more load: an installation raises the
 // floor and every Monitor configured below it slows down, without its stored configuration
 // being rewritten.
@@ -71,7 +71,7 @@ func EffectiveInterval(configured, operatorMinimum time.Duration) time.Duration 
 // Its purpose is spreading load: without it every Monitor sharing an interval becomes due in
 // the same second. It is derived from the identifier rather than from randomness so that it
 // survives a restart and is identical in every worker, which is what lets two workers agree
-// on a slot instant without talking to each other (ADR 0026).
+// on a slot instant without talking to each other.
 func SlotOffset(monitorID string, interval time.Duration) time.Duration {
 	seconds := int64(interval / time.Second)
 	if seconds <= 0 {
@@ -87,8 +87,8 @@ func SlotOffset(monitorID string, interval time.Duration) time.Duration {
 // the Monitor's derived series that has already arrived.
 //
 // The series is every offset + k*interval counted from the Unix epoch, so any worker computes
-// the same instants from the same Monitor and interval. That is what makes ADR 0021's slot
-// identity a value two workers agree on rather than one whoever inserted first decided.
+// the same instants from the same Monitor and interval. Slot identity is therefore a value
+// two workers derive independently, not one chosen by the first worker to insert it.
 func SlotFor(monitorID string, interval time.Duration, now time.Time) (time.Time, error) {
 	seconds := int64(interval / time.Second)
 	if seconds <= 0 || interval%time.Second != 0 {
@@ -100,8 +100,8 @@ func SlotFor(monitorID string, interval time.Duration, now time.Time) (time.Time
 }
 
 // MissedSlots returns the slots strictly between after and current, newest first, bounded by
-// limit. It is how ADR 0021's skip-and-record policy learns what to record without walking a
-// gap that may be weeks wide (ADR 0026).
+// limit. It supports bounded skip-and-record without walking a gap that may be
+// weeks wide.
 //
 // A zero after means the caller has no memory of this Monitor — a restart — so the full limit
 // is returned and the slots that did run are rejected by the slot index rather than by a query.

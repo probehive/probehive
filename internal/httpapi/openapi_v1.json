@@ -988,7 +988,7 @@
         "tags": ["Runs"],
         "operationId": "getRunObservation",
         "summary": "Return one Run's bounded Observation",
-        "description": "Requires monitor.read. In-flight and skipped Runs have no Observation and return 404. The response contains only the bounded codes, timings, and protocol details persisted under ADR 0024.",
+        "description": "Requires monitor.read. In-flight and skipped Runs have no Observation and return 404. The response contains only the bounded codes, timings, and protocol details persisted for a completed HTTP check.",
         "security": [{ "sessionCookie": [] }],
         "responses": {
           "200": { "$ref": "#/components/responses/Observation" },

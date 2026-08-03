@@ -18,7 +18,7 @@ import (
 )
 
 // Every test here uses a local listener and a stub resolver. Nothing reaches public DNS or the
-// public internet, as ADR 0007 requires of outbound tests.
+// public internet, as the outbound-access policy requires of outbound tests.
 
 var testInstant = time.Date(2026, 7, 27, 12, 0, 0, 0, time.UTC)
 
@@ -172,7 +172,7 @@ func TestExecuteSendsTheConfiguredRequest(t *testing.T) {
 		t.Fatalf("request = %s %s", request.Method, request.URL.RequestURI())
 	}
 	// The connection went to the validated address while the intended host name stayed on
-	// the request, which is the property ADR 0007 requires of a bound connection.
+	// the request, as required for a policy-validated connection.
 	if request.Host != fmt.Sprintf("target.invalid:%d", port) {
 		t.Fatalf("Host = %q", request.Host)
 	}
@@ -430,7 +430,7 @@ func TestExecuteRejectsAnUntrustedCertificate(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	t.Cleanup(server.Close)
 	// No roots are supplied, so the test server's certificate is untrusted. There is no
-	// setting that would skip the verification (ADR 0024).
+	// setting that would skip the verification.
 	executor := newExecutor(t, DefaultSettings(), nil, serverPort(t, server))
 
 	requireFailure(t, executor.Execute(t.Context(), configurationFor(server.URL)), OutcomeErrored, CodeCertificateInvalid)
@@ -483,7 +483,7 @@ func TestNewHTTPExecutorRequiresItsCollaborators(t *testing.T) {
 
 func TestSettingsFallBackToBuiltInCeilings(t *testing.T) {
 	t.Parallel()
-	// A zero ceiling means unconfigured, never unbounded (ADR 0024).
+	// A zero ceiling means unconfigured, never unbounded.
 	settings := Settings{}.normalized()
 	if settings != DefaultSettings() {
 		t.Fatalf("normalized zero settings = %+v", settings)

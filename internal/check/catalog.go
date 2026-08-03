@@ -17,7 +17,7 @@ func (Catalog) IsSupported(checkType string) bool { return checkType == HTTPChec
 
 // Validate validates and compacts a versioned check configuration. Each failure triple
 // contains stable code at index 0, field path at index 1, and current English message at
-// index 2 (ADR 0019), in encounter order.
+// index 2, in encounter order.
 func (Catalog) Validate(checkType string, schemaVersion int, configuration json.RawMessage) (json.RawMessage, [][3]string) {
 	if checkType != HTTPCheckType {
 		return nil, [][3]string{{

@@ -9,7 +9,7 @@ import (
 
 // Reason is a stable outbound-policy failure identifier. A caller may record a reason in an
 // Observation and a client may translate it; the English text beside it is documentation and
-// may be reworded freely (ADR 0019).
+// may be reworded freely.
 type Reason string
 
 const (

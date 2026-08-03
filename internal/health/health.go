@@ -1,4 +1,4 @@
-// Package health owns evaluated Monitor health and confirmation semantics (ADR 0027).
+// Package health owns evaluated Monitor health and confirmation semantics.
 package health
 
 import (

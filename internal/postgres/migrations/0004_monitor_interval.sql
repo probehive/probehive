@@ -1,4 +1,4 @@
--- Execution interval on the Monitor (ADR 0026).
+-- Execution interval on the Monitor.
 --
 -- The interval is a Monitor column rather than a field inside check_configuration so the
 -- scheduler can select due work without decoding a check-type-specific JSON document, and so
@@ -20,6 +20,6 @@ ALTER TABLE monitors
 
 -- The scheduler's read is "every active Monitor", so the index carries the columns that
 -- answer it. Organization identity leads because every tenant-scoped query carries it
--- explicitly (ADR 0009).
+-- explicitly.
 CREATE INDEX ix_monitors_active ON monitors (organization_id, id)
     WHERE state = 'active';

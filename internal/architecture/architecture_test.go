@@ -14,7 +14,7 @@ import (
 	"testing"
 )
 
-// standardLibraryOnlyPackages are the packages ADR 0002 and ADR 0020 hold to the standard
+// standardLibraryOnlyPackages lists the packages restricted to the standard
 // library alone: the feature packages, the check catalog, and the outbound policy engine.
 // internal/outbound is on the list because its whole value is being small enough to review,
 // and because a policy engine that can reach for an HTTP client is one refactor away from
@@ -33,7 +33,7 @@ var standardLibraryOnlyPackages = []string{
 	"./internal/outbound",
 }
 
-// adapterFreePackages are packages ADR 0020 bars from persistence and composition without
+// adapterFreePackages are barred from persistence and composition without
 // holding them to the standard library. internal/probe and internal/webhookhttp speak
 // protocols for a living, so HTTP clients are their purpose rather than a violation; what
 // they must never learn is where results are stored or who composed them.
@@ -42,7 +42,7 @@ var adapterFreePackages = []string{
 	"./internal/webhookhttp",
 }
 
-// forbiddenStandardPackages are standard-library packages ADR 0002 names explicitly:
+// forbiddenStandardPackages lists standard-library imports that feature packages may not use:
 // feature packages "import no SQL package, HTTP package, database driver, composition
 // package, or sibling feature implementation". Membership of the standard library is not
 // a licence to reach for transport or persistence, and check execution will be tempted to

@@ -181,7 +181,7 @@ func TestMalformedUUIDAndValidationProblemDetails(t *testing.T) {
 	if problem.Status != http.StatusBadRequest || problem.Title != "One or more validation errors occurred." {
 		t.Fatalf("validation problem = %#v", problem)
 	}
-	// Codes are contract; the English message beside them is documentation (ADR 0019).
+	// Codes are contract; the English message beside them is documentation.
 	want := map[string]string{
 		"email":       user.EmailInvalidCode,
 		"displayName": user.DisplayNameInvalidCode,
@@ -446,7 +446,7 @@ func assertProblem(t *testing.T, response recordedResponse, status int, title, d
 
 var _ organization.Store = (*memoryOrganizationStore)(nil)
 
-// The interval endpoint exists because ADR 0026 makes the interval a Monitor field rather
+// The interval endpoint exists because the execution interval is a Monitor field rather
 // than check configuration, so changing it is an update and never a new revision.
 func TestChangeMonitorIntervalValidatesAndUpdatesWithoutARevision(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
@@ -486,7 +486,7 @@ func TestChangeMonitorIntervalValidatesAndUpdatesWithoutARevision(t *testing.T) 
 	}
 
 	// Below the platform minimum, above the maximum, and a value that is not an integer are
-	// all rejected with the stable interval code (ADR 0019).
+	// all rejected with the stable interval code.
 	for _, body := range []string{
 		`{"intervalSeconds":29}`, `{"intervalSeconds":86401}`, `{"intervalSeconds":0}`,
 	} {

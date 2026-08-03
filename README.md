@@ -61,7 +61,7 @@ ProbeHive does not yet publish installation artifacts. To run the current founda
 Useful project references:
 
 - [Backend contract](docs/backend-contract.md)
-- [Architecture decisions](docs/adr/README.md)
+- [Architecture baseline](docs/architecture.md)
 - [Contributing guide](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 

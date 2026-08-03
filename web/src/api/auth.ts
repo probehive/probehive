@@ -51,7 +51,7 @@ export async function getSession(): Promise<SessionResponse | null> {
 export async function login(email: string, password: string): Promise<SessionResponse> {
   const response = await postJson('/api/v1/auth/login', { email, password })
   const session = (await response.json()) as SessionResponse
-  // The previous token belonged to the anonymous identity (ADR 0013).
+  // The previous token belonged to the anonymous identity.
   await refreshAntiforgery()
   return session
 }

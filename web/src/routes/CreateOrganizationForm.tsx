@@ -18,7 +18,7 @@ function useFieldErrors() {
 
 /**
  * Creates an additional Organization. Setup already provisions the first one
- * (ADR 0018), so this is never on the path to a first Monitor.
+ * so this is never on the path to a first Monitor.
  */
 export default function CreateOrganizationForm() {
   const [slug, setSlug] = useState('')

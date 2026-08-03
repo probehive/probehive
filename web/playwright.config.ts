@@ -15,7 +15,7 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:5173',
     trace: 'retain-on-failure',
-    // Instants render through Intl in the viewer's locale and zone (ADR 0019),
+    // Instants render through Intl in the viewer's locale and zone,
     // so both are pinned to keep assertions deterministic across machines.
     locale: 'en-US',
     timezoneId: 'UTC',

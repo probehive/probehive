@@ -152,7 +152,7 @@ func TestMissedSlotsWalksBackwardsAndStopsAtTheLastAttempt(t *testing.T) {
 	}
 }
 
-// ADR 0026 bounds the walk so a week of downtime does not write a row per missed slot.
+// The walk is bounded so a week of downtime does not write a row per missed slot.
 func TestMissedSlotsIsBounded(t *testing.T) {
 	t.Parallel()
 	const interval = 30 * time.Second

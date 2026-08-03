@@ -152,7 +152,7 @@ func (service *Service) replayOrConflict(ctx context.Context, existing Organizat
 }
 
 // ProvisionBootstrap creates the Organization that first-administrator setup gives a new
-// installation. It is the same idempotent use case as every other creation path (ADR 0009)
+// installation. It is the same idempotent use case as every other creation path
 // with the reserved bootstrap slug and display name, so setup adds no second creation path.
 func (service *Service) ProvisionBootstrap(ctx context.Context, creatorUserID string) (ProvisionResult, error) {
 	return service.Provision(ctx, ProvisionCommand{
@@ -161,7 +161,7 @@ func (service *Service) ProvisionBootstrap(ctx context.Context, creatorUserID st
 }
 
 // List returns the Organizations the user belongs to. An instance Administrator has
-// no implicit visibility into an Organization it is not a member of (ADR 0017).
+// no implicit visibility into an Organization it is not a member of.
 func (service *Service) List(ctx context.Context, userID string) ([]Details, error) {
 	values, err := service.store.ListForMember(ctx, userID)
 	if err != nil {
@@ -191,7 +191,7 @@ func (service *Service) Get(ctx context.Context, id ID) (Details, bool, error) {
 
 // Membership resolves a user's membership of one Organization. Absence is the caller's
 // signal to answer 404 rather than 403, so an Organization the user does not belong to
-// is indistinguishable from one that does not exist (ADR 0017).
+// is indistinguishable from one that does not exist.
 func (service *Service) Membership(ctx context.Context, id ID, userID string) (Membership, bool, error) {
 	if userID == "" {
 		return Membership{}, false, nil
@@ -216,7 +216,7 @@ type RenameResult struct {
 }
 
 // Rename changes only an Organization's display name. The slug is immutable because it
-// is the idempotency key for provisioning (ADR 0022), and the rename is last-write-wins
+// is the idempotency key for provisioning, and the rename is last-write-wins
 // because a display name has no dependent state that a lost update could corrupt.
 func (service *Service) Rename(ctx context.Context, id ID, requestedName string) (RenameResult, error) {
 	displayName, valid := NormalizeDisplayName(requestedName)

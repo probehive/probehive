@@ -12,7 +12,7 @@ import (
 
 // MonitorSource supplies the Monitors that are eligible to run. The scheduler asks for all
 // of them and decides which are due itself, because a slot is derived arithmetic rather than
-// stored state (ADR 0026).
+// stored state.
 type MonitorSource interface {
 	ListSchedulable(ctx context.Context) ([]Schedulable, error)
 }
@@ -36,7 +36,7 @@ type Execution struct {
 
 // Executor turns a stored check configuration into a measurement. The composition root
 // implements it over internal/probe, which is the one place the two Observation shapes that
-// ADR 0025 keeps separate are allowed to meet.
+// the domain keeps separate are allowed to meet.
 type Executor interface {
 	Execute(ctx context.Context, checkType string, schemaVersion int, configuration json.RawMessage) Execution
 }
@@ -54,13 +54,13 @@ const (
 	// DefaultTickInterval is how often the scheduler looks for due slots. It is well below
 	// MinIntervalSeconds so a slot is noticed near the instant it becomes due.
 	DefaultTickInterval = 5 * time.Second
-	// DefaultMaxBackfillSlots bounds how many missed slots are recorded per Monitor per tick
-	// (ADR 0026). Beyond it, the absence of Runs is the record.
+	// DefaultMaxBackfillSlots bounds how many missed slots are recorded per Monitor per tick.
+	// Beyond it, the absence of Runs is the record.
 	DefaultMaxBackfillSlots = 10
-	// DefaultConcurrency bounds in-flight executions for the embedded worker (ADR 0020).
+	// DefaultConcurrency bounds in-flight executions for the embedded worker.
 	DefaultConcurrency = 8
 	// DefaultLocation is the Probe Location identifier a self-hosted installation reports
-	// until the Probe Location registry exists (ADR 0026).
+	// until the Probe Location registry exists.
 	DefaultLocation = "local"
 	// releaseTimeout bounds the out-of-band release of a slot during shutdown, which cannot
 	// use the cancelled context that caused the shutdown.
@@ -94,7 +94,7 @@ type SchedulerConfig struct {
 }
 
 // Scheduler puts active Monitors on their derived slot series, claims due slots, executes
-// them, and records what happened (ADR 0026).
+// them, and records what happened.
 //
 // It does not renew leases while executing. A lease is the execution ceiling plus a margin
 // (LeaseDuration), and every execution is bounded by that same ceiling, so a lease outlives
@@ -166,7 +166,7 @@ type TickResult struct {
 	Failed int
 }
 
-// Serve ticks until the context is done. It is the embedded worker's loop (ADR 0020).
+// Serve ticks until the context is done. It is the embedded worker's loop.
 func (scheduler *Scheduler) Serve(ctx context.Context) error {
 	ticker := time.NewTicker(scheduler.config.TickInterval)
 	defer ticker.Stop()
@@ -286,7 +286,7 @@ func (scheduler *Scheduler) plan(schedulable Schedulable, now time.Time) (due, p
 }
 
 // recordMissed writes the misfire Runs for slots between the last one this scheduler attempted
-// and the one now due (ADR 0021, bounded by ADR 0026). A slot another worker already ran is
+// and the one now due. A slot another worker already ran is
 // rejected by the slot index, so no query is needed to find out which ones were really missed.
 func (scheduler *Scheduler) recordMissed(ctx context.Context, schedulable Schedulable, due, previous, now time.Time) int {
 	interval := EffectiveInterval(schedulable.Interval, scheduler.config.MinimumInterval)
@@ -376,7 +376,7 @@ func (scheduler *Scheduler) runSlot(ctx context.Context, schedulable Schedulable
 		executionContext, schedulable.CheckType, schedulable.CheckSchemaVersion, schedulable.CheckConfiguration)
 
 	// A shutdown mid-execution releases the slot instead of leaving it claimed until the
-	// lease expires (ADR 0021). The release cannot use the context that was just cancelled.
+	// lease expires. The release cannot use the context that was just cancelled.
 	if ctx.Err() != nil {
 		releaseContext, releaseCancel := context.WithTimeout(context.WithoutCancel(ctx), releaseTimeout)
 		defer releaseCancel()
@@ -414,7 +414,7 @@ func (scheduler *Scheduler) runSlot(ctx context.Context, schedulable Schedulable
 		return slotClaimed
 	case errors.Is(err, ErrLeaseLost):
 		// The lease was reclaimed while this execution ran, so the result is discarded rather
-		// than written. That is ADR 0021's rule, and the store enforces it transactionally.
+		// than written. The store enforces this transactionally.
 		scheduler.config.Logger.Warn("discarding a result whose lease was lost",
 			"monitorId", schedulable.MonitorID, "scheduledFor", completed.Slot.ScheduledFor)
 		return slotHeld

@@ -11,7 +11,7 @@ import (
 	"github.com/probehive/probehive/internal/run"
 )
 
-// partitionedRunTables are the tables ADR 0021 partitions by month and expires by dropping
+// partitionedRunTables are partitioned by month and expired by dropping
 // whole partitions. They share a partition key, so they share a maintenance schedule.
 //
 // The order is a dependency order: observations reference runs, so creation walks the list
@@ -21,9 +21,9 @@ var partitionedRunTables = []string{"runs", "observations"}
 // EnsurePartitions creates the monthly partitions that should exist at an instant: the month
 // it falls in, plus a bounded lookahead.
 //
-// ADR 0021 makes a missing future partition an operational alert rather than an insert
+// A missing future partition is an operational alert rather than an insert
 // failure discovered at midnight, which only holds if something creates them in advance.
-// There is no default partition to fall back on (ADR 0025), so this job running is what
+// There is no default partition to fall back on, so this job running is what
 // keeps inserts possible.
 //
 // It returns the partitions it created, so a caller can report the maintenance it performed
@@ -82,11 +82,11 @@ func (store *RunStore) EnsurePartitions(ctx context.Context, now time.Time, mont
 }
 
 // DropExpiredPartitions drops every partition whose entire range is older than the retention
-// window, which is ADR 0021's O(1) catalogue expiry rather than a bulk delete that leaves
+// window, which is the O(1) catalogue expiry rather than a bulk delete that leaves
 // bloat behind.
 //
 // A partition whose name this job does not recognise is left alone: an operator who attached
-// a partition by hand keeps it, and maintenance drops only what it created (ADR 0025).
+// a partition by hand keeps it, and maintenance drops only what it created.
 func (store *RunStore) DropExpiredPartitions(ctx context.Context, retention run.Retention, now time.Time) ([]string, error) {
 	if _, err := run.NewRetention(retention.Days); err != nil {
 		return nil, err
@@ -190,7 +190,7 @@ func partitionName(table string, month run.Month) string {
 
 // partitionMonth reads back the range a partition covers from its name. Deriving it from the
 // name rather than parsing the catalogue's bound expression is what makes an unrecognised
-// name mean "not ours" instead of meaning "unparseable" (ADR 0025).
+// name mean "not ours" instead of meaning "unparseable".
 func partitionMonth(table, name string) (run.Month, bool) {
 	suffix, found := strings.CutPrefix(name, table+"_")
 	if !found {

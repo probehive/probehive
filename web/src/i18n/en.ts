@@ -1,5 +1,5 @@
 /**
- * The source catalog. English is the source language (ADR 0019); every other locale
+ * The source catalog. English is the source language; every other locale
  * is a localization resource typed against these keys, so a missing key is a compile
  * error rather than a runtime blank.
  *

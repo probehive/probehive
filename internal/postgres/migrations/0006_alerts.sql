@@ -1,4 +1,4 @@
--- Immutable Alert intents derived from Incident lifecycle facts (ADR 0029).
+-- Immutable Alert intents derived from Incident lifecycle facts.
 
 CREATE TABLE alerts (
     id uuid NOT NULL,

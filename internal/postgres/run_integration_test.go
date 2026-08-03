@@ -15,8 +15,8 @@ import (
 
 const checkViolation = "23514"
 
-// TestSlotUniquenessMakesDuplicateExecutionUnrepresentable is the decision ADR 0021 calls a
-// backstop: whatever the lease does, one slot is one row. Two workers claiming the same slot
+// TestSlotUniquenessMakesDuplicateExecutionUnrepresentable proves the storage backstop:
+// whatever the lease does, one slot is one row. Two workers claiming the same slot
 // while the first lease is alive must not produce two Runs.
 func TestSlotUniquenessMakesDuplicateExecutionUnrepresentable(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
@@ -41,8 +41,8 @@ func TestSlotUniquenessMakesDuplicateExecutionUnrepresentable(t *testing.T) {
 	}
 }
 
-// An expired lease is reclaimable by any worker (ADR 0021), and the reclaim keeps the slot's
-// existing Run identity rather than minting a second one (ADR 0025).
+// An expired lease is reclaimable by any worker, and the reclaim keeps the slot's
+// existing Run identity rather than minting a second one.
 func TestExpiredLeaseIsReclaimedAndKeepsTheRunIdentity(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	store, slot, now := seedRunSlot(t, database, 110)
@@ -70,7 +70,7 @@ func TestExpiredLeaseIsReclaimedAndKeepsTheRunIdentity(t *testing.T) {
 }
 
 // The worker that lost its lease discovers it when recording, and its whole result — Run
-// outcome, Observation, and outbox entries — is discarded rather than written (ADR 0021).
+// outcome, Observation, and outbox entries — is discarded rather than written.
 func TestCompleteDiscardsTheResultOfALostLease(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	store, slot, now := seedRunSlot(t, database, 120)
@@ -122,7 +122,7 @@ func TestCompleteDiscardsTheResultOfALostLease(t *testing.T) {
 	}
 }
 
-// ADR 0021 requires the Run, its Observation, and the effects that follow it to commit
+// The Run, its Observation, and the effects that follow it must commit
 // together. A rejected outbox entry must leave no Run outcome behind.
 func TestCompleteWritesRunObservationAndOutboxInOneTransaction(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
@@ -174,7 +174,7 @@ func TestCompleteWritesRunObservationAndOutboxInOneTransaction(t *testing.T) {
 	}
 }
 
-// Skip and record is ADR 0021's misfire policy: a gap after downtime is written down as a
+// Skip and record is the misfire policy: a gap after downtime is written down as a
 // Run with no execution, which the schema must accept without a started_at.
 func TestSkippedRunIsStoredWithoutExecutionInstants(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
@@ -203,7 +203,7 @@ func TestSkippedRunIsStoredWithoutExecutionInstants(t *testing.T) {
 	}
 }
 
-// Manual Runs are exempt from slot uniqueness (ADR 0021): asking twice is a request rather
+// Manual Runs are exempt from slot uniqueness: asking twice is a request rather
 // than a duplicate, so the partial index must not collapse them into one row.
 func TestManualRunsAreExemptFromSlotUniqueness(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
@@ -231,7 +231,7 @@ func TestManualRunsAreExemptFromSlotUniqueness(t *testing.T) {
 }
 
 // A graceful shutdown releases the slot rather than leaving it unavailable until the lease
-// expires (ADR 0021).
+// expires.
 func TestReleaseSlotFreesTheSlotImmediately(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	store, slot, now := seedRunSlot(t, database, 160)
@@ -313,7 +313,7 @@ func TestRunQueriesDenyWrongOrganization(t *testing.T) {
 	}
 }
 
-// ADR 0025 makes "in flight" have exactly one spelling. The check constraints are what keep
+// "In flight" has exactly one spelling. The check constraints are what keep
 // a hand-written row from inventing a second one.
 func TestRunCheckConstraintsRejectContradictoryState(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
@@ -367,7 +367,7 @@ INSERT INTO runs (
 	}
 }
 
-// ADR 0024 gives an Observation nothing to redact by giving it nowhere to put target text.
+// Observation storage has nowhere to put target-controlled text, so it has nothing to redact.
 // The stored columns are the enforcement of that, so their absence is asserted directly.
 func TestObservationsTableHoldsNoTargetSuppliedText(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
@@ -391,7 +391,7 @@ WHERE table_schema = current_schema() AND table_name = 'observations'`)
 			t.Fatalf("scan observation column: %v", err)
 		}
 		if _, banned := forbidden[column]; banned {
-			t.Fatalf("observations has column %q, which ADR 0024 forbids", column)
+			t.Fatalf("observations has column %q, which bounded Observation storage forbids", column)
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -399,7 +399,7 @@ WHERE table_schema = current_schema() AND table_name = 'observations'`)
 	}
 }
 
-// Partition maintenance is what keeps inserts possible: ADR 0025 creates no default
+// Partition maintenance keeps inserts possible because partitioned storage has no default
 // partition, so a month with no partition is an insert failure by design.
 func TestEnsurePartitionsIsIdempotentAndRequiredForInserts(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
@@ -449,7 +449,7 @@ INSERT INTO runs (
 	}
 }
 
-// Expiry is ADR 0021's O(1) catalogue operation: whole partitions are dropped, partitions
+// Expiry is an O(1) catalogue operation: whole partitions are dropped, partitions
 // still inside the window are kept, and anything the job did not create is left alone.
 func TestDropExpiredPartitionsDropsOnlyWhollyAgedOwnedPartitions(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
@@ -770,7 +770,7 @@ func countRows(t *testing.T, database *DB, query string) int {
 	return count
 }
 
-// The scheduler's whole tick is this one read (ADR 0026), so it must return exactly the
+// The scheduler's whole tick is this one read, so it must return exactly the
 // Monitors that should run, joined to the revision a new Run would execute.
 func TestListSchedulableReturnsActiveMonitorsWithTheirLatestRevision(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
@@ -870,7 +870,7 @@ func TestListSchedulableReturnsActiveMonitorsWithTheirLatestRevision(t *testing.
 }
 
 // The interval round-trips through persistence, and changing it is an ordinary update that
-// leaves the revision counter alone (ADR 0026).
+// leaves the revision counter alone.
 func TestMonitorIntervalRoundTripsAndChangesWithoutARevision(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	organizationValue, project := seedTenant(t, database, 440, "interval-tenant")

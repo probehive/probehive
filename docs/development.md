@@ -87,7 +87,7 @@ real keyring values in database backups or general configuration archives. An em
 keyring permits startup only when no retained Webhook secret exists; creation then returns
 `503` until a keyring is configured.
 
-The embedded worker executes checks inside the same process (ADR 0020) and is configured
+The embedded worker executes checks inside the same process and is configured
 separately. Every value below is an operator ceiling or floor; user configuration may be
 stricter but never looser:
 
@@ -108,14 +108,14 @@ stricter but never looser:
 | `PROBEHIVE_CONNECT_TIMEOUT_SECONDS` | bound on one connection attempt | `10` |
 | `PROBEHIVE_PROBE_ROOT_CA_FILE` | PEM roots trusted for probe TLS instead of the host's, for an internal certificate authority | host roots |
 
-There is no setting that disables TLS verification (ADR 0024). Leaving
+There is no setting that disables TLS verification. Leaving
 `PROBEHIVE_OUTBOUND_RESOLVERS` unset uses the host's resolver, which is operator-controlled
 only in the sense that the operator controls the machine; an installation that wants an
 auditable answer path names its resolvers explicitly.
 
 A Monitor becomes due on a series derived from its identifier and interval, so slot instants
 are reproducible without coordination and Monitors sharing an interval do not all fire in the
-same second (ADR 0026). Partition maintenance runs at startup and every six hours; an
+same second. Partition maintenance runs at startup and every six hours; an
 installation whose worker never runs eventually cannot insert a Run, because there is no
 default partition to fall back on.
 
@@ -127,7 +127,18 @@ capacity is occupied, and an API-only process with `PROBEHIVE_WORKER_ENABLED=fal
 
 ## First Administrator and Sessions
 
-Every `/api/v1` endpoint except setup status, first-administrator creation, login, and antiforgery issuance requires an authenticated browser session. A fresh installation reports `{"setupComplete":false}` at `GET /api/v1/setup/status`. `POST /api/v1/setup/admin` creates the first administrator exactly once, provisions the installation Organization with slug `default` and its default Project, and signs the administrator in (ADR 0018). It returns both the user and that Organization, so no separate Organization step is needed before creating a Monitor. Setup also makes that administrator the Organization's first member, which is what grants access: every endpoint under `/api/v1/organizations/{id}/` resolves membership and checks a permission, and a non-member receives `404` rather than `403` (ADR 0017). The instance `Administrator` role alone grants no access to an Organization's monitoring data.
+Every `/api/v1` endpoint except setup status, first-administrator creation, login,
+and antiforgery issuance requires an authenticated browser session. A fresh
+installation reports `{"setupComplete":false}` at `GET /api/v1/setup/status`.
+`POST /api/v1/setup/admin` creates the first administrator exactly once,
+provisions the installation Organization with slug `default` and its default
+Project, and signs the administrator in. It returns both the user and that
+Organization, so no separate Organization step is needed before creating a
+Monitor. Setup also makes that administrator the Organization's first member,
+which grants access: every endpoint under `/api/v1/organizations/{id}/` resolves
+membership and checks a permission, and a non-member receives `404` rather than
+`403`. The instance `Administrator` role alone grants no access to an
+Organization's monitoring data.
 
 Unsafe requests need the token from `GET /api/v1/auth/antiforgery` echoed in the response-named `X-ProbeHive-Antiforgery` header. The token is bound to the current anonymous or authenticated identity, so fetch a fresh token after setup, login, or logout.
 

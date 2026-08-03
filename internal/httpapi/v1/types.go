@@ -281,7 +281,7 @@ type CreateMonitorRequest struct {
 	CheckType *string `json:"checkType"`
 	// IntervalSeconds is optional. Omitting it takes the product default; a Monitor is
 	// created in Draft and cannot run before it has a revision, so the frequency is not a
-	// decision the caller has to make up front (ADR 0026).
+	// decision the caller has to make up front.
 	IntervalSeconds *Integer `json:"intervalSeconds"`
 }
 
@@ -319,7 +319,7 @@ type CreateMonitorRevisionRequest struct {
 }
 
 // ValidationError is one field-level failure. Code is the stable contract identifier
-// clients localize from; Message is current English documentation (ADR 0019).
+// clients localize from; Message is current English documentation.
 type ValidationError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`

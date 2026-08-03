@@ -1,4 +1,4 @@
-/** One field-level failure. `code` is contract; `message` is English documentation (ADR 0019). */
+/** One field-level failure. `code` is contract; `message` is English documentation. */
 export interface ValidationError {
   code: string
   message: string
@@ -43,7 +43,7 @@ let antiforgery: AntiforgeryToken | null = null
 
 /**
  * Fetches a fresh antiforgery token. Tokens bind to the authenticated identity,
- * so this must run again after login, logout, and setup (ADR 0013).
+ * so this must run again after login, logout, and setup.
  */
 export async function refreshAntiforgery(): Promise<void> {
   const response = await fetch('/api/v1/auth/antiforgery')

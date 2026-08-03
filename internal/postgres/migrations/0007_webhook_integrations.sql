@@ -1,5 +1,5 @@
--- Organization-scoped signed Webhook Integration configuration and encrypted secrets
--- (ADR 0030). Integrations are created disabled; delivery is a later slice.
+-- Organization-scoped signed Webhook Integration configuration and encrypted secrets.
+-- Integrations are created disabled; delivery is a later slice.
 
 CREATE TABLE webhook_integrations (
     id uuid NOT NULL,

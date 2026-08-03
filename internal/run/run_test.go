@@ -115,7 +115,7 @@ func TestCompleteReleasesTheLeaseAndRecordsInstants(t *testing.T) {
 	}
 }
 
-// A claimed Run executed, whatever it found. ADR 0021 reserves skipped for the scheduler,
+// A claimed Run executed, whatever it found. Skipped is reserved for the scheduler,
 // so allowing it here would let an execution disguise itself as a slot that never ran.
 func TestCompleteRejectsSkipped(t *testing.T) {
 	t.Parallel()

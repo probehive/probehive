@@ -11,8 +11,8 @@ import (
 
 // Resolver resolves a host name to candidate addresses.
 //
-// The resolver used for validation is operator-controlled and never tenant-selectable
-// (ADR 0007). A tenant-selected resolver is only ever the destination of a DNS check, where
+// The resolver used for validation is operator-controlled and never tenant-selectable.
+// A tenant-selected resolver is only ever the destination of a DNS check, where
 // it is validated against the active profile like any other target - it never performs the
 // resolution that decides whether a destination is allowed.
 //

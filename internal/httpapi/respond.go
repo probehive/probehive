@@ -15,7 +15,7 @@ import (
 const maxRequestBodyBytes = 1 << 20
 
 // Transport-level problem codes. Feature packages own their own codes; these cover
-// failures the HTTP layer itself decides (ADR 0019).
+// failures the HTTP layer itself decides.
 const (
 	unauthorizedCode     = "auth.unauthorized"
 	forbiddenCode        = "auth.forbidden"
@@ -56,7 +56,7 @@ func writeProblem(w http.ResponseWriter, status int, title, detail string) {
 }
 
 // writeCodedProblem writes a Problem Details body carrying the stable code clients
-// localize from (ADR 0019). An empty code omits the member.
+// localize from. An empty code omits the member.
 func writeCodedProblem(w http.ResponseWriter, status int, code, title, detail string) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(status)
@@ -68,7 +68,7 @@ func writeCodedProblem(w http.ResponseWriter, status int, code, title, detail st
 }
 
 // writeValidationProblem groups failures by field path, preserving encounter order
-// within each field. Each entry carries its stable code (ADR 0019).
+// within each field. Each entry carries its stable code.
 func writeValidationProblem(w http.ResponseWriter, failures [][3]string) {
 	errorsByField := make(map[string][]api.ValidationError)
 	for _, failure := range failures {

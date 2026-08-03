@@ -1,5 +1,5 @@
 // Package run owns Run identity, slot identity, lease state, outcomes, and the retention
-// arithmetic that decides which stored month is still worth keeping (ADR 0021, ADR 0025).
+// arithmetic that decides which stored month is still worth keeping.
 //
 // A Run is one Monitor Revision executed once from one Probe Location. This package holds
 // what a Run is and what transitions it allows; where it is stored is internal/postgres's
@@ -7,7 +7,7 @@
 //
 // It is a feature package and stays standard-library-only, so it restates the shape of an
 // Observation rather than importing internal/probe. The mapping between the two belongs to
-// the composition that owns both (ADR 0025).
+// the composition that owns both.
 package run
 
 import (
@@ -17,10 +17,10 @@ import (
 )
 
 // ID identifies a Run. It is a UUIDv7 so that identifiers order by creation, but identity
-// for scheduling purposes is the Slot below, not this value (ADR 0021).
+// for scheduling purposes is the Slot below, not this value.
 type ID string
 
-// Kind separates the three reasons a Run exists. ADR 0021 requires a confirmation Run to be
+// Kind separates the three reasons a Run exists. A confirmation Run must be
 // identifiable as one rather than inferred from timing.
 type Kind string
 
@@ -61,26 +61,26 @@ var (
 	// already finished. Claiming again is not an error; it is a slot that is not available.
 	ErrSlotHeld = errors.New("the Run slot is held by another lease")
 	// ErrLeaseLost means the recorder no longer holds the lease it is recording against.
-	// ADR 0021 requires the result to be discarded rather than written.
+	// A result from a lost lease must be discarded rather than written.
 	ErrLeaseLost = errors.New("the Run lease was lost before the result was recorded")
 )
 
-// Slot is the idempotent identity of a scheduled Run (ADR 0021): one Monitor Revision, one
+// Slot is the idempotent identity of a scheduled Run: one Monitor Revision, one
 // Probe Location, one due instant. Two Runs with the same Slot are the same execution, which
 // the storage layer makes unrepresentable rather than merely unlikely.
 type Slot struct {
-	// OrganizationID carries tenant identity explicitly, as every tenant-scoped record must
-	// under ADR 0009.
+	// OrganizationID carries tenant identity explicitly, as required for every
+	// tenant-scoped record.
 	OrganizationID string
 	// MonitorID is the long-lived Monitor identity.
 	MonitorID string
 	// RevisionNumber is the exact immutable revision that was executed, not the latest one.
 	RevisionNumber int
 	// Location names the Probe Location that executed the Run. Its registry is a later
-	// decision, so this is a bounded identifier rather than a reference (ADR 0025).
+	// decision, so this is a bounded identifier rather than a reference.
 	Location string
 	// ScheduledFor is the instant the slot was due, in UTC. For a manual Run it is the
-	// instant the Run was requested. It is the partition key (ADR 0025).
+	// instant the Run was requested. It is the partition key.
 	ScheduledFor time.Time
 }
 
@@ -102,10 +102,10 @@ func (slot Slot) Validate() error {
 }
 
 // MaxLocationLength bounds the Probe Location identifier until the entity that owns it
-// exists and can impose its own rule (ADR 0025).
+// exists and can impose its own rule.
 const MaxLocationLength = 63
 
-// ConfirmationCause makes a confirmation Run explicitly causal (ADR 0027).
+// ConfirmationCause makes a confirmation Run explicitly causal.
 type ConfirmationCause struct {
 	CandidateID            string
 	TriggeringRunID        ID
@@ -119,7 +119,7 @@ type ConfirmationCause struct {
 // Three states are representable and a fourth is not. A claimed Run has a lease and no
 // outcome; a finished Run has an outcome and no lease; a skipped Run has OutcomeSkipped, no
 // lease, and no execution instants. A Run that is both leased and finished is rejected here
-// and by a check constraint in the database (ADR 0025).
+// and by a check constraint in the database.
 type Run struct {
 	ID           ID
 	Slot         Slot
@@ -199,7 +199,7 @@ func (cause ConfirmationCause) validate() error {
 // MaxLeaseHolderLength bounds the worker token so a lease column cannot become free storage.
 const MaxLeaseHolderLength = 128
 
-// Skip builds a Run that the scheduler deliberately did not execute. ADR 0021's misfire
+// Skip builds a Run that the scheduler deliberately did not execute. The misfire
 // policy is skip and record: a gap is written down rather than filled with late executions.
 func Skip(id ID, slot Slot, kind Kind) (Run, error) {
 	if id == "" {
@@ -343,7 +343,7 @@ func RestoreWithCause(
 	}, nil
 }
 
-// Misfired reports whether a due slot is too stale to execute. ADR 0021 fixes the boundary
+// Misfired reports whether a due slot is too stale to execute. The boundary
 // at one interval: running a backlog of stale checks produces alerts about the past, and
 // dropping the slots silently makes the gap invisible, so a stale slot is recorded as
 // skipped instead.
@@ -354,8 +354,8 @@ func Misfired(scheduledFor, now time.Time, interval time.Duration) bool {
 	return now.Sub(scheduledFor) > interval
 }
 
-// LeaseMargin is added to the effective execution ceiling to derive a lease duration
-// (ADR 0021). It covers claiming, recording, and ordinary scheduling jitter, so a worker
+// LeaseMargin is added to the effective execution ceiling to derive a lease duration.
+// It covers claiming, recording, and ordinary scheduling jitter, so a worker
 // that is merely slow does not lose a lease it is still executing under.
 const LeaseMargin = 30 * time.Second
 

@@ -3,7 +3,7 @@ import { Navigate, Outlet } from 'react-router'
 import { useTranslation } from '../i18n/context'
 import { useSession } from './useSession'
 
-/** Layout route that gates its children behind an authenticated session (ADR 0013). */
+/** Layout route that gates its children behind an authenticated session. */
 export default function RequireAuth() {
   const session = useSession()
   const { t } = useTranslation()

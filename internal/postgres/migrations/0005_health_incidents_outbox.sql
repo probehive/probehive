@@ -1,5 +1,5 @@
 -- Evaluated health, confirmation causation, Incidents, and the durable outbox
--- dispatcher (ADR 0027, ADR 0028).
+-- dispatcher.
 
 ALTER TABLE runs
     ADD COLUMN confirmation_candidate_id uuid,

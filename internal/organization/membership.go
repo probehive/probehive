@@ -6,8 +6,7 @@ import (
 	"time"
 )
 
-// Permission is an internal authorization capability (ADR 0019 does not publish it,
-// and ADR 0017 keeps the catalog unpublished until custom roles ship). Authorization
+// Permission is an internal authorization capability. Authorization
 // resolves a permission; no handler compares against a role name.
 type Permission string
 
@@ -26,7 +25,7 @@ const (
 
 // readSuffix marks a permission as read-only. Built-in roles are defined by rule
 // rather than by a fixed list, so a permission added later is covered automatically
-// (ADR 0017). Custom roles, when they ship, must not inherit that behavior.
+// Custom roles, when they ship, must not inherit that behavior.
 const readSuffix = ".read"
 
 // Role is an Organization role. Built-in names are reserved and a future custom role

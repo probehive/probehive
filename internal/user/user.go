@@ -14,8 +14,8 @@ const (
 	AdministratorRole = "Administrator"
 )
 
-// Stable error codes. A code is contract under ADR 0019: its spelling, meaning,
-// field path, and HTTP status never change once published. The English text
+// Stable error codes. Each code is part of the published error contract: its spelling,
+// meaning, field path, and HTTP status never change once published. The English text
 // beside it is documentation and may be reworded freely.
 const (
 	EmailInvalidCode          = "user.email.invalid"
@@ -85,7 +85,7 @@ func (value *User) ReplacePasswordHash(passwordHash string) error {
 }
 
 // ValidationFailure is one field-level use-case validation failure. Code is the
-// stable contract identifier (ADR 0019); Message is current English documentation.
+// stable contract identifier; Message is current English documentation.
 type ValidationFailure struct {
 	Code    string
 	Field   string

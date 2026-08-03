@@ -7,19 +7,19 @@ import (
 	"time"
 )
 
-// Observation is the stored detail of one Run (ADR 0021), holding exactly what ADR 0024
-// decided an execution may keep: codes, instants, and numbers.
+// Observation is the stored detail of one Run. It keeps only bounded codes, instants, and
+// numbers.
 //
 // It restates the shape internal/probe produces rather than importing it, because a feature
-// package stays standard-library-only (ADR 0025). The absence of a message, header, or body
+// package stays standard-library-only. The absence of a message, header, or body
 // field is the point: an Observation with nowhere to put target-supplied text has nothing to
-// redact, which is how ADR 0021's "redaction precedes persistence" holds by construction.
+// redact, so redaction precedes persistence by construction.
 type Observation struct {
 	// RunID and ScheduledFor are the Run this describes. ScheduledFor is repeated because it
-	// is the partition key both tables share (ADR 0025).
+	// is the partition key both tables share.
 	RunID        ID
 	ScheduledFor time.Time
-	// OrganizationID carries tenant identity explicitly (ADR 0009).
+	// OrganizationID carries tenant identity explicitly.
 	OrganizationID string
 	// FailureCode is the stable probe.* code, or the outbound.* denial reason, that explains
 	// a non-passed outcome. It is empty for a passed Run.
@@ -35,7 +35,7 @@ type Observation struct {
 	HTTP *HTTPDetail
 }
 
-// Phases holds the phase timings of one execution (ADR 0024).
+// Phases holds the phase timings of one execution.
 type Phases struct {
 	// Connect is establishing the first connection, including the resolution the outbound
 	// dialer performs inside it.
@@ -67,7 +67,7 @@ type TLSDetail struct {
 }
 
 // Bounds on the small identifiers an Observation stores, so a stored row stays the fixed-size
-// record ADR 0024 describes.
+// bounded record described above.
 const (
 	MaxCodeLength     = 100
 	MaxProtocolLength = 20
@@ -125,12 +125,12 @@ func (value HTTPDetail) validate() error {
 	return nil
 }
 
-// OutboxEntry is one effect that must follow a committed Run (ADR 0021). It is written in
+// OutboxEntry is one effect that must follow a committed Run. It is written in
 // the same transaction as the Run and never emitted from inside it. Consumers are
 // at-least-once and idempotent on ID.
 //
 // No topic is defined yet: incident evaluation and alert delivery are undecided, and naming
-// an event before its consumer exists would publish a contract nothing agreed to (ADR 0025).
+// an event before its consumer exists would publish a contract nothing agreed to.
 type OutboxEntry struct {
 	ID             ID
 	OrganizationID string

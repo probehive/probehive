@@ -14,7 +14,7 @@ import (
 
 // partitionAdvisoryLockKey serializes partition maintenance the way the migration runner
 // serializes migrations. Two workers running maintenance concurrently would otherwise race
-// between "does this partition exist" and "create it" (ADR 0025).
+// between "does this partition exist" and "create it".
 var (
 	_ run.Store      = (*RunStore)(nil)
 	_ run.QueryStore = (*RunStore)(nil)
@@ -43,10 +43,10 @@ func (database *DB) Runs() *RunStore { return &RunStore{pool: database.pool} }
 
 // ClaimSlot takes the lease on one Run slot, inserting the Run that holds it.
 //
-// The insert is the claim: the slot uniqueness index of ADR 0021 is what makes it exclusive,
+// The insert is the claim: the slot uniqueness index makes it exclusive,
 // so there is no window between reserving a slot and writing the row that owns it. A slot
 // whose previous lease has expired is reclaimed in the same statement, which is the storage
-// half of ADR 0021's rule that an expired lease is reclaimable by any worker.
+// storage rule that makes an expired lease reclaimable by any worker.
 //
 // It returns run.ErrSlotHeld when another worker holds an unexpired lease or the slot has
 // already recorded an outcome.
@@ -98,7 +98,7 @@ RETURNING `+runColumns,
 }
 
 // insertManualRun writes a Run that the slot index deliberately does not cover. A manual Run
-// is exempt from slot uniqueness under ADR 0021, so a conflict here is a duplicate
+// is exempt from slot uniqueness, so a conflict here is a duplicate
 // identifier rather than a contested slot.
 func (store *RunStore) insertManualRun(ctx context.Context, value run.Run, now time.Time) error {
 	_, err := store.pool.Exec(ctx, `
@@ -135,7 +135,7 @@ WHERE id = $2 AND scheduled_for = $3 AND organization_id = $4
 }
 
 // ReleaseSlot deletes an in-flight Run the caller still holds, so a graceful shutdown frees
-// the slot immediately instead of leaving it unavailable until the lease expires (ADR 0021).
+// the slot immediately instead of leaving it unavailable until the lease expires.
 //
 // It deletes rather than expiring the lease because the alternative is a Run that never
 // started and never will, which would be indistinguishable from an abandoned claim.
@@ -155,7 +155,7 @@ WHERE id = $1 AND scheduled_for = $2 AND organization_id = $3
 }
 
 // Complete records an execution outcome, its Observation, and any effects that must follow
-// the committed Run, in one transaction (ADR 0021).
+// the committed Run, in one transaction.
 //
 // The lease is the authority: the update matches on the holder token the caller still
 // believes it owns, and affects no rows when the lease was reclaimed. That is how a worker
@@ -248,7 +248,7 @@ WHERE id=$3 AND organization_id=$4
 	return nil
 }
 
-// RecordSkipped writes a slot the scheduler deliberately did not execute (ADR 0021). It
+// RecordSkipped writes a slot the scheduler deliberately did not execute. It
 // takes no lease: there is nothing to protect, because the Run is finished the moment it is
 // written. A slot another worker already claimed or executed is left alone.
 func (store *RunStore) RecordSkipped(ctx context.Context, value run.Run, entries []run.OutboxEntry, now time.Time) error {
@@ -375,7 +375,7 @@ LIMIT $10`,
 }
 
 // FindScopedRun loads one external Run identifier through its complete ownership path. The
-// identifier is the external reference (ADR 0021); scheduled_for remains an internal
+// identifier is the external reference; scheduled_for remains an internal
 // partition key and is recovered here for the exact Observation lookup that follows.
 func (store *RunStore) FindScopedRun(
 	ctx context.Context, scope run.Scope, id run.ID,

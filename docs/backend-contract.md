@@ -2,13 +2,15 @@
 
 Status: working implementation specification for the unreleased initial vertical slice.
 
-This document defines the observable backend behavior of the initial vertical slice. It is maintained with
-the v1 API, check validation, PostgreSQL adapters and migrations, API tests, React
-client, Playwright journey, and ADRs 0012-0030. The web application and browser
-journey are contract consumers and remain synchronized with this specification.
+This document defines the observable backend behavior of the initial vertical
+slice. It is maintained with the v1 API, check validation, PostgreSQL adapters
+and migrations, API tests, React client, Playwright journey, and current
+architecture baseline. The web application and browser journey are contract
+consumers and remain synchronized with this specification.
 
-ADRs remain normative. Where the current implementation and an ADR differ, this
-document calls out the gap rather than turning it into a compatibility promise.
+The architecture baseline remains normative. Where the current implementation
+and this document differ, this document calls out the gap rather than turning it
+into a compatibility promise.
 
 ## 1. Common HTTP and JSON Rules
 
@@ -47,7 +49,7 @@ Errors use `Content-Type: application/problem+json`. The ordinary shape is:
 }
 ```
 
-Non-validation problems carry a stable `code` beside `title` (ADR 0019):
+Non-validation problems carry a stable `code` beside `title`:
 
 ```json
 {
@@ -412,7 +414,7 @@ idempotency key. `PUT /api/v1/organizations/{organizationId}/name` applies the s
 
 Rename moves the replay boundary, which callers must expect: after a rename, provisioning
 the same slug with the pre-rename display name returns `409`, and the current display name
-is what replays with `200` (ADR 0022).
+is what replays with `200`.
 
 ### Signed Webhook Integrations
 
@@ -754,7 +756,7 @@ check constraint exists; those invariants remain in feature code.
 
 - Embedded sequential `.sql` migrations run transactionally and record applied
   versions in `schema_migrations`. A migration version is applied at most once.
-- Password hashes use the versioned Argon2id encoding defined by ADR 0013.
+- Password hashes use the versioned Argon2id encoding described below.
 - Sessions and antiforgery state use the bounded PostgreSQL structures defined above.
 
 Organization, default Project, and the creator's `Administrator` membership are
@@ -786,7 +788,7 @@ Neither route is under `/api/v1`, requires a cookie, or requires antiforgery.
 ### Evaluated Monitor health and Incidents
 
 `GET .../monitors/{monitorId}/health` returns the durable evaluator snapshot defined by
-ADR 0027. Health states are `unknown`, `healthy`, `degraded`, and `down`; stable state is
+this contract. Health states are `unknown`, `healthy`, `degraded`, and `down`; stable state is
 `unknown`, `healthy`, or `down`. Phase 1 policy is exactly `phase1.v1`, one configured
 embedded location, and one-of-one failure and recovery quorum. A failure candidate and a
 recovery candidate each require one matching explicit confirmation Run. Mixed,
@@ -794,8 +796,9 @@ indeterminate, location-fault, pending-confirmation, and missing evidence never 
 become Down. Every response carries the configured, eligible, responding, passing,
 failing, location-fault, indeterminate, and missing counts.
 
-For an Active Monitor, determinate evidence becomes stale at the ADR 0027 boundary and
-transitions health to Unknown. Paused and archived Monitors preserve their last evaluated
+For an Active Monitor, determinate evidence becomes stale when its configured
+evidence age expires and transitions health to Unknown. Paused and archived
+Monitors preserve their last evaluated
 state. Evidence from a superseded revision or an older scheduled cohort remains queryable
 but cannot rewrite current health or Incident history.
 
@@ -833,7 +836,7 @@ The internal PostgreSQL outbox topics are `run.recorded.v1`,
 `incident.transitioned.v1`. They are internal durable
 facts, not public webhooks. Every camelCase payload has `eventId` equal to its owning row,
 `organizationId`, `occurredAt`, `aggregateType`, `aggregateId`, `aggregateVersion`, and
-the ADR-defined causation where applicable. Consumers verify row/payload Organization,
+the recorded causation where applicable. Consumers verify row/payload Organization,
 ignore additional object members, reject invalid required enums, serialize each aggregate,
 and mark the event id processed transactionally.
 
@@ -846,7 +849,7 @@ up to 32, concurrency up to 4, 12 attempts, exponential retry from one second to
 minutes with deterministic non-negative jitter up to 20 percent, and a 15-minute future
 aggregate-version gap deadline. Permanent payload/topic/Organization failures dead-letter
 immediately. Processed ids and dead letters retain for 30 days; live rows are never removed
-by cleanup. Stable dispatcher codes are those listed in ADR 0028.
+by cleanup. Stable dispatcher codes are part of this contract.
 
 ## 11. Current Frontend Fetch Contract
 
@@ -892,7 +895,7 @@ Playwright runs from `web/` with:
 - API readiness URL `http://127.0.0.1:5080/readyz`, 180-second timeout, never reuse;
 - Vite at `127.0.0.1:5173` with `--strictPort`, 120-second timeout, never reuse;
 - pinned `locale: 'en-US'` and `timezoneId: 'UTC'`. These are load-bearing, not
-  cosmetic: instants render through `Intl` in the viewer's locale and zone (ADR 0019),
+  cosmetic: instants render through `Intl` in the viewer's locale and zone,
   so unpinning either makes assertions depend on the machine running them.
 
 Vite proxies `/api` to `http://localhost:5080` without `changeOrigin`, preserving the
@@ -929,7 +932,7 @@ alters observable behavior described here must update this document in the same 
 ## 13. Error Code Catalog
 
 Every code the current build can emit. A client catalog covers this list; an unknown
-code falls back to the response's English `message` (ADR 0019). Codes are contract;
+code falls back to the response's English `message`. Codes are contract;
 the sentences elsewhere in this document are not.
 
 Transport and authorization:

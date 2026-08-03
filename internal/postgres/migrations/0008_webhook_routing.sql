@@ -1,4 +1,4 @@
--- Stable Webhook routing snapshots created with Alert projection (ADR 0030).
+-- Stable Webhook routing snapshots created with Alert projection.
 -- These rows are delivery identities, not evidence of an external call.
 
 CREATE TABLE webhook_deliveries (

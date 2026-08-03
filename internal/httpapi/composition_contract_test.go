@@ -81,7 +81,7 @@ func TestMembershipGovernsOrganizationAccess(t *testing.T) {
 	}
 
 	// An instance Administrator who is not a member has no implicit access, and the
-	// Organization must be indistinguishable from one that does not exist (ADR 0017).
+	// Organization must be indistinguishable from one that does not exist.
 	environment.organizations.setMembership(
 		organization.ID(bootstrapOrganization), environment.administratorID(t), organization.RoleAdministrator, false,
 	)
@@ -162,7 +162,7 @@ func TestOrganizationReplayAndGetExactWireShape(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	token := environment.bootstrapAdministrator(t)
 	// Setup consumes 0001 for the administrator and 0002/0003 for the bootstrap
-	// Organization and its default Project (ADR 0018), so this one starts at 0004.
+	// Organization and its default Project, so this one starts at 0004.
 	const organizationID = "00000000-0000-7000-8000-000000000004"
 	const projectID = "00000000-0000-7000-8000-000000000005"
 	const organizationBody = `{"slug":"acme","displayName":"Acme"}`
@@ -234,7 +234,7 @@ func TestOrganizationRenameGateAndReplayBoundary(t *testing.T) {
 		t.Fatalf("after rename = %#v, want the trimmed name and an unchanged slug", after)
 	}
 
-	// ADR 0022: renaming moves the replay boundary. The original display name no longer
+	// Renaming moves the replay boundary. The original display name no longer
 	// replays, and the new one does.
 	stale := environment.request(
 		t, environment.client, http.MethodPost, "/api/v1/organizations",

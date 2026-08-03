@@ -1,4 +1,4 @@
-// Package incident owns one-Monitor automatic Incident lifecycle (ADR 0028).
+// Package incident owns one-Monitor automatic Incident lifecycle.
 package incident
 
 import (

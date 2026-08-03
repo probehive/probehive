@@ -15,7 +15,7 @@ import (
 var _ run.MonitorSource = (*RunStore)(nil)
 
 // MaxSchedulableMonitors bounds one scheduling read. An installation that exceeds it has
-// outgrown a tick that lists every active Monitor, which ADR 0026 names as the trigger for
+// outgrown a tick that lists every active Monitor, which is the trigger for
 // introducing a due cursor; truncating silently would hide that by simply not running the
 // Monitors past the bound.
 const MaxSchedulableMonitors = 10000
@@ -24,7 +24,7 @@ const MaxSchedulableMonitors = 10000
 //
 // It joins the latest revision rather than letting the scheduler ask for one per Monitor,
 // because the scheduler's whole tick is one read and a Monitor without its configuration is
-// not schedulable. An active Monitor always has a revision (ADR 0014), so the inner join
+// not schedulable. An active Monitor always has a revision, so the inner join
 // excludes nothing that should have run.
 func (store *RunStore) ListSchedulable(ctx context.Context) ([]run.Schedulable, error) {
 	rows, err := store.pool.Query(ctx, `
@@ -69,7 +69,7 @@ LIMIT $1`, MaxSchedulableMonitors+1)
 			CheckConfiguration: append(json.RawMessage(nil), configuration...),
 			Interval:           time.Duration(intervalSeconds) * time.Second,
 			// updated_at moves when a Monitor is activated or gains a revision, so it is the
-			// floor on how far back a misfire may be recorded (ADR 0026).
+			// floor on how far back a misfire may be recorded.
 			NotBefore: updatedAt.UTC(),
 		})
 	}

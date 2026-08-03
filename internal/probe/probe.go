@@ -1,10 +1,10 @@
 // Package probe executes checks. It turns a validated check configuration plus the outbound
-// dialer of internal/outbound into an Observation (ADR 0020, ADR 0024).
+// dialer of internal/outbound into an Observation.
 //
 // The split from internal/check is deliberate: a check type is defined and validated in one
 // package that stays standard-library-only, and executed in another that may use protocol
 // clients. The two are joined by the check type identifier and integer schema version of
-// ADR 0014, and execution revalidates the stored configuration rather than trusting it.
+// stored Monitor Revision, and execution revalidates the configuration rather than trusting it.
 //
 // This package imports no persistence, HTTP-API, or composition package, and nothing imports
 // it back. It receives its ceilings; it does not read configuration.
@@ -23,7 +23,7 @@ import (
 // Clock supplies domain-relevant time.
 type Clock interface{ Now() time.Time }
 
-// Outcome is what one execution amounted to. It matches the Run outcomes of ADR 0021 minus
+// Outcome is what one execution amounted to. It matches run.Outcome except for
 // OutcomeSkipped, which belongs to the scheduler: an executor that ran cannot have skipped.
 type Outcome string
 
@@ -43,9 +43,9 @@ const (
 	OutcomeCancelled Outcome = "cancelled"
 )
 
-// Stable failure codes. A code is contract under ADR 0019 and ADR 0024; the English text
-// beside it is documentation and may be reworded freely. An outbound denial is reported under
-// its own outbound.* reason rather than being flattened into one of these.
+// Stable failure codes are part of the published contract. The English text
+// beside each is documentation and may be reworded freely.
+// An outbound denial uses its own outbound.* reason rather than one of these.
 const (
 	// CodeCheckTypeUnsupported means this build has no executor for the check type. It is
 	// reachable only from a stored revision written by a build that had one.
@@ -76,19 +76,18 @@ const (
 //
 // It is a code and, for an outbound denial, the class that denied the address. There is
 // deliberately no message field: an Observation that carries no free text and no
-// target-supplied bytes has nothing to redact, which is how ADR 0021's requirement that
-// redaction precede persistence is met by construction rather than by a step a later change
-// could forget (ADR 0024).
+// target-supplied bytes has nothing to redact. Redaction precedes persistence by
+// construction rather than by a step a later change could forget.
 type Failure struct {
 	// Code is the stable identifier of what failed. It is a probe.* code, or the outbound.*
-	// reason of ADR 0023 when the outbound policy refused the destination.
+	// stable outbound.* reason when the outbound policy refused the destination.
 	Code string
 	// Class is set when an outbound address denial named one, and reports why the address
 	// was denied.
 	Class outbound.Class
 }
 
-// Observation is the bounded detail of one execution (ADR 0021). Organization identity, Run
+// Observation is the bounded detail of one execution. Organization identity, Run
 // identity, Probe Location, and persistence belong to the caller; this is the measurement.
 type Observation struct {
 	// Outcome is what the execution amounted to.
@@ -102,7 +101,7 @@ type Observation struct {
 	// the two instants, is the latency: a clock step must not become a latency spike.
 	Duration time.Duration
 	// Phases times the parts of the first hop. A later redirect hop may reuse a connection,
-	// so recording its zero would read as an anomaly rather than as reuse (ADR 0024).
+	// so recording its zero would read as an anomaly rather than as reuse.
 	Phases Phases
 	// HTTP is present when a response arrived, whatever the outcome.
 	HTTP *HTTPResult
@@ -112,7 +111,7 @@ type Observation struct {
 // no TLS handshake on a plaintext request, no first byte when the connection failed.
 type Phases struct {
 	// Connect is establishing the first connection, including the resolution the outbound
-	// dialer performs inside it (ADR 0024).
+	// dialer performs inside it.
 	Connect time.Duration
 	// TLS is the first TLS handshake.
 	TLS time.Duration

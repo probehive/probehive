@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-// Month is one monthly partition range. ADR 0021 partitions raw Run storage by month and
-// expires it by dropping whole partitions, so the unit of retention is a month even though
+// Month is one monthly partition range. Raw Run storage is partitioned by month and
+// expires by dropping whole partitions, so the unit of retention is a month even though
 // the retention window an operator configures is expressed in days.
 type Month struct {
 	Year  int
@@ -39,7 +39,7 @@ func (value Month) Suffix() string {
 }
 
 // ParseMonthSuffix reads back a Suffix. A name it does not recognise is not ours to manage:
-// ADR 0025 leaves an operator-attached partition alone rather than guessing its range.
+// an operator-attached partition is left alone rather than having its range guessed.
 func ParseMonthSuffix(suffix string) (Month, bool) {
 	year, month, found := strings.Cut(suffix, "_")
 	if !found || len(year) != 4 || len(month) != 2 {
@@ -56,7 +56,7 @@ func ParseMonthSuffix(suffix string) (Month, bool) {
 	return Month{Year: parsedYear, Month: time.Month(parsedMonth)}, true
 }
 
-// Retention window defaults and bounds. ADR 0021 requires the default to be small enough
+// Retention window defaults and bounds. The default is small enough
 // that an unattended installation cannot fill its disk with raw rows.
 const (
 	// DefaultRetentionDays is the retention window an operator who configures nothing gets.
@@ -65,7 +65,7 @@ const (
 	// which "what happened last night" is still answerable.
 	MinRetentionDays = 1
 	// MaxRetentionDays bounds raw retention at roughly two years. Longer horizons are the
-	// job of the rollup tables ADR 0021 keeps separate.
+	// job of separate rollup tables.
 	MaxRetentionDays = 730
 	// DefaultPartitionsAhead is how many months beyond the current one are created in
 	// advance, so a missing future partition is an operational alert rather than an insert
@@ -76,7 +76,7 @@ const (
 	MaxPartitionsAhead = 24
 )
 
-// Retention is the operator-configured raw retention window, in whole days (ADR 0021).
+// Retention is the operator-configured raw retention window, in whole days.
 type Retention struct {
 	Days int
 }
@@ -100,7 +100,7 @@ func (value Retention) Cutoff(now time.Time) time.Time {
 // Expired reports whether a whole partition has aged out. The entire range must be older
 // than the cutoff, because dropping a partition drops rows the window still covers otherwise.
 //
-// The consequence, recorded in ADR 0025, is that effective retention exceeds the configured
+// Effective retention can exceed the configured
 // window by up to a month. Retention is a floor on what is kept, not a ceiling.
 func (value Retention) Expired(month Month, now time.Time) bool {
 	return !month.End().After(value.Cutoff(now))

@@ -45,7 +45,8 @@ func (server *Server) setupAdministrator(w http.ResponseWriter, r *http.Request)
 	case user.CreateFirstAdministratorCreated:
 		// Provision before issuing the session: if provisioning fails the operator has an
 		// administrator but no session, signs in normally, and creates an Organization by
-		// hand, which is exactly the pre-ADR-0018 path rather than a half-signed-in state.
+		// hand. That follows the legacy manual-provisioning path rather than leaving a
+		// half-signed-in state.
 		provisioned, err := server.organizations.ProvisionBootstrap(r.Context(), string(result.User.ID))
 		if err != nil {
 			server.internalError(w, r, "provision bootstrap Organization", err)

@@ -64,7 +64,7 @@ func TestMigrationsAreConcurrentSafeAndIdempotent(t *testing.T) {
 	}
 
 	// runs and observations are the partitioned parents only. Their monthly partitions are
-	// created by RunStore.EnsurePartitions rather than by a migration (ADR 0025), so a
+	// created by RunStore.EnsurePartitions rather than by a migration, so a
 	// freshly migrated schema holds no partition and the count below stays stable.
 	requiredTables := []string{
 		"organizations", "projects", "users", "monitors", "monitor_revisions",
@@ -205,7 +205,7 @@ VALUES ($1, $2, 'Secondary', false, $3)`, string(extra.ID), string(extra.Organiz
 	}
 
 	// Membership is the filter: a user who belongs to nothing sees nothing, even
-	// though these Organizations exist (ADR 0017).
+	// though these Organizations exist.
 	stranger, err := store.ListForMember(t.Context(), testUUID(901))
 	if err != nil {
 		t.Fatalf("ListForMember() for a non-member error = %v", err)
@@ -1068,7 +1068,7 @@ func embeddedMigrationVersions(t *testing.T) []migration {
 
 func TestMembershipBackfillGrantsExistingAdministratorsAccess(t *testing.T) {
 	// An installation that predates membership must not lose access to its own data
-	// when enforcement lands (ADR 0017), so the backfill runs against pre-existing rows.
+	// when enforcement lands, so the backfill runs against pre-existing rows.
 	database := newIntegrationDatabase(t, false)
 	if err := runMigrations(t.Context(), database.pool, onlyFirstMigration(t)); err != nil {
 		t.Fatalf("apply pre-membership schema: %v", err)

@@ -31,7 +31,7 @@ export default function SetupPage() {
     mutationFn: () => createFirstAdministrator({ email, displayName, password }),
     onSuccess: async (result) => {
       // Setup signs the administrator in and provisions the installation
-      // Organization (ADR 0018), so land directly on it rather than on a
+      // Organization, so land directly on it rather than on a
       // create-an-Organization step the operator no longer needs.
       await queryClient.invalidateQueries({ queryKey: sessionQueryKey })
       await queryClient.invalidateQueries({ queryKey: ['setup-status'] })

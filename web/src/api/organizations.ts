@@ -42,7 +42,7 @@ export function listOrganizations(): Promise<OrganizationResponse[]> {
   return getJson<OrganizationResponse[]>('/api/v1/organizations')
 }
 
-/** Changes only the display name; the slug is immutable (ADR 0022). */
+/** Changes only the display name; the slug is immutable. */
 export async function renameOrganization(
   organizationId: string,
   displayName: string,

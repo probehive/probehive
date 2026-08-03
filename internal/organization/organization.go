@@ -13,14 +13,14 @@ const (
 	// DefaultProjectName is the source name assigned transactionally at provisioning.
 	DefaultProjectName = "Default"
 	// BootstrapSlug is the slug of the Organization first-administrator setup provisions
-	// so a new installation can create a Monitor without any manual setup step (ADR 0018).
+	// so a new installation can create a Monitor without any manual setup step.
 	BootstrapSlug = "default"
 	// BootstrapDisplayName is the display name of that Organization. Setup accepts no
-	// Organization input; renaming is the separate future operation named in ADR 0012.
+	// Organization input; renaming is a separate operation.
 	BootstrapDisplayName = "Default"
 )
 
-// Stable error codes. A code is contract under ADR 0019; the English text beside
+// Stable error codes. Each code is part of the published contract; the English text beside
 // it is documentation and may be reworded freely.
 const (
 	SlugInvalidCode        = "organization.slug.invalid"
@@ -103,7 +103,7 @@ type Details struct {
 }
 
 // ValidationFailure is one field-level use-case validation failure. Code is the
-// stable contract identifier (ADR 0019); Message is current English documentation.
+// stable contract identifier; Message is current English documentation.
 type ValidationFailure struct {
 	Code    string
 	Field   string

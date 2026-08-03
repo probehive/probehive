@@ -6,7 +6,7 @@ export type Locale = (typeof locales)[number]
 
 export const defaultLocale: Locale = 'en'
 
-/** Adding a locale means adding a catalog here; no application code changes (ADR 0019). */
+/** Adding a locale means adding a catalog here; no application code changes. */
 export const catalogs: Record<Locale, Catalog> = { en, 'zh-CN': zhCN }
 
 export const localeNames: Record<Locale, string> = { en: 'English', 'zh-CN': '简体中文' }
