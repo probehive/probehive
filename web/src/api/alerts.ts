@@ -19,6 +19,35 @@ export interface AlertPageResponse {
   nextCursor: string | null
 }
 
+export type DeliveryAttemptOutcome =
+  | 'inProgress'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled'
+
+export interface DeliveryAttemptResponse {
+  sequence: number
+  startedAt: string
+  finishedAt: string | null
+  outcome: DeliveryAttemptOutcome
+  httpStatus: number | null
+  failureCode: string | null
+}
+
+export interface AlertDeliveryResponse {
+  id: string
+  channel: 'webhook'
+  integrationId: string
+  integrationVersion: number
+  secretVersion: number
+  routedAt: string
+  attempts: DeliveryAttemptResponse[]
+}
+
+export interface AlertDeliveryPageResponse {
+  items: AlertDeliveryResponse[]
+}
+
 interface ListAlertsOptions {
   pageSize?: number
   cursor?: string
@@ -48,5 +77,17 @@ export function listAlerts(
   }
   return getJson<AlertPageResponse>(
     alertsPath(organizationId, projectId, monitorId) + '?' + query.toString(),
+  )
+}
+
+export function listAlertDeliveries(
+  organizationId: string,
+  projectId: string,
+  monitorId: string,
+  alertId: string,
+): Promise<AlertDeliveryPageResponse> {
+  return getJson<AlertDeliveryPageResponse>(
+    alertsPath(organizationId, projectId, monitorId) + '/' +
+      encodeURIComponent(alertId) + '/deliveries',
   )
 }

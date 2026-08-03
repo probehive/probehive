@@ -784,6 +784,35 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/alerts/{alertId}/deliveries": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" },
+        { "$ref": "#/components/parameters/AlertID" }
+      ],
+      "get": {
+        "tags": ["Alerts"],
+        "operationId": "listAlertDeliveries",
+        "summary": "List routed deliveries and append-only attempts for one Alert",
+        "description": "Requires alert.read. Every lookup carries Organization, Project, Monitor, and Alert scope. The audit omits destination URLs, secrets, signatures, response bodies, arbitrary headers, and provider text.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "The Alert's routed deliveries and attempts.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AlertDeliveryPageResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents": {
       "parameters": [
         { "$ref": "#/components/parameters/OrganizationID" },
@@ -1031,6 +1060,12 @@
       },
       "IncidentID": {
         "name": "incidentId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
+      "AlertID": {
+        "name": "alertId",
         "in": "path",
         "required": true,
         "schema": { "type": "string", "format": "uuid" }
@@ -1398,6 +1433,54 @@
           "kind": { "type": "string", "enum": ["incident.opened", "incident.resolved"] },
           "occurredAt": { "type": "string", "format": "date-time" },
           "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "AlertDeliveryPageResponse": {
+        "type": "object",
+        "required": ["items"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 5,
+            "items": { "$ref": "#/components/schemas/AlertDeliveryResponse" }
+          }
+        }
+      },
+      "AlertDeliveryResponse": {
+        "type": "object",
+        "required": ["id", "channel", "integrationId", "integrationVersion", "secretVersion", "routedAt", "attempts"],
+        "description": "One stable routed delivery. It deliberately omits destination URL and secret material.",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "channel": { "type": "string", "const": "webhook" },
+          "integrationId": { "type": "string", "format": "uuid" },
+          "integrationVersion": { "type": "integer", "format": "int64", "minimum": 1 },
+          "secretVersion": { "type": "integer", "format": "int64", "minimum": 1 },
+          "routedAt": { "type": "string", "format": "date-time" },
+          "attempts": {
+            "type": "array",
+            "maxItems": 5,
+            "items": { "$ref": "#/components/schemas/DeliveryAttemptResponse" }
+          }
+        }
+      },
+      "DeliveryAttemptResponse": {
+        "type": "object",
+        "required": ["sequence", "startedAt", "finishedAt", "outcome", "httpStatus", "failureCode"],
+        "description": "Append-only evidence of one bounded external call. Provider bodies, arbitrary headers, and provider text are never retained.",
+        "properties": {
+          "sequence": { "type": "integer", "format": "int64", "minimum": 1, "maximum": 5 },
+          "startedAt": { "type": "string", "format": "date-time" },
+          "finishedAt": { "type": ["string", "null"], "format": "date-time" },
+          "outcome": {
+            "type": "string",
+            "enum": ["inProgress", "succeeded", "failed", "cancelled"]
+          },
+          "httpStatus": { "type": ["integer", "null"], "minimum": 100, "maximum": 599 },
+          "failureCode": {
+            "type": ["string", "null"],
+            "description": "A stable allowlisted ProbeHive failure code; never provider text."
+          }
         }
       },
       "IncidentPageResponse": {

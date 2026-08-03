@@ -90,6 +90,9 @@ func (outboundError *Error) Error() string {
 
 func (outboundError *Error) Unwrap() error { return outboundError.cause }
 
+// ErrorCode lets protocol executors retain the stable reason without importing this package.
+func (outboundError *Error) ErrorCode() string { return string(outboundError.Reason) }
+
 // ReasonOf reports the stable reason an error carries, or an empty Reason for an error this
 // package did not produce.
 func ReasonOf(err error) Reason {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/probehive/probehive/internal/webhook"
 )
@@ -13,10 +14,19 @@ type memoryWebhookStore struct {
 	mu             sync.Mutex
 	byOrganization map[string][]webhook.Integration
 	secrets        []webhook.StoredSecret
+	audits         map[string]webhookAuditFixture
+}
+
+type webhookAuditFixture struct {
+	scope  webhook.DeliveryScope
+	values []webhook.DeliveryAudit
 }
 
 func newMemoryWebhookStore() *memoryWebhookStore {
-	return &memoryWebhookStore{byOrganization: make(map[string][]webhook.Integration)}
+	return &memoryWebhookStore{
+		byOrganization: make(map[string][]webhook.Integration),
+		audits:         make(map[string]webhookAuditFixture),
+	}
 }
 
 func (store *memoryWebhookStore) Create(
@@ -81,6 +91,49 @@ func (store *memoryWebhookStore) onlySecret(t *testing.T) webhook.StoredSecret {
 		t.Fatalf("Webhook secret count = %d, want 1", len(store.secrets))
 	}
 	return cloneStoredSecret(store.secrets[0])
+}
+
+func (*memoryWebhookStore) Claim(
+	context.Context, string, time.Time, time.Time, int,
+) ([]webhook.DeliveryClaim, error) {
+	return nil, nil
+}
+
+func (*memoryWebhookStore) Complete(
+	context.Context,
+	webhook.DeliveryClaim,
+	webhook.AttemptUpdate,
+	*time.Time,
+	bool,
+) error {
+	return nil
+}
+
+func (store *memoryWebhookStore) ListAudit(
+	_ context.Context, scope webhook.DeliveryScope,
+) ([]webhook.DeliveryAudit, bool, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	fixture, found := store.audits[scope.AlertID]
+	if !found || fixture.scope != scope {
+		return nil, false, nil
+	}
+	values := make([]webhook.DeliveryAudit, len(fixture.values))
+	for index, value := range fixture.values {
+		value.Attempts = append(
+			[]webhook.DeliveryAttempt(nil), value.Attempts...,
+		)
+		values[index] = value
+	}
+	return values, true, nil
+}
+
+func (store *memoryWebhookStore) setAudit(
+	scope webhook.DeliveryScope, values []webhook.DeliveryAudit,
+) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	store.audits[scope.AlertID] = webhookAuditFixture{scope: scope, values: values}
 }
 
 func cloneStoredSecret(value webhook.StoredSecret) webhook.StoredSecret {

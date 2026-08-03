@@ -17,6 +17,8 @@ import (
 	"github.com/probehive/probehive/internal/postgres"
 	"github.com/probehive/probehive/internal/probe"
 	"github.com/probehive/probehive/internal/run"
+	"github.com/probehive/probehive/internal/webhook"
+	"github.com/probehive/probehive/internal/webhookhttp"
 )
 
 // Worker defaults. Every one of them is an operator ceiling or floor that ADR 0020 requires
@@ -252,6 +254,7 @@ type workerRuntime struct {
 	scheduler     *run.Scheduler
 	confirmations *run.ConfirmationRunner
 	manualRuns    *run.ManualRunner
+	webhookClient webhook.HTTPDoer
 }
 
 // newWorkerRuntime shares one policy-enforced executor and concurrency bound between all Runs.
@@ -283,6 +286,7 @@ func newWorkerRuntime(
 			"setting", "PROBEHIVE_OUTBOUND_RESOLVERS")
 	}
 	dialer := outbound.NewDialer(policy, resolver, settings.connectTimeout)
+	webhookClient := webhookhttp.NewClient(dialer.DialContext, nil)
 
 	httpExecutor, err := probe.NewHTTPExecutor(dialer, settings.probeSettings, systemClock)
 	if err != nil {
@@ -333,6 +337,7 @@ func newWorkerRuntime(
 	}
 	return &workerRuntime{
 		scheduler: scheduler, confirmations: confirmations, manualRuns: manualRuns,
+		webhookClient: webhookClient,
 	}, nil
 }
 

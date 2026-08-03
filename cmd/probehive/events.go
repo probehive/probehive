@@ -12,6 +12,7 @@ import (
 	"github.com/probehive/probehive/internal/outbox"
 	"github.com/probehive/probehive/internal/postgres"
 	"github.com/probehive/probehive/internal/run"
+	"github.com/probehive/probehive/internal/webhook"
 )
 
 func newOutboxDispatcher(
@@ -70,6 +71,21 @@ func newOutboxDispatcher(
 				}
 			}),
 		},
+	})
+}
+
+func newWebhookDeliveryDispatcher(
+	database *postgres.DB,
+	keyring *webhook.Keyring,
+	client webhook.HTTPDoer,
+	systemClock webhook.Clock,
+	identifiers webhook.IDGenerator,
+	logger *slog.Logger,
+) (*webhook.DeliveryDispatcher, error) {
+	return webhook.NewDeliveryDispatcher(webhook.DeliveryDispatcherConfig{
+		Store: database.Webhooks(), Keyring: keyring, Client: client,
+		Clock: systemClock, UUIDs: identifiers, Logger: logger,
+		RetryDelay: outbox.RetryDelay,
 	})
 }
 

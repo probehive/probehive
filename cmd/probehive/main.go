@@ -165,7 +165,13 @@ func serve(logger *slog.Logger) error {
 		if err != nil {
 			return err
 		}
-		workers.Add(4)
+		webhookDispatcher, err := newWebhookDeliveryDispatcher(
+			database, webhookKeyring, runtime.webhookClient,
+			systemClock, identifiers, logger)
+		if err != nil {
+			return err
+		}
+		workers.Add(5)
 		go func() {
 			defer workers.Done()
 			serveMaintenance(stopContext, database.Runs(), workerConfiguration, systemClock, logger)
@@ -180,6 +186,12 @@ func serve(logger *slog.Logger) error {
 			defer workers.Done()
 			if err := dispatcher.Serve(stopContext); err != nil {
 				logger.Error("outbox dispatcher stopped", "error", err)
+			}
+		}()
+		go func() {
+			defer workers.Done()
+			if err := webhookDispatcher.Serve(stopContext); err != nil {
+				logger.Error("Webhook delivery dispatcher stopped", "error", err)
 			}
 		}()
 		go func() {

@@ -52,6 +52,7 @@ func TestOpenAPIDocumentDescribesEveryRoute(t *testing.T) {
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/interval":                           {"put"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions":                          {"get", "post"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}":         {"get"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/alerts/{alertId}/deliveries":        {"get"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/health":                             {"get"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents":                          {"get"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/alerts":                             {"get"},
@@ -148,7 +149,8 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 	for _, name := range []string{
 		"RunPageResponse", "RunResponse", "ConfirmationCauseResponse", "ObservationResponse",
 		"MonitorHealthResponse", "HealthCountsResponse", "IncidentPageResponse", "IncidentResponse", "IncidentTimelineResponse",
-		"AlertPageResponse", "AlertResponse",
+		"AlertPageResponse", "AlertResponse", "AlertDeliveryPageResponse",
+		"AlertDeliveryResponse", "DeliveryAttemptResponse",
 		"WebhookIntegrationResponse", "CreateWebhookIntegrationResponse", "CreateWebhookIntegrationRequest",
 		"PrepareWebhookSigningSecretResponse", "WebhookIntegrationVersionRequest", "WebhookIntegrationStateRequest",
 		"ObservationPhasesResponse", "HTTPObservationResponse", "TLSObservationResponse",

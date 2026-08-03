@@ -3,6 +3,7 @@ package postgres
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
 	"testing"
 	"time"
 
@@ -30,7 +31,7 @@ func TestHealthConfirmationAndIncidentLifecycle(t *testing.T) {
 	webhookService := webhook.NewService(
 		database.Webhooks(), fixedClock{value: testTime()},
 		&sequenceUUIDs{values: []string{testUUID(1249)}},
-		bytes.NewReader(sequenceBytes(64)), webhookKeyring,
+		bytes.NewReader(sequenceBytes(128)), webhookKeyring,
 	)
 	createdWebhook, err := webhookService.Create(t.Context(), webhook.CreateCommand{
 		OrganizationID: string(organizationValue.ID),
@@ -204,11 +205,160 @@ WHERE organization_id=$1`, string(organizationValue.ID)).Scan(
 			integrationVersion, secretVersion, routedAt,
 		)
 	}
+	prepared, err := webhookService.PrepareRotation(t.Context(), webhook.RotationCommand{
+		OrganizationID:  string(organizationValue.ID),
+		IntegrationID:   createdWebhook.Integration.ID,
+		ExpectedVersion: 2,
+	})
+	if err != nil || prepared.Kind != webhook.RotationPrepared {
+		t.Fatalf("PrepareRotation(Webhook) = %#v, %v", prepared, err)
+	}
+	activated, err := webhookService.ActivateRotation(t.Context(), webhook.RotationCommand{
+		OrganizationID:  string(organizationValue.ID),
+		IntegrationID:   createdWebhook.Integration.ID,
+		ExpectedVersion: 3,
+	})
+	if err != nil || activated.Kind != webhook.RotationUpdated {
+		t.Fatalf("ActivateRotation(Webhook) = %#v, %v", activated, err)
+	}
+	blockedRetirement, err := webhookService.RetireRotation(
+		t.Context(), webhook.RotationCommand{
+			OrganizationID:  string(organizationValue.ID),
+			IntegrationID:   createdWebhook.Integration.ID,
+			ExpectedVersion: 4,
+		},
+	)
+	if err != nil || blockedRetirement.Kind != webhook.RotationConflict ||
+		blockedRetirement.Code != webhook.RetiringSecretInUseCode {
+		t.Fatalf("RetireRotation(in-use Webhook secret) = %#v, %v", blockedRetirement, err)
+	}
+	deliveryStore := database.Webhooks()
+	firstClaimAt := base.Add(11 * time.Second)
+	claims, err := deliveryStore.Claim(
+		t.Context(), testUUID(1251), firstClaimAt,
+		firstClaimAt.Add(webhook.DeliveryLeaseDuration), webhook.DeliveryBatchSize,
+	)
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("Claim(first Webhook delivery) = %#v, %v", claims, err)
+	}
+	firstClaim := claims[0]
+	if firstClaim.DeliveryID != deliveryID || firstClaim.Sequence != 1 ||
+		firstClaim.AlertID != routedAlertID ||
+		firstClaim.IntegrationID != routedIntegrationID ||
+		firstClaim.Envelope.KeyID != "test" ||
+		len(firstClaim.Envelope.Nonce) != 12 ||
+		len(firstClaim.Envelope.Ciphertext) < 16 {
+		t.Fatalf("first Webhook delivery claim = %#v", firstClaim)
+	}
+	var durableOutcome string
+	var durableFinishedAt *time.Time
+	if err := database.pool.QueryRow(t.Context(), `
+SELECT outcome, finished_at
+FROM webhook_delivery_attempts
+WHERE delivery_id=$1 AND sequence=1`, deliveryID).Scan(
+		&durableOutcome, &durableFinishedAt,
+	); err != nil {
+		t.Fatalf("load durable in-progress Webhook attempt: %v", err)
+	}
+	if durableOutcome != webhook.OutcomeInProgress || durableFinishedAt != nil {
+		t.Fatalf("durable attempt = %q/%v", durableOutcome, durableFinishedAt)
+	}
+
+	reclaimAt := firstClaim.LeaseExpiresAt.Add(time.Second)
+	claims, err = deliveryStore.Claim(
+		t.Context(), testUUID(1252), reclaimAt,
+		reclaimAt.Add(webhook.DeliveryLeaseDuration), webhook.DeliveryBatchSize,
+	)
+	if err != nil || len(claims) != 1 || claims[0].Sequence != 2 {
+		t.Fatalf("Claim(expired Webhook delivery) = %#v, %v", claims, err)
+	}
+	secondClaim := claims[0]
+	retryStatus := http.StatusServiceUnavailable
+	retryFinishedAt := reclaimAt.Add(time.Second)
+	nextAvailableAt := reclaimAt.Add(2 * time.Second)
+	if err := deliveryStore.Complete(
+		t.Context(), secondClaim, webhook.AttemptUpdate{
+			Outcome: webhook.OutcomeFailed, FinishedAt: retryFinishedAt,
+			HTTPStatus: &retryStatus, FailureCode: webhook.FailureCodeHTTPRetryable,
+		}, &nextAvailableAt, false,
+	); err != nil {
+		t.Fatalf("Complete(retryable Webhook delivery) error = %v", err)
+	}
+
+	claims, err = deliveryStore.Claim(
+		t.Context(), testUUID(1253), nextAvailableAt,
+		nextAvailableAt.Add(webhook.DeliveryLeaseDuration), webhook.DeliveryBatchSize,
+	)
+	if err != nil || len(claims) != 1 || claims[0].Sequence != 3 {
+		t.Fatalf("Claim(retried Webhook delivery) = %#v, %v", claims, err)
+	}
+	successStatus := http.StatusNoContent
+	successFinishedAt := nextAvailableAt.Add(time.Second)
+	if err := deliveryStore.Complete(
+		t.Context(), claims[0], webhook.AttemptUpdate{
+			Outcome: webhook.OutcomeSucceeded, FinishedAt: successFinishedAt,
+			HTTPStatus: &successStatus,
+		}, nil, true,
+	); err != nil {
+		t.Fatalf("Complete(successful Webhook delivery) error = %v", err)
+	}
+	if after, err := deliveryStore.Claim(
+		t.Context(), testUUID(1254), successFinishedAt.Add(time.Minute),
+		successFinishedAt.Add(time.Minute+webhook.DeliveryLeaseDuration),
+		webhook.DeliveryBatchSize,
+	); err != nil || len(after) != 0 {
+		t.Fatalf("Claim(completed Webhook delivery) = %#v, %v", after, err)
+	}
+	retired, err := webhookService.RetireRotation(t.Context(), webhook.RotationCommand{
+		OrganizationID:  string(organizationValue.ID),
+		IntegrationID:   createdWebhook.Integration.ID,
+		ExpectedVersion: 4,
+	})
+	if err != nil || retired.Kind != webhook.RotationUpdated ||
+		retired.Integration.Version != 5 {
+		t.Fatalf("RetireRotation(completed Webhook secret) = %#v, %v", retired, err)
+	}
+
+	audits, found, err := deliveryStore.ListAudit(
+		t.Context(), webhook.DeliveryScope{
+			OrganizationID: string(organizationValue.ID),
+			ProjectID:      string(project.ID),
+			MonitorID:      string(monitorValue.ID),
+			AlertID:        routedAlertID,
+		},
+	)
+	if err != nil || !found || len(audits) != 1 ||
+		len(audits[0].Attempts) != 3 {
+		t.Fatalf("ListAudit() = %#v, found %v, error %v", audits, found, err)
+	}
+	if audits[0].Attempts[0].Outcome != webhook.OutcomeFailed ||
+		audits[0].Attempts[0].FailureCode != webhook.FailureCodeOutcomeUncertain ||
+		audits[0].Attempts[0].HTTPStatus != nil ||
+		audits[0].Attempts[1].Outcome != webhook.OutcomeFailed ||
+		audits[0].Attempts[1].HTTPStatus == nil ||
+		*audits[0].Attempts[1].HTTPStatus != retryStatus ||
+		audits[0].Attempts[2].Outcome != webhook.OutcomeSucceeded ||
+		audits[0].Attempts[2].HTTPStatus == nil ||
+		*audits[0].Attempts[2].HTTPStatus != successStatus {
+		t.Fatalf("Webhook delivery audit attempts = %#v", audits[0].Attempts)
+	}
+	_, wrongScopeFound, err := deliveryStore.ListAudit(
+		t.Context(), webhook.DeliveryScope{
+			OrganizationID: string(organizationValue.ID),
+			ProjectID:      testUUID(1299),
+			MonitorID:      string(monitorValue.ID),
+			AlertID:        routedAlertID,
+		},
+	)
+	if err != nil || wrongScopeFound {
+		t.Fatalf("wrong-scope ListAudit() found/error = %v/%v", wrongScopeFound, err)
+	}
+
 	disabled := false
 	disabledWebhook, err := webhookService.SetEnabled(t.Context(), webhook.StateCommand{
 		OrganizationID:  string(organizationValue.ID),
 		IntegrationID:   createdWebhook.Integration.ID,
-		ExpectedVersion: 2, Enabled: &disabled,
+		ExpectedVersion: 5, Enabled: &disabled,
 	})
 	if err != nil || disabledWebhook.Kind != webhook.StateUpdated {
 		t.Fatalf("SetEnabled(Webhook false) = %#v, %v", disabledWebhook, err)

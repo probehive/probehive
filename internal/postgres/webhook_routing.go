@@ -61,8 +61,8 @@ FOR SHARE`, value.OrganizationID, webhook.MaxEnabledIntegrations+1)
 		if _, err := transaction.Exec(ctx, `
 INSERT INTO webhook_deliveries (
     id, organization_id, alert_id, integration_id,
-    integration_version, secret_version, routed_at
-) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    integration_version, secret_version, routed_at, available_at
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$7)`,
 			deliveryID, value.OrganizationID, value.ID, target.integrationID,
 			target.integrationVersion, target.secretVersion, value.CreatedAt.UTC(),
 		); err != nil {

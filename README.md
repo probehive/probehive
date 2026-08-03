@@ -45,14 +45,14 @@ The current foundation implements:
 - Auditable Monitor health evaluation with explicit failure and recovery confirmation Runs, honest Phase 1 quorum counts, and staleness handling.
 - Automatic per-Monitor Incidents with open, acknowledge, and resolve lifecycle, immutable timelines, scoped keyset query APIs, and PostgreSQL-backed outbox dispatch.
 - Immutable Alert intents for Incident opening and confirmed recovery, with Monitor-scoped API and React audit history that makes no delivery claim.
-- Administrator-only signed Webhook Integration configuration with one-time-disclosed signing secrets, operator-keyring encryption, two-phase rotation, bounded enablement, and point-in-time Alert routing; network delivery is not implemented yet.
+- Administrator-only signed Webhook Integrations with one-time-disclosed secrets, operator-keyring encryption, two-phase rotation, point-in-time Alert routing, strict HTTPS delivery, bounded retries, and Viewer-safe delivery-attempt evidence.
 - A React administration application in English and Simplified Chinese, rendering instants in the viewer's time zone, with Playwright browser journeys.
 - Default-Project Monitor inventory, a recoverable first-HTTP-Monitor flow, and authorized lifecycle, name, and execution-interval controls.
 - A Monitor Health evidence view with current and stable state, complete quorum counts, confirmation candidates, and causal Run links.
 - A Monitor-scoped Incident view with cursor history, lifecycle state, an immutable timeline, complete quorum counts, causal Run links, and authorized acknowledgement.
 - A Monitor-scoped Run evidence screen with 30-day keyset history, deep-linked Run detail, and bounded HTTP Observation detail.
 
-External Alert delivery, status pages, Agents, and packaged releases remain under development.
+Status pages, Agents, and packaged releases remain under development.
 
 ## Get Started
 

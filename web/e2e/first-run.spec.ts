@@ -152,6 +152,11 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   const alertIntents = page.getByRole('region', { name: 'Alert intents' })
   const openedAlertRow = alertIntents.getByRole('row').filter({ hasText: 'Incident opened' })
   await expect(openedAlertRow).toBeVisible()
+  await openedAlertRow.getByRole('button', { name: 'Show delivery evidence' }).click()
+  await expect(alertIntents.getByRole('heading', { name: 'Delivery evidence' })).toBeVisible()
+  await expect(
+    alertIntents.getByText('No Webhook deliveries were routed for this Alert.'),
+  ).toBeVisible()
   await openedAlertRow.getByRole('link', { name: 'View source Incident' }).click()
   const incidentDetail = page.getByRole('region', { name: 'Incident evidence' })
   await incidentDetail.getByRole('button', { name: 'Acknowledge Incident' }).click()

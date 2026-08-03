@@ -34,11 +34,12 @@ var standardLibraryOnlyPackages = []string{
 }
 
 // adapterFreePackages are packages ADR 0020 bars from persistence and composition without
-// holding them to the standard library. internal/probe speaks protocols for a living, so an
-// HTTP client is its purpose rather than a violation; what it must never learn is where an
-// Observation is stored or who composed it.
+// holding them to the standard library. internal/probe and internal/webhookhttp speak
+// protocols for a living, so HTTP clients are their purpose rather than a violation; what
+// they must never learn is where results are stored or who composed them.
 var adapterFreePackages = []string{
 	"./internal/probe",
+	"./internal/webhookhttp",
 }
 
 // forbiddenStandardPackages are standard-library packages ADR 0002 names explicitly:

@@ -173,6 +173,7 @@ func TestKeyringParsingAndAuthentication(t *testing.T) {
 type memoryStore struct {
 	integrations []Integration
 	secrets      []StoredSecret
+	retireError  error
 }
 
 func (store *memoryStore) Create(_ context.Context, value Integration, secret StoredSecret) error {

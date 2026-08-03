@@ -132,6 +132,9 @@ absent.
 | `IncidentTimelineResponse` | timeline UUID, Incident version and kind; nullable health transition, actor, health states, policy, causal Run, slot, and counts; occurrence timestamp |
 | `AlertPageResponse` | `items: AlertResponse[]`; `nextCursor: nullable opaque string` |
 | `AlertResponse` | Alert, Organization, Project, Monitor, and source Incident UUIDs; positive source Incident version; kind `incident.opened` or `incident.resolved`; source occurrence and projection creation timestamps |
+| `AlertDeliveryPageResponse` | `items: AlertDeliveryResponse[]`, at most five point-in-time routes |
+| `AlertDeliveryResponse` | stable delivery and Integration UUIDs; channel `webhook`; positive Integration and signing-secret versions; route timestamp; `attempts: DeliveryAttemptResponse[]` ordered by sequence and limited to five |
+| `DeliveryAttemptResponse` | positive sequence; start and nullable finish timestamps; outcome `inProgress`, `succeeded`, `failed`, or `cancelled`; nullable HTTP status and stable allowlisted failure code |
 | `WebhookIntegrationResponse` | Integration and Organization UUIDs; name; Administrator-visible HTTPS destination URL; `enabled: false`; positive Integration and active-secret versions; creation/update timestamps |
 | `CreateWebhookIntegrationResponse` | `integration: WebhookIntegrationResponse`; `signingSecret: string` returned exactly once |
 | `PrepareWebhookSigningSecretResponse` | `integration: WebhookIntegrationResponse`; positive `secretVersion`; `signingSecret: string` returned exactly once |
@@ -183,7 +186,7 @@ antiforgery and origin rules in section 5 also apply.
 | `PUT /api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/state` | `integration.manage`, unsafe | `200 WebhookIntegrationResponse`; enables or disables future Alert routing, with no version bump for an already-current desired state | `400`, `404`, `409` for stale version or the five-enabled limit, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/prepare` | `integration.manage`, unsafe | `201 PrepareWebhookSigningSecretResponse`; keeps the current secret active and returns the pending secret once | `400`, `404`, `409`, `503` without an operator keyring, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/activate` | `integration.manage`, unsafe | `200 WebhookIntegrationResponse`; activates the pending secret and marks the former active secret retiring | `400`, `404`, `409`, `401`, `403` |
-| `POST /api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/retire` | `integration.manage`, unsafe | `200 WebhookIntegrationResponse`; clears the retiring secret's ciphertext and retains audit metadata | `400`, `404`, `409`, `401`, `403` |
+| `POST /api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/retire` | `integration.manage`, unsafe | `200 WebhookIntegrationResponse`; clears the retiring secret's ciphertext and retains audit metadata | `400`, `404`, `409` while unfinished deliveries still reference the secret, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | `monitor.write`, unsafe | `201 MonitorResponse` and canonical monitor `Location` | `400`, `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | `monitor.read` | `200 MonitorResponse[]` in creation order, UUID as tie-breaker | `404` if the Project is not in the Organization; `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}` | `monitor.read` | `200 MonitorResponse` | `404`, `401`, `403` |
@@ -196,6 +199,7 @@ antiforgery and origin rules in section 5 also apply.
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/health` | `monitor.read` | `200 MonitorHealthResponse` | `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents` | `incident.read` | `200 IncidentPageResponse`, newest first by `(createdAt, id)` | `400`, `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/alerts` | `alert.read` | `200 AlertPageResponse`, newest first by `(occurredAt, id)` | `400`, `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/alerts/{alertId}/deliveries` | `alert.read` | `200 AlertDeliveryPageResponse` with point-in-time routes and append-only attempts | `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}` | `incident.read` | `200 IncidentResponse` with timeline | `404`, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}/acknowledge` | `incident.write`, unsafe | `200 IncidentResponse`; repeat acknowledgement is idempotent | `400`, `404`, `409` when resolved, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs` | `monitor.read` | `200 RunPageResponse`, newest first by `(scheduledFor, id)` | `400`, `404`, `401`, `403` |
@@ -469,11 +473,71 @@ Activation requires the single pending secret. It moves the former active secret
 `409 webhook.rotation.pendingMissing`. Retirement requires the single retiring secret. It
 sets that row to `retired`, clears its wrapping-key id, nonce, and ciphertext, records its
 retirement time, and retains the bounded Organization, Integration, secret-version, and
-creation/activation audit metadata. Without a retiring secret it returns
+creation/activation audit metadata. An unfinished route that snapshots the retiring secret
+version blocks retirement with `409 webhook.rotation.retiringInUse`; the ciphertext remains
+available until those deliveries finish. Without a retiring secret it returns
 `409 webhook.rotation.retiringMissing`.
 
-Network delivery, Delivery Attempts, retry scheduling, and delivery audit reads remain
-unimplemented (ADR 0030).
+The embedded delivery dispatcher uses the same policy-enforcing outbound Dialer as HTTP
+checks. It revalidates the normalized destination before use, accepts only HTTPS, binds every
+connection to a policy-approved address, uses host roots, verifies TLS 1.2 or newer, follows
+no redirects, allows at most four calls per process, limits response headers to 16 KiB, and
+applies a ten-second total timeout. It never reads or retains a response body.
+
+Before every external call, the dispatcher commits a durable `inProgress` Delivery Attempt
+and a 30-second lease. A lost or expired lease finalizes that attempt as `failed` with
+`webhook.delivery.outcome.uncertain`; a new worker may then use the same stable delivery id
+with the next sequence. Any `2xx` succeeds. Network errors, timeouts, `408`, `425`, `429`, and
+`5xx` retry with the outbox bounded exponential delay and jitter. Other `3xx` and `4xx`
+responses fail terminally. A delivery makes at most five real calls. Shutdown cancellation
+is recorded as `cancelled` and remains eligible for retry unless it was the fifth call.
+
+Every attempt constructs this deterministic version-1 JSON object in the shown property
+order; the body is bounded to 16 KiB:
+
+```json
+{
+  "schemaVersion": "v1",
+  "deliveryId": "<stable UUID>",
+  "alertId": "<Alert UUID>",
+  "alertKind": "incident.opened",
+  "organizationId": "<Organization UUID>",
+  "projectId": "<Project UUID>",
+  "monitorId": "<Monitor UUID>",
+  "incidentId": "<Incident UUID>",
+  "incidentVersion": 1,
+  "occurredAt": "<UTC timestamp>",
+  "attempt": 1
+}
+```
+
+The HMAC-SHA256 input is the exact UTF-8 sequence below, including newlines and the raw JSON
+body. The key is the complete `phwh_...` signing-secret string; the signature is unpadded
+base64url:
+
+```text
+v1\n<delivery-id>\n<unix-timestamp>\n<attempt>\n<secret-version>\n<raw-json-body>
+```
+
+The request uses `Content-Type: application/json`, `User-Agent: ProbeHive-Webhook/1`, and
+these versioned signing headers:
+
+```text
+ProbeHive-Webhook-Version: v1
+ProbeHive-Delivery-Id: <stable delivery UUID>
+ProbeHive-Timestamp: <Unix seconds>
+ProbeHive-Attempt: <positive sequence>
+ProbeHive-Secret-Version: <positive version>
+ProbeHive-Signature: <unpadded base64url HMAC-SHA256>
+```
+
+`GET .../alerts/{alertId}/deliveries` carries Organization, Project, Monitor, and Alert
+scope through the authorization and storage query. Viewers with `alert.read` may use it;
+wrong-tenant or wrong-parent identities return the ordinary hidden `404`. The response shows
+stable route identity, versions, timestamps, outcomes, HTTP status when present, and stable
+failure codes. It never contains the destination URL, signing material, ciphertext, response
+body, arbitrary headers, or provider text. The React Alert history fetches this evidence only
+when a row is expanded.
 
 ## 7. Monitor and Revision Semantics
 
@@ -950,7 +1014,31 @@ webhook.keyring.unavailable
 webhook.enabled.invalid  webhook.enabledLimit.exceeded
 webhook.version.invalid  webhook.version.conflict  webhook.rotation.inProgress
 webhook.rotation.pendingMissing  webhook.rotation.retiringMissing
+webhook.rotation.retiringInUse
 ```
+
+Webhook Delivery Attempt failure codes:
+
+```text
+webhook.delivery.cancelled  webhook.delivery.destination.invalid
+webhook.delivery.http.rejected  webhook.delivery.http.retryable
+webhook.delivery.network  webhook.delivery.payload.invalid
+webhook.delivery.secret.unavailable  webhook.delivery.timeout
+webhook.delivery.outcome.uncertain
+```
+
+Allowlisted shared outbound-policy failure codes retained by Webhook attempts:
+
+~~~text
+outbound.policy.unconfigured
+outbound.url.tooLong  outbound.url.invalid  outbound.url.notAbsolute
+outbound.url.scheme  outbound.url.userInfo
+outbound.host.missing  outbound.host.invalid
+outbound.port.invalid  outbound.port.denied
+outbound.network.unsupported
+outbound.resolution.failed  outbound.resolution.empty
+outbound.address.denied  outbound.address.mismatch  outbound.connect.failed
+~~~
 `monitor.checkType.unsupported` and `check.checkType.unsupported` describe the same
 condition at two layers; the Monitor use case screens first, and a catalog may map both
 to one sentence.

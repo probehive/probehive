@@ -190,11 +190,41 @@ func (store *WebhookStore) RetireSecret(
 		return webhook.Integration{}, webhook.ErrConcurrentUpdate
 	}
 
+	var retiringVersion int64
+	if err := transaction.QueryRow(ctx, `
+SELECT secret_version
+FROM webhook_signing_secrets
+WHERE organization_id=$1 AND integration_id=$2 AND state='retiring'
+FOR UPDATE`,
+		organizationID, integrationID,
+	).Scan(&retiringVersion); errors.Is(err, pgx.ErrNoRows) {
+		return webhook.Integration{}, webhook.ErrRetiringSecretMissing
+	} else if err != nil {
+		return webhook.Integration{}, fmt.Errorf("find retiring Webhook signing secret: %w", err)
+	}
+	var inUse bool
+	if err := transaction.QueryRow(ctx, `
+SELECT EXISTS (
+    SELECT 1
+    FROM webhook_deliveries
+    WHERE organization_id=$1
+      AND integration_id=$2
+      AND secret_version=$3
+      AND completed_at IS NULL
+)`,
+		organizationID, integrationID, retiringVersion,
+	).Scan(&inUse); err != nil {
+		return webhook.Integration{}, fmt.Errorf("check retiring Webhook signing-secret use: %w", err)
+	}
+	if inUse {
+		return webhook.Integration{}, webhook.ErrRetiringSecretInUse
+	}
+
 	tag, err := transaction.Exec(ctx, `
 UPDATE webhook_signing_secrets
 SET state='retired', wrapping_key_id=NULL, nonce=NULL, ciphertext=NULL, retired_at=$1
-WHERE organization_id=$2 AND integration_id=$3 AND state='retiring'`,
-		now.UTC(), organizationID, integrationID)
+WHERE organization_id=$2 AND integration_id=$3 AND secret_version=$4 AND state='retiring'`,
+		now.UTC(), organizationID, integrationID, retiringVersion)
 	if err != nil {
 		return webhook.Integration{}, fmt.Errorf("retire Webhook signing secret: %w", err)
 	}

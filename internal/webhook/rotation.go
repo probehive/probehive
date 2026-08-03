@@ -132,7 +132,9 @@ func (service *Service) RetireRotation(
 		if errors.Is(err, ErrIntegrationNotFound) {
 			return RotationResult{Kind: RotationNotFound}, nil
 		}
-		if errors.Is(err, ErrConcurrentUpdate) || errors.Is(err, ErrRetiringSecretMissing) {
+		if errors.Is(err, ErrConcurrentUpdate) ||
+			errors.Is(err, ErrRetiringSecretMissing) ||
+			errors.Is(err, ErrRetiringSecretInUse) {
 			return rotationConflict(err), nil
 		}
 		return RotationResult{}, err
@@ -177,6 +179,11 @@ func rotationConflict(err error) RotationResult {
 		return RotationResult{
 			Kind: RotationConflict, Code: RetiringSecretMissingCode,
 			Detail: "No retiring signing secret is available to retire.",
+		}
+	case errors.Is(err, ErrRetiringSecretInUse):
+		return RotationResult{
+			Kind: RotationConflict, Code: RetiringSecretInUseCode,
+			Detail: "The retiring signing secret is still required by unfinished deliveries.",
 		}
 	default:
 		panic("unexpected Webhook rotation conflict")

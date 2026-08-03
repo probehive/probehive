@@ -34,6 +34,7 @@ const (
 	RotationInProgressCode    = "webhook.rotation.inProgress"
 	PendingSecretMissingCode  = "webhook.rotation.pendingMissing"
 	RetiringSecretMissingCode = "webhook.rotation.retiringMissing"
+	RetiringSecretInUseCode   = "webhook.rotation.retiringInUse"
 )
 
 const (
@@ -51,6 +52,7 @@ var (
 	ErrRotationInProgress    = errors.New("Webhook signing-secret rotation is already in progress")
 	ErrPendingSecretMissing  = errors.New("Webhook pending signing secret was not found")
 	ErrRetiringSecretMissing = errors.New("Webhook retiring signing secret was not found")
+	ErrRetiringSecretInUse   = errors.New("Webhook retiring signing secret is used by unfinished deliveries")
 	ErrSecretChanged         = errors.New("Webhook signing secret changed concurrently")
 )
 
@@ -124,18 +126,23 @@ type CreateResult struct {
 }
 
 type Service struct {
-	store   Store
-	clock   Clock
-	uuids   IDGenerator
-	random  io.Reader
-	keyring *Keyring
+	store      Store
+	clock      Clock
+	uuids      IDGenerator
+	random     io.Reader
+	keyring    *Keyring
+	deliveries DeliveryStore
 }
 
 func NewService(store Store, clock Clock, uuids IDGenerator, random io.Reader, keyring *Keyring) *Service {
 	if store == nil || clock == nil || uuids == nil || random == nil {
 		panic("webhook.Service requires a store, clock, UUID generator, and random source")
 	}
-	return &Service{store: store, clock: clock, uuids: uuids, random: random, keyring: keyring}
+	deliveries, _ := store.(DeliveryStore)
+	return &Service{
+		store: store, clock: clock, uuids: uuids, random: random,
+		keyring: keyring, deliveries: deliveries,
+	}
 }
 
 // Initialize validates every retained signing secret and rewraps old-key ciphertext before
@@ -232,6 +239,19 @@ func (service *Service) List(ctx context.Context, organizationID string) ([]Inte
 		values = []Integration{}
 	}
 	return values, nil
+}
+
+func (service *Service) ListDeliveryAudit(
+	ctx context.Context, scope DeliveryScope,
+) ([]DeliveryAudit, bool, error) {
+	if err := scope.Validate(); err != nil {
+		return nil, false, err
+	}
+	if service.deliveries == nil {
+		return nil, false, errors.New("Webhook delivery audit store is unavailable")
+	}
+	values, found, err := service.deliveries.ListAudit(ctx, scope)
+	return values, found, err
 }
 
 func NewIntegration(

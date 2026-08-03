@@ -169,6 +169,7 @@ func (server *Server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/health", server.monitorHealthState)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents", server.monitorIncidents)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/alerts", server.monitorAlerts)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/alerts/{alertId}/deliveries", server.alertDeliveries)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}", server.monitorIncident)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}/acknowledge", server.acknowledgeIncident)
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) { writeStatusProblem(w, http.StatusNotFound) })

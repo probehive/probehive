@@ -162,6 +162,29 @@ type AlertResponse struct {
 	CreatedAt       time.Time `json:"createdAt"`
 }
 
+type AlertDeliveryPageResponse struct {
+	Items []AlertDeliveryResponse `json:"items"`
+}
+
+type AlertDeliveryResponse struct {
+	ID                 string                    `json:"id"`
+	Channel            string                    `json:"channel"`
+	IntegrationID      string                    `json:"integrationId"`
+	IntegrationVersion int64                     `json:"integrationVersion"`
+	SecretVersion      int64                     `json:"secretVersion"`
+	RoutedAt           time.Time                 `json:"routedAt"`
+	Attempts           []DeliveryAttemptResponse `json:"attempts"`
+}
+
+type DeliveryAttemptResponse struct {
+	Sequence    int64      `json:"sequence"`
+	StartedAt   time.Time  `json:"startedAt"`
+	FinishedAt  *time.Time `json:"finishedAt"`
+	Outcome     string     `json:"outcome"`
+	HTTPStatus  *int       `json:"httpStatus"`
+	FailureCode *string    `json:"failureCode"`
+}
+
 type MonitorRevisionResponse struct {
 	ID                 string          `json:"id"`
 	MonitorID          string          `json:"monitorId"`

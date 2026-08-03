@@ -123,6 +123,12 @@ func TestSigningSecretRotationReportsValidationScopeAndStateConflicts(t *testing
 		result.Code != PendingSecretMissingCode {
 		t.Fatalf("unprepared ActivateRotation() = %#v, %v", result, err)
 	}
+	store.retireError = ErrRetiringSecretInUse
+	if result, err := service.RetireRotation(t.Context(), base); err != nil ||
+		result.Code != RetiringSecretInUseCode {
+		t.Fatalf("in-use RetireRotation() = %#v, %v", result, err)
+	}
+	store.retireError = nil
 	if result, err := service.RetireRotation(t.Context(), base); err != nil ||
 		result.Code != RetiringSecretMissingCode {
 		t.Fatalf("unactivated RetireRotation() = %#v, %v", result, err)
@@ -210,6 +216,9 @@ func (store *memoryStore) RetireSecret(
 	expectedVersion int64,
 	now time.Time,
 ) (Integration, error) {
+	if store.retireError != nil {
+		return Integration{}, store.retireError
+	}
 	index, value, found := store.findIntegration(organizationID, integrationID)
 	if !found {
 		return Integration{}, ErrIntegrationNotFound
