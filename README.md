@@ -51,15 +51,19 @@ The current foundation implements:
 - A Monitor Health evidence view with current and stable state, complete quorum counts, confirmation candidates, and causal Run links.
 - A Monitor-scoped Incident view with cursor history, lifecycle state, an immutable timeline, complete quorum counts, causal Run links, and authorized acknowledgement.
 - A Monitor-scoped Run evidence screen with 30-day keyset history, deep-linked Run detail, and bounded HTTP Observation detail.
+- A production-like rootless Compose package with pinned images, a non-root TLS gateway, external secret files, persistent PostgreSQL data, health checks, graceful shutdown, and a disposable first-result smoke check.
 
-Packaged self-hosted installation is the current focus. Status pages and Agents remain later work.
+Backup, restore, upgrade, rollback, and broader operator readiness are the current focus. Status pages and Agents remain later work.
 
 ## Get Started
 
-ProbeHive does not yet publish installation artifacts. To run the current foundation locally, start with the [local development guide](docs/development.md).
+ProbeHive does not yet publish images or releases. Build and run the supported
+production-like package with the [self-hosted installation guide](docs/installation.md).
+For source development, use the [local development guide](docs/development.md).
 
 Useful project references:
 
+- [Self-hosted installation](docs/installation.md)
 - [Backend contract](docs/backend-contract.md)
 - [Architecture baseline](docs/architecture.md)
 - [Contributing guide](CONTRIBUTING.md)
@@ -69,10 +73,10 @@ Useful project references:
 
 The current milestone turns the implemented HTTP path into a dependable self-hosted product:
 
-- Package the Go application, static React assets, and PostgreSQL for a production-like rootless Compose installation.
-- Verify the clean-install path from first-administrator setup through an HTTP Monitor result, Incident evidence, and signed Webhook delivery.
-- Document and exercise restart, graceful shutdown, PostgreSQL backup and restore, schema upgrades, and rollback boundaries.
-- Document persistent data, secret injection, retention, health checks, common failures, and the limitations of the pre-release artifacts.
+- Document and verify PostgreSQL backup and restore against the packaged installation.
+- Exercise schema upgrades and rollback boundaries.
+- Complete operator guidance for retention and common failures.
+- Extend clean-install verification through Incident evidence and signed Webhook delivery.
 
 New Check Types, remote Agents, identity expansion, public status pages, CLI, monitoring as code, Kubernetes packaging, and hosted-service implementation are deferred until this milestone is complete unless one is required to close an installation or operability gap.
 

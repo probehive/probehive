@@ -1,0 +1,124 @@
+services:
+  postgres:
+    image: docker.io/library/postgres:17.10@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d
+    user: "999:999"
+    environment:
+      POSTGRES_DB: probehive
+      POSTGRES_USER: probehive
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    volumes:
+      - probehive-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U probehive -d probehive -h 127.0.0.1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    networks:
+      - internal
+
+  api:
+    image: probehive-api:local
+    build:
+      context: ../..
+      dockerfile: deploy/compose/Containerfile.api
+    user: "65532:65532"
+    environment:
+      PROBEHIVE_DATABASE_URL_FILE: /run/secrets/database_url
+      PROBEHIVE_HTTP_ADDRESS: :8080
+      PROBEHIVE_PUBLIC_ORIGIN: ${PROBEHIVE_PUBLIC_ORIGIN:-https://localhost:8443}
+      PROBEHIVE_WEBHOOK_KEYRING_FILE: /run/secrets/webhook_keyring
+      PROBEHIVE_OUTBOUND_PROFILE: ${PROBEHIVE_OUTBOUND_PROFILE:-private}
+      PROBEHIVE_OUTBOUND_ALLOWED_CIDRS: ${PROBEHIVE_OUTBOUND_ALLOWED_CIDRS:-}
+      PROBEHIVE_OUTBOUND_ALLOWED_PORTS: ${PROBEHIVE_OUTBOUND_ALLOWED_PORTS:-80,443}
+      PROBEHIVE_OUTBOUND_RESOLVERS: ${PROBEHIVE_OUTBOUND_RESOLVERS:-}
+      PROBEHIVE_WORKER_ENABLED: ${PROBEHIVE_WORKER_ENABLED:-true}
+      PROBEHIVE_PROBE_LOCATION: ${PROBEHIVE_PROBE_LOCATION:-local}
+      PROBEHIVE_MINIMUM_INTERVAL_SECONDS: ${PROBEHIVE_MINIMUM_INTERVAL_SECONDS:-30}
+      PROBEHIVE_EXECUTION_CEILING_SECONDS: ${PROBEHIVE_EXECUTION_CEILING_SECONDS:-60}
+      PROBEHIVE_SCHEDULER_TICK_SECONDS: ${PROBEHIVE_SCHEDULER_TICK_SECONDS:-5}
+      PROBEHIVE_WORKER_CONCURRENCY: ${PROBEHIVE_WORKER_CONCURRENCY:-8}
+      PROBEHIVE_RETENTION_DAYS: ${PROBEHIVE_RETENTION_DAYS:-30}
+      PROBEHIVE_RESOLVER_TIMEOUT_SECONDS: ${PROBEHIVE_RESOLVER_TIMEOUT_SECONDS:-5}
+      PROBEHIVE_CONNECT_TIMEOUT_SECONDS: ${PROBEHIVE_CONNECT_TIMEOUT_SECONDS:-10}
+    secrets:
+      - database_url
+      - webhook_keyring
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+    networks:
+      - internal
+
+  web:
+    image: probehive-web:local
+    build:
+      context: ../..
+      dockerfile: deploy/compose/Containerfile.web
+    user: "101:101"
+    depends_on:
+      api:
+        condition: service_healthy
+    secrets:
+      - tls_cert
+      - tls_key
+    ports:
+      - "${PROBEHIVE_BIND_ADDRESS:-127.0.0.1}:${PROBEHIVE_HTTPS_PORT:-8443}:8443"
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--no-check-certificate", "-O", "/dev/null", "https://127.0.0.1:8443/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    stop_signal: SIGQUIT
+    stop_grace_period: 30s
+    networks:
+      - internal
+
+volumes:
+  probehive-postgres:
+
+networks:
+  internal:
+    internal: true
+
+secrets:
+  postgres_password:
+    file: ${PROBEHIVE_POSTGRES_PASSWORD_FILE:-../../secrets/postgres-password}
+  database_url:
+    file: ${PROBEHIVE_DATABASE_URL_FILE:-../../secrets/database-url}
+  webhook_keyring:
+    file: ${PROBEHIVE_WEBHOOK_KEYRING_FILE:-../../secrets/webhook-keyring}
+  tls_cert:
+    file: ${PROBEHIVE_TLS_CERT_FILE:-../../secrets/tls.crt}
+  tls_key:
+    file: ${PROBEHIVE_TLS_KEY_FILE:-../../secrets/tls.key}

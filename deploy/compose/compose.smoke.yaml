@@ -1,0 +1,12 @@
+# Local-only allowances for deploy/compose/smoke.sh. Never use this overlay for
+# an operator installation.
+services:
+  api:
+    environment:
+      PROBEHIVE_OUTBOUND_ALLOWED_CIDRS: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+      PROBEHIVE_OUTBOUND_ALLOWED_PORTS: "8443"
+      PROBEHIVE_PROBE_ROOT_CA_FILE: /run/secrets/tls_cert
+    secrets:
+      - tls_cert
+
+# The smoke Monitor targets https://web:8443/healthz on the private Compose network.

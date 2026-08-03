@@ -406,8 +406,8 @@ FROM monitor_health AS h
 JOIN monitors AS m ON m.id=h.monitor_id AND m.organization_id=h.organization_id
 WHERE m.state='active' AND h.state <> 'unknown'
   AND h.last_determinate_finished_at IS NOT NULL
-  AND h.last_determinate_finished_at <= $1 - ($2::bigint * interval '1 microsecond')
-  AND h.last_determinate_finished_at <= $1 - make_interval(secs => m.interval_seconds * 3)
+  AND h.last_determinate_finished_at <= $1::timestamptz - ($2::bigint * interval '1 microsecond')
+  AND h.last_determinate_finished_at <= $1::timestamptz - make_interval(secs => m.interval_seconds * 3)
 ORDER BY h.last_determinate_finished_at, h.monitor_id
 LIMIT $3`, now.UTC(), (2 * executionCeiling).Microseconds(), limit)
 	if err != nil {

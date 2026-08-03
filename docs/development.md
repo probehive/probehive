@@ -43,11 +43,13 @@ The supported environment variables are:
 | Variable | Meaning | Default |
 | --- | --- | --- |
 | `PROBEHIVE_DATABASE_URL` | pgx PostgreSQL connection URL for the API | required |
+| <code>PROBEHIVE_DATABASE_URL_FILE</code> | UTF-8 file containing the database URL; mutually exclusive with <code>PROBEHIVE_DATABASE_URL</code> | unset |
 | `PROBEHIVE_HTTP_ADDRESS` | `net/http` listen address | `:8080` |
 | `PROBEHIVE_ENVIRONMENT` | `Development` enables plain-HTTP development cookies and OpenAPI | production behavior |
 | `PROBEHIVE_CREDENTIAL_ATTEMPTS_PER_MINUTE` | shared setup/login permits per client address in each fixed minute | `10` |
 | `PROBEHIVE_PUBLIC_ORIGIN` | exact external `http://host` or `https://host` origin used behind a gateway | request scheme and Host |
 | `PROBEHIVE_WEBHOOK_KEYRING` | ordered `keyId:base64url32` AES-256-GCM keys; first key is active and retained secrets are rewrapped at startup | Webhook creation unavailable |
+| <code>PROBEHIVE_WEBHOOK_KEYRING_FILE</code> | UTF-8 file containing the keyring; mutually exclusive with <code>PROBEHIVE_WEBHOOK_KEYRING</code> | unset |
 
 ### Webhook wrapping-key operations
 
@@ -196,6 +198,8 @@ npm --prefix web run dev
 ```
 
 The Vite development server proxies `/api` to `http://localhost:5080`, so run the API alongside it. Production deployments serve the static build behind a same-origin gateway. npm lifecycle scripts stay disabled through `web/.npmrc`; no current dependency needs an install script.
+The production-like container build and operator startup path are documented in
+[installation.md](installation.md).
 
 ## Validation
 

@@ -75,7 +75,11 @@ func serve(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	webhookKeyring, err := webhook.ParseKeyring(os.Getenv("PROBEHIVE_WEBHOOK_KEYRING"))
+	webhookKeyringValue, err := environmentValue("PROBEHIVE_WEBHOOK_KEYRING")
+	if err != nil {
+		return err
+	}
+	webhookKeyring, err := webhook.ParseKeyring(webhookKeyringValue)
 	if err != nil {
 		return err
 	}
@@ -236,9 +240,33 @@ func serve(logger *slog.Logger) error {
 }
 
 func requiredEnvironment(name string) (string, error) {
-	value := strings.TrimSpace(os.Getenv(name))
+	value, err := environmentValue(name)
+	if err != nil {
+		return "", err
+	}
 	if value == "" {
-		return "", fmt.Errorf("%s is required", name)
+		return "", fmt.Errorf("%s or %s_FILE is required", name, name)
+	}
+	return value, nil
+}
+
+func environmentValue(name string) (string, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	fileName := name + "_FILE"
+	filePath := strings.TrimSpace(os.Getenv(fileName))
+	if value != "" && filePath != "" {
+		return "", fmt.Errorf("%s and %s cannot both be set", name, fileName)
+	}
+	if filePath == "" {
+		return value, nil
+	}
+	contents, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", fileName, err)
+	}
+	value = strings.TrimSpace(string(contents))
+	if value == "" {
+		return "", fmt.Errorf("%s must not be empty", fileName)
 	}
 	return value, nil
 }

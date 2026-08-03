@@ -14,6 +14,24 @@ The authoritative dependency versions are recorded in `go.mod`, `go.sum`, and `w
 | `golang.org/x/text` | `v0.40.0` | BSD-3-Clause |
 | `golang.org/x/time` | `v0.15.0` | BSD-3-Clause |
 
+## Container Images
+
+The Compose package and its multi-stage builds use Docker Official Images pinned
+to these multi-platform manifest digests:
+
+| Image | Digest | Purpose | Primary upstream license |
+| --- | --- | --- | --- |
+| golang:1.26.5-alpine | sha256:0178a641fbb4858c5f1b48e34bdaabe0350a330a1b1149aabd498d0699ff5fb2 | build only | Go BSD-3-Clause; Alpine package licenses |
+| node:24.18.0-bookworm | sha256:5711a0d445a1af54af9589066c646df387d1831a608226f4cd694fc59e745059 | build only | Node.js MIT; Debian package licenses |
+| alpine:3.24 | sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b | API runtime | Alpine package licenses |
+| nginx:1.31.1-alpine | sha256:8b1e78743a03dbb2c95171cc58639fef29abc8816598e27fb910ed2e621e589a | static web and same-origin gateway | nginx BSD-2-Clause; Alpine package licenses |
+| postgres:17.10 | sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d | database runtime | PostgreSQL License; Debian package licenses |
+
+The image filesystems retain their distribution package metadata and license
+files. The pinned sources are maintained at docker-library/golang,
+nodejs/docker-node, alpinelinux/docker-alpine, nginx/docker-nginx, and
+docker-library/postgres.
+
 ## MIT-Licensed Jack Christensen Modules
 
 Copyright notices from the exact module distributions:
