@@ -2,6 +2,20 @@
 
 This directory records durable decisions that affect multiple modules, public compatibility, security posture, storage, deployment, or repository boundaries.
 
+## When an ADR Is Required
+
+Write an ADR only for selected implementation work when the decision is intended to be durable, is expensive to reverse, and changes at least one of:
+
+- a published compatibility surface or externally observable semantic guarantee;
+- an authentication, authorization, tenancy, secret-storage, encryption, sandbox, or outbound-access trust boundary;
+- persisted data ownership, destructive migration, retention, backup, or recovery semantics;
+- a cross-module dependency rule, executable or service boundary, repository boundary, or public/private ownership boundary; or
+- a durable runtime or infrastructure dependency such as another database, queue, cache, object store, or required platform.
+
+Do not use an ADR for a reversible local implementation choice, an endpoint or page that follows an accepted capability, an internal name, a test arrangement, or an exact operational default such as a batch size, timeout, retry count, concurrency limit, or page size. Keep those choices in code, tests, configuration, contract documentation, or the pull request. An exact value belongs in an ADR only when the value itself is a published compatibility or security guarantee.
+
+Do not draft speculative ADRs for roadmap ideas that have not been selected. Prefer one decision per ADR, identify the current consumer, state non-goals, and name the evidence that would justify revisiting the decision. Prefer fewer than 100 lines; move implementation tables and adjustable defaults to the owning code or documentation.
+
 ## Format
 
 Each ADR uses a zero-padded sequence number and a short lowercase filename:
@@ -10,7 +24,9 @@ Each ADR uses a zero-padded sequence number and a short lowercase filename:
 0001-short-decision-title.md
 ```
 
-An ADR contains its status, decision date, context, decision, and consequences. Status and relationship metadata may be updated; a later decision clarifies, amends, or supersedes an earlier ADR through a new record that links to both decisions. New ADRs start from [template.md](template.md).
+An ADR contains its status, decision date, scope, context, decision, consequences, and review triggers. Status and relationship metadata may be updated; a later decision clarifies, amends, or supersedes an earlier ADR through a new record that links to both decisions. New ADRs start from [template.md](template.md).
+
+Existing accepted records remain historical evidence and do not need to be rewritten to match the current template. Change an accepted decision through an explicit amendment or a linked replacement rather than silently editing implementation to disagree with it.
 
 ## Decisions
 

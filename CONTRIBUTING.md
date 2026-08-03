@@ -6,6 +6,8 @@ Thank you for helping improve ProbeHive. The project welcomes focused bug fixes,
 
 - Search existing issues and pull requests before opening a duplicate.
 - Discuss substantial features, public contract changes, new protocols, new dependencies, and architectural changes before implementation.
+- Keep proposals aligned with the current self-hosted installation and operability milestone. A future direction is not implementation scope merely because it appears in project planning.
+- Apply the [ADR gate](docs/adr/README.md#when-an-adr-is-required). Most local and reversible implementation choices do not need an ADR.
 - Report vulnerabilities privately according to [SECURITY.md](SECURITY.md).
 - Follow the community standards in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) in all project spaces.
 - Keep contributions focused on the complete self-hosted product. Hosted billing, managed-fleet operations, fraud controls, and other commercial service behavior do not belong in this repository.
@@ -16,6 +18,8 @@ Thank you for helping improve ProbeHive. The project welcomes focused bug fixes,
 - Preserve tenant isolation, authorization, TLS validation, secret redaction, SSRF defenses, timeouts, and resource limits.
 - Do not add secrets, customer data, private operational data, or generated local state.
 - Keep feature packages standard-library-only and keep dependencies pointing from composition and adapters toward feature-owned interfaces.
+- Prefer the existing Go application, PostgreSQL, and static React architecture until measured constraints require more.
+- Add abstractions for current consumers rather than anticipated variants; prefer a fixed default until operators need real variation.
 - Add or update tests in proportion to the risk of the change.
 - Discover dependency versions with current repository tooling. Do not copy versions from memory or unrelated projects.
 - Use concise Conventional Commit messages.
@@ -56,6 +60,7 @@ Tests must not depend on the public internet, public DNS, local time zone, execu
 ## Pull Requests
 
 - Explain the problem and the chosen solution.
+- State the user-visible outcome and explicit non-goals.
 - Identify security, compatibility, migration, deployment, and retention consequences.
 - Include the checks that were actually run and disclose relevant checks that could not be run.
 - Keep generated files, migrations, OpenAPI documents, deployment assets, and documentation synchronized with the implementation.

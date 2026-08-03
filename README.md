@@ -42,7 +42,7 @@ The current foundation implements:
 - An embedded scheduler and bounded worker that execute validated HTTP checks through the shared outbound-access policy and persist partitioned Runs and Observations.
 - An antiforgery-protected manual Run endpoint that executes a Monitor's latest revision immediately through the same bounded worker.
 - Fully scoped Run history and Observation query APIs with bounded keyset pagination and stable filters.
-- Auditable Monitor health evaluation with explicit failure and recovery confirmation Runs, honest Phase 1 quorum counts, and staleness handling.
+- Auditable Monitor health evaluation with explicit failure and recovery confirmation Runs, honest single-location quorum counts, and staleness handling.
 - Automatic per-Monitor Incidents with open, acknowledge, and resolve lifecycle, immutable timelines, scoped keyset query APIs, and PostgreSQL-backed outbox dispatch.
 - Immutable Alert intents for Incident opening and confirmed recovery, with Monitor-scoped API and React audit history that makes no delivery claim.
 - Administrator-only signed Webhook Integrations with one-time-disclosed secrets, operator-keyring encryption, two-phase rotation, point-in-time Alert routing, strict HTTPS delivery, bounded retries, and Viewer-safe delivery-attempt evidence.
@@ -52,7 +52,7 @@ The current foundation implements:
 - A Monitor-scoped Incident view with cursor history, lifecycle state, an immutable timeline, complete quorum counts, causal Run links, and authorized acknowledgement.
 - A Monitor-scoped Run evidence screen with 30-day keyset history, deep-linked Run detail, and bounded HTTP Observation detail.
 
-Status pages, Agents, and packaged releases remain under development.
+Packaged self-hosted installation is the current focus. Status pages and Agents remain later work.
 
 ## Get Started
 
@@ -65,13 +65,16 @@ Useful project references:
 - [Contributing guide](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 
-## Planned Capabilities
+## Current Focus
 
-- HTTP and HTTPS, TCP and TLS, ICMP ping, DNS, heartbeat, and certificate checks.
-- Embedded and outbound private Agents with bounded execution and renewable identity.
-- Organization and Project isolation, incidents, maintenance, alerts, and status pages.
-- A versioned HTTP API, CLI, monitoring as code, and a static React administration application.
-- PostgreSQL persistence, OpenTelemetry integration, and Compose-based self-hosting for rootless Podman and Docker.
+The current milestone turns the implemented HTTP path into a dependable self-hosted product:
+
+- Package the Go application, static React assets, and PostgreSQL for a production-like rootless Compose installation.
+- Verify the clean-install path from first-administrator setup through an HTTP Monitor result, Incident evidence, and signed Webhook delivery.
+- Document and exercise restart, graceful shutdown, PostgreSQL backup and restore, schema upgrades, and rollback boundaries.
+- Document persistent data, secret injection, retention, health checks, common failures, and the limitations of the pre-release artifacts.
+
+New Check Types, remote Agents, identity expansion, public status pages, CLI, monitoring as code, Kubernetes packaging, and hosted-service implementation are deferred until this milestone is complete unless one is required to close an installation or operability gap.
 
 ## Architecture
 
