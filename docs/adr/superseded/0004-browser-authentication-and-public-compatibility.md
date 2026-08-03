@@ -1,6 +1,6 @@
 # 0004: Browser Authentication and Public Compatibility
 
-- Status: Superseded by [ADR 0010](0010-browser-authentication-trust-and-compatibility.md)
+- Status: Superseded by [ADR 0010](../0010-browser-authentication-trust-and-compatibility.md)
 - Date: 2026-07-22
 
 ## Context

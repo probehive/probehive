@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-23
-- Supersedes: [ADR 0004](0004-browser-authentication-and-public-compatibility.md)
+- Supersedes: [ADR 0004](superseded/0004-browser-authentication-and-public-compatibility.md)
 
 ## Context
 
