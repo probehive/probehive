@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
     networks:
-      - internal
+      - data
 
   api:
     image: probehive-api:local
@@ -70,7 +70,8 @@ services:
     stop_signal: SIGTERM
     stop_grace_period: 30s
     networks:
-      - internal
+      - application
+      - data
 
   web:
     image: probehive-web:local
@@ -102,13 +103,14 @@ services:
     stop_signal: SIGQUIT
     stop_grace_period: 30s
     networks:
-      - internal
+      - application
 
 volumes:
   probehive-postgres:
 
 networks:
-  internal:
+  application:
+  data:
     internal: true
 
 secrets:

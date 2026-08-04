@@ -53,6 +53,12 @@ export PROBEHIVE_PUBLIC_ORIGIN="https://localhost:$PROBEHIVE_HTTPS_PORT"
 
 timeout 300 "${compose[@]}" "${compose_args[@]}" up --detach --build
 
+published_https_port="$("${compose[@]}" "${compose_args[@]}" port web 8443 2>/dev/null || true)"
+if [[ -z "$published_https_port" ]]; then
+  printf 'The Compose engine did not publish web port 8443; check the web port mapping.\n' >&2
+  exit 1
+fi
+
 base_url="$PROBEHIVE_PUBLIC_ORIGIN"
 ready=0
 for _ in {1..120}; do

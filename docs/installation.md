@@ -61,8 +61,13 @@ The package preserves the architecture baseline:
   the container engine.
 
 Only the TLS gateway is published, on loopback by default. The API and database
-remain on an internal Compose network. Every service declares a numeric
-non-root user, drops Linux capabilities, and disables privilege escalation.
+have no host port mappings. The gateway and API share a project-scoped application
+bridge; the API and PostgreSQL share a separate internal data bridge. The application
+bridge provides the API's required monitoring egress, while the shared outbound
+policy still validates every tenant-influenced destination. The gateway's runtime
+nginx configuration can reach only the fixed API service and static assets. Every
+service declares a numeric non-root user, drops Linux capabilities, and disables
+privilege escalation.
 The API and web root filesystems are read-only apart from bounded /tmp mounts.
 
 Image tags and multi-platform manifest digests are pinned in the Containerfiles
@@ -154,6 +159,9 @@ administrator, creates an HTTP Monitor against the local TLS gateway, requires
 its manual Run and Observation to pass with HTTP 200, and verifies graceful API
 shutdown. It then removes only its own containers, network, volume, and
 temporary files. The behavior under test uses no public DNS or public target.
+The smoke check verifies that the Compose engine published the gateway port before
+waiting for readiness, so an unsupported or incomplete network setup fails with a
+direct diagnostic.
 
 Set PROBEHIVE_SMOKE_PORT when port 18443 is already occupied.
 

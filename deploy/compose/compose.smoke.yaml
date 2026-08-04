@@ -9,4 +9,4 @@ services:
     secrets:
       - tls_cert
 
-# The smoke Monitor targets https://web:8443/healthz on the private Compose network.
+# The smoke Monitor targets https://web:8443/healthz on the application network.

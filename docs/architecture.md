@@ -129,6 +129,12 @@ component, styling, or state framework without a current need.
 Released artifacts run as non-root under rootless Podman and Docker with explicit
 persistent data, health checks, graceful shutdown, external secret injection,
 and no privileged mode, host networking, or mounted container-engine socket.
+The Compose package uses a project-scoped application bridge for the gateway and
+API, plus an internal data bridge for the API and PostgreSQL. Only the gateway's
+TLS port is published; the API and PostgreSQL have no host port mappings. The
+application bridge permits required API egress, while tenant-influenced
+destinations still pass through the shared outbound policy and nginx has no
+tenant-controlled upstream.
 
 ## Changing This Baseline
 
