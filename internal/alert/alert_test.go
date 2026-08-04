@@ -127,8 +127,9 @@ func TestListRejectsUnscopedAndUnboundedQueries(t *testing.T) {
 	if _, _, err := service.List(t.Context(), scope, ListQuery{PageSize: 101}); err == nil {
 		t.Fatal("oversized Alert query succeeded")
 	}
+	nonUTC := time.Date(2026, time.August, 1, 10, 0, 0, 0, time.FixedZone("UTC+08:00", 8*60*60))
 	if _, _, err := service.List(t.Context(), scope, ListQuery{
-		PageSize: 50, Cursor: &Cursor{OccurredAt: time.Now(), ID: "alert"},
+		PageSize: 50, Cursor: &Cursor{OccurredAt: nonUTC, ID: "alert"},
 	}); err == nil {
 		t.Fatal("non-UTC Alert cursor succeeded")
 	}
