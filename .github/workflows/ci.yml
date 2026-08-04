@@ -125,3 +125,9 @@ jobs:
         run: ./deploy/compose/smoke.sh
         env:
           PROBEHIVE_SMOKE_PORT: "18443"
+
+      - name: Verify PostgreSQL backup and restore
+        run: ./deploy/compose/recovery.sh
+        env:
+          PROBEHIVE_RECOVERY_SOURCE_PORT: "18443"
+          PROBEHIVE_RECOVERY_RESTORE_PORT: "18444"
