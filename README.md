@@ -53,8 +53,9 @@ The current foundation implements:
 - A Monitor-scoped Run evidence screen with 30-day keyset history, deep-linked Run detail, and bounded HTTP Observation detail.
 - A production-like rootless Compose package with pinned images, a non-root TLS gateway, external secret files, persistent PostgreSQL data, health checks, graceful shutdown, and a disposable first-result smoke check.
 - A documented logical PostgreSQL backup and clean-restore procedure with deterministic Organization, monitoring, Incident, Alert, and encrypted Webhook recovery verification.
+- A deterministic packaged schema-upgrade exercise with persisted-evidence verification and a documented restore-based rollback boundary.
 
-Upgrade, rollback, and broader operator readiness are the current focus. Status pages and Agents remain later work.
+Broader operator readiness is the current focus. Status pages and Agents remain later work.
 
 ## Get Started
 
@@ -74,7 +75,6 @@ Useful project references:
 
 The current milestone turns the implemented HTTP path into a dependable self-hosted product:
 
-- Exercise schema upgrades and rollback boundaries.
 - Complete operator guidance for retention and common failures.
 - Extend clean-install verification through Incident evidence and signed Webhook delivery.
 

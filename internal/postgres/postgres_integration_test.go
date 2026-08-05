@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"testing/fstest"
@@ -119,6 +120,32 @@ func TestFailedMigrationRollsBackOnlyItsSchemaAndVersionRecord(t *testing.T) {
 	}
 	if versionCount != 1 {
 		t.Fatalf("migration version count = %d, want only the successful version", versionCount)
+	}
+}
+
+func TestOlderMigrationSetRejectsUpgradedSchema(t *testing.T) {
+	database := newIntegrationDatabase(t, true)
+	migrations := embeddedMigrationVersions(t)
+	if len(migrations) < 2 {
+		t.Fatal("at least two migrations are required to exercise the rollback boundary")
+	}
+
+	previous := make(fstest.MapFS, len(migrations)-1)
+	for _, item := range migrations[:len(migrations)-1] {
+		contents, err := embeddedMigrations.ReadFile("migrations/" + item.name)
+		if err != nil {
+			t.Fatalf("read migration %q: %v", item.name, err)
+		}
+		previous["migrations/"+item.name] = &fstest.MapFile{Data: contents}
+	}
+
+	err := runMigrations(t.Context(), database.pool, previous)
+	if err == nil {
+		t.Fatal("older migration set accepted a newer schema")
+	}
+	latestVersion := migrations[len(migrations)-1].version
+	if message := fmt.Sprintf("database contains unknown migration version %d", latestVersion); !strings.Contains(err.Error(), message) {
+		t.Fatalf("runMigrations() error = %q, want it to contain %q", err, message)
 	}
 }
 

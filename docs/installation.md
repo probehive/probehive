@@ -242,6 +242,55 @@ After verification, remove only the disposable project and its volume:
 Keep the verified backup according to operator policy. ProbeHive does not yet
 define a product retention or recovery-time guarantee.
 
+## Upgrade and Rollback Boundary
+
+Schema migrations are forward-only and run automatically while the API starts.
+The API acquires a PostgreSQL advisory lock, verifies every previously recorded
+migration name, and applies each pending migration in its own transaction before
+readiness can succeed.
+
+Before changing to a newer reviewed source revision:
+
+1. Stop the API and Web containers so the database has no application writers.
+2. Create and verify a logical PostgreSQL backup using the procedure above.
+3. Preserve the complete Webhook keyring and record the current source revision.
+4. Review the newer revision's migration files and build its API and Web images.
+5. Start the package, wait for `/readyz`, and verify representative Organization,
+   Monitor, Run, and Observation evidence before returning it to service.
+
+Do not infer rollback safety from a failed container start. Migrations commit one
+version at a time, so the database may have advanced even when a later migration
+or another startup step fails. After the newer API has attempted startup, the
+rollback path is to stop it, restore the verified pre-upgrade dump into a clean
+PostgreSQL volume with the matching Webhook keyring, and run the previous reviewed
+source revision. Do not delete `schema_migrations` rows or hand-reverse schema
+changes. An older API rejects migration versions it does not contain and remains
+unready rather than running against an unknown schema.
+
+This is the observed boundary of the current source package, not a general
+cross-version compatibility or recovery-time guarantee.
+
+## Deterministic Upgrade Check
+
+Run the packaged upgrade exercise from the repository root:
+
+~~~bash
+./deploy/compose/upgrade.sh
+~~~
+
+It creates a disposable PostgreSQL volume, applies every source migration except
+the latest as the baseline, and seeds Organization, Project, membership, Monitor
+revision, Run, and Observation evidence. It then builds and starts the current
+packaged API so the production migration runner applies the remaining migration.
+The check compares the migration manifest and an evidence fingerprint before and
+after the upgrade, restarts the API to verify idempotency, and removes only its
+own Compose project, volume, secrets, and temporary files.
+
+The exercise covers the one-step penultimate-to-current schema transition in the
+checked-out source tree. It does not claim that arbitrary historical revisions
+can skip directly to the current schema or that an upgraded volume can be used by
+an older binary.
+
 ## Deterministic Smoke Check
 
 Run the package smoke check from the repository root:
@@ -279,8 +328,9 @@ removed when the check exits. Set `PROBEHIVE_RECOVERY_SOURCE_PORT` and
 - Images and releases are not published; every installation builds from a
   reviewed source revision.
 - The generated certificate is not suitable for remote or unattended clients.
-- Schema upgrade exercises and rollback boundaries remain operability work and
-  are not yet a supported procedure.
+- Schema migrations are forward-only. Rollback after an attempted migration
+  restores the pre-upgrade backup into a clean volume and runs the prior reviewed
+  source revision.
 - The package is single-node and provides no high-availability orchestration.
 - The default loopback bind is deliberate. Remote exposure requires the
   operator-controlled TLS, origin, firewall, and ingress configuration above.

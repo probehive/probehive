@@ -131,3 +131,6 @@ jobs:
         env:
           PROBEHIVE_RECOVERY_SOURCE_PORT: "18443"
           PROBEHIVE_RECOVERY_RESTORE_PORT: "18444"
+
+      - name: Verify packaged schema upgrade
+        run: ./deploy/compose/upgrade.sh
