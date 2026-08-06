@@ -134,3 +134,6 @@ jobs:
 
       - name: Verify packaged schema upgrade
         run: ./deploy/compose/upgrade.sh
+
+      - name: Verify packaged retention and diagnostics
+        run: ./deploy/compose/retention.sh

@@ -128,6 +128,34 @@ PROBEHIVE_OUTBOUND_ALLOWED_CIDRS. Metadata endpoints remain denied. Do not use
 the smoke overlay for an operator installation; it deliberately permits private
 Compose-network ranges only so a local Monitor can reach its fixture.
 
+## Raw Evidence Retention
+
+`PROBEHIVE_RETENTION_DAYS` controls raw Run and Observation evidence. It accepts
+1 through 730 whole days and defaults to 30. The embedded worker enforces the
+window at startup and every six hours by dropping only monthly `runs` and
+`observations` partitions whose entire range is older than the cutoff. Dropping
+whole partitions avoids row-delete bloat, but it also means the configured
+window is a floor: raw evidence can remain for up to one additional month.
+
+At least one API process with `PROBEHIVE_WORKER_ENABLED=true` must remain active
+to create future partitions and enforce expiry. The packaged API enables the
+worker by default. An API-only replica does not perform partition maintenance.
+
+Raw expiry does not remove Organizations, Projects, Monitors, Monitor Revisions,
+health transitions, Incidents and their timelines, Alerts, Webhook
+Integrations, or Webhook delivery evidence. Durable health and Incident evidence
+keeps bounded counts plus the causal Run id and scheduled instant; after the raw
+partition expires, a link to the full Run or Observation can legitimately return
+not found. Processed outbox markers and dead letters have a separate fixed
+30-day cleanup; live outbox rows are not removed by that cleanup. Session expiry
+is also independent.
+
+Backups contain only the evidence that exists when the dump begins. Choose the
+retention window before scheduling backup coverage that depends on raw
+Observations. Changing the setting never rewrites or partially deletes a current
+monthly partition; a newly expired whole partition is removed by the next
+maintenance pass.
+
 ## Health and Lifecycle
 
 The gateway exposes:
@@ -147,6 +175,59 @@ docker compose -f deploy/compose/compose.yaml stop
 A normal down also retains the named PostgreSQL volume. Do not add --volumes
 unless the installation data is intentionally disposable; that option deletes
 the database volume.
+
+## Diagnose Startup and Readiness
+
+Select the Compose implementation once, then inspect service state, bounded log
+tails, the published gateway port, and PostgreSQL readiness without printing
+secret contents:
+
+~~~bash
+compose=(podman compose)
+# Or: compose=(docker compose)
+
+"${compose[@]}" -f deploy/compose/compose.yaml ps
+"${compose[@]}" -f deploy/compose/compose.yaml logs \
+  --no-color --tail=200 postgres api web
+"${compose[@]}" -f deploy/compose/compose.yaml port web 8443
+"${compose[@]}" -f deploy/compose/compose.yaml exec -T postgres \
+  pg_isready -U probehive -d probehive -h 127.0.0.1
+~~~
+
+Do not `cat`, echo, or paste the database URL, PostgreSQL password, Webhook
+keyring, TLS private key, or logical dump into diagnostics. The Compose
+health-check and application logs do not require their values.
+
+Use the first failing service to narrow the cause:
+
+| Signal | Meaning and safe next check |
+| --- | --- |
+| postgres is unhealthy | Check its logs, named-volume availability, and secret-file readability. The password embedded in the database URL must match the PostgreSQL password. |
+| api exits before becoming healthy | Read the final API error. Invalid `PROBEHIVE_*` values name the rejected setting; migration errors name the failing database step; `initialize Webhook secrets` means the complete matching keyring is unavailable or invalid. |
+| `/healthz` succeeds but `/readyz` returns 503 `Unhealthy` | The process is live but its PostgreSQL ping failed. Check postgres state and the data network before restarting or changing configuration. |
+| web is unhealthy or no port is printed | Check web logs, the loopback port mapping, and whether the certificate and key files are readable by the numeric container user. |
+| the page loads but browser writes are rejected | Confirm `PROBEHIVE_PUBLIC_ORIGIN` exactly matches the browser's external HTTPS scheme, host, and port. |
+| Runs fail with an outbound policy code | Inspect the stable failure code in the Observation. Review allowed CIDRs, ports, resolver reachability, and target DNS; do not disable TLS or the outbound policy. |
+
+Partition maintenance emits `created Run partitions` or `expired Run
+partitions` only when it changes the catalog. `cannot create Run partitions` and
+`cannot expire Run partitions` are actionable database errors. The API can
+remain live while maintenance reports an error, so investigate it before the
+current partitions are exhausted. Inspect partition names and bounds without
+reading evidence rows:
+
+~~~bash
+"${compose[@]}" -f deploy/compose/compose.yaml exec -T postgres sh -c \
+  'PGPASSWORD="$(cat /run/secrets/postgres_password)" exec psql \
+    --username=probehive --dbname=probehive --no-align --tuples-only \
+    --command="SELECT parent.relname, child.relname,
+      pg_get_expr(child.relpartbound, child.oid)
+      FROM pg_inherits
+      JOIN pg_class parent ON parent.oid = pg_inherits.inhparent
+      JOIN pg_class child ON child.oid = pg_inherits.inhrelid
+      WHERE parent.relname IN ('\''runs'\'', '\''observations'\'')
+      ORDER BY parent.relname, child.relname;"'
+~~~
 
 ## PostgreSQL Backup and Restore
 
@@ -291,6 +372,24 @@ checked-out source tree. It does not claim that arbitrary historical revisions
 can skip directly to the current schema or that an upgraded volume can be used by
 an older binary.
 
+## Deterministic Retention and Diagnosis Check
+
+Run the packaged retention exercise from the repository root:
+
+~~~bash
+./deploy/compose/retention.sh
+~~~
+
+It creates a disposable PostgreSQL volume, migrates it through the packaged API,
+and seeds raw Run and Observation evidence in an expired month and the current
+month. Starting the normal embedded worker must drop only the expired raw
+partitions while preserving the current raw rows, Monitor definition, health
+transition, Incident timeline, and Alert. The check also requires the expiry log
+signal, proves `/readyz` reports a stopped PostgreSQL dependency, and verifies
+that an out-of-range retention window fails startup with a named setting. It
+then removes only its own Compose project, volume, generated secrets, and
+temporary files.
+
 ## Deterministic Smoke Check
 
 Run the package smoke check from the repository root:
@@ -334,9 +433,3 @@ removed when the check exits. Set `PROBEHIVE_RECOVERY_SOURCE_PORT` and
 - The package is single-node and provides no high-availability orchestration.
 - The default loopback bind is deliberate. Remote exposure requires the
   operator-controlled TLS, origin, firewall, and ingress configuration above.
-
-For startup failures, inspect Compose service state and logs without printing
-secret files. PostgreSQL readiness failures usually indicate a mismatched
-password and database URL. A gateway that is healthy while browser writes fail
-usually indicates that PROBEHIVE_PUBLIC_ORIGIN does not exactly match the
-browser origin.

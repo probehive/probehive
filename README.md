@@ -54,8 +54,9 @@ The current foundation implements:
 - A production-like rootless Compose package with pinned images, a non-root TLS gateway, external secret files, persistent PostgreSQL data, health checks, graceful shutdown, and a disposable first-result smoke check.
 - A documented logical PostgreSQL backup and clean-restore procedure with deterministic Organization, monitoring, Incident, Alert, and encrypted Webhook recovery verification.
 - A deterministic packaged schema-upgrade exercise with persisted-evidence verification and a documented restore-based rollback boundary.
+- A documented raw-evidence retention and troubleshooting workflow with a disposable package exercise that preserves current and durable evidence while expiring old raw partitions.
 
-Broader operator readiness is the current focus. Status pages and Agents remain later work.
+Operator readiness for the self-hosted HTTP dogfood milestone is implemented in the current source. Status pages and Agents remain later work.
 
 ## Get Started
 
@@ -73,12 +74,11 @@ Useful project references:
 
 ## Current Focus
 
-The current milestone turns the implemented HTTP path into a dependable self-hosted product:
+The current source implements the self-hosted HTTP dogfood milestone. It remains
+pre-alpha: owner review, signing, publishing, and initial dogfood feedback are
+still required before any release claim.
 
-- Complete operator guidance for retention and common failures.
-- Extend clean-install verification through Incident evidence and signed Webhook delivery.
-
-New Check Types, remote Agents, identity expansion, public status pages, CLI, monitoring as code, Kubernetes packaging, and hosted-service implementation are deferred until this milestone is complete unless one is required to close an installation or operability gap.
+New Check Types, remote Agents, identity expansion, public status pages, CLI, monitoring as code, Kubernetes packaging, and hosted-service implementation remain deferred until self-hosted dogfood establishes the next concrete product need.
 
 ## Architecture
 
