@@ -20,6 +20,9 @@ restore_args=(-f "$base_compose" -f "$smoke_compose" -p "$project_restore")
 if podman compose version >/dev/null 2>&1 &&
   podman compose "${source_args[@]}" ps >/dev/null 2>&1; then
   compose=(podman compose)
+elif command -v podman-compose >/dev/null 2>&1 &&
+  podman-compose "${source_args[@]}" ps >/dev/null 2>&1; then
+  compose=(podman-compose)
 elif docker compose version >/dev/null 2>&1 &&
   docker compose "${source_args[@]}" ps >/dev/null 2>&1; then
   compose=(docker compose)

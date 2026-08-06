@@ -6,7 +6,8 @@ images, releases, or upgrade guarantees.
 
 ## Prerequisites
 
-- Rootless Podman with Podman Compose, or Docker with Docker Compose.
+- Rootless Podman with Podman Compose (`podman compose` or the native
+  `podman-compose` command), or Docker with Docker Compose.
 - OpenSSL for initial local secret and certificate generation.
 - Enough local resources for one Go application, one PostgreSQL database, and
   the static React gateway.
@@ -180,10 +181,12 @@ the database volume.
 
 Select the Compose implementation once, then inspect service state, bounded log
 tails, the published gateway port, and PostgreSQL readiness without printing
-secret contents:
+secret contents. If `podman compose` delegates to an unavailable provider, use
+the native `podman-compose` command:
 
 ~~~bash
 compose=(podman compose)
+# Or: compose=(podman-compose)
 # Or: compose=(docker compose)
 
 "${compose[@]}" -f deploy/compose/compose.yaml ps
@@ -397,6 +400,9 @@ Run the package smoke check from the repository root:
 ~~~bash
 ./deploy/compose/smoke.sh
 ~~~
+
+The packaged checks probe their actual Compose files with `ps` and fall back to
+native `podman-compose` when the `podman compose` provider is unreachable.
 
 It creates disposable secrets and an isolated Compose project, builds both
 images, waits on readiness, verifies the static application, creates the first
