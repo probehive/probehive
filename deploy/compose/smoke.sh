@@ -15,19 +15,8 @@ done
 
 project_name="probehive-smoke-$$"
 compose_args=(-f "$base_compose" -f "$smoke_compose" -p "$project_name")
-if podman compose version >/dev/null 2>&1 &&
-  podman compose "${compose_args[@]}" ps >/dev/null 2>&1; then
-  compose=(podman compose)
-elif command -v podman-compose >/dev/null 2>&1 &&
-  podman-compose "${compose_args[@]}" ps >/dev/null 2>&1; then
-  compose=(podman-compose)
-elif docker compose version >/dev/null 2>&1 &&
-  docker compose "${compose_args[@]}" ps >/dev/null 2>&1; then
-  compose=(docker compose)
-else
-  printf 'A reachable Podman Compose or Docker Compose engine is required.\n' >&2
-  exit 1
-fi
+source "$script_dir/compose-provider.sh"
+select_compose "${compose_args[@]}"
 
 temporary_dir="$(mktemp -d)"
 failed=1

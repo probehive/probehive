@@ -184,6 +184,12 @@ tails, the published gateway port, and PostgreSQL readiness without printing
 secret contents. If `podman compose` delegates to an unavailable provider, use
 the native `podman-compose` command:
 
+The disposable package checks auto-detect a reachable provider in this order:
+Podman Compose, native podman-compose, then Docker. When more than one is installed,
+select one explicitly with `PROBEHIVE_COMPOSE_PROVIDER=podman`,
+`podman-compose`, or `docker`; the default is `auto`. The override accepts only
+those fixed values and does not evaluate a shell command.
+
 ~~~bash
 compose=(podman compose)
 # Or: compose=(podman-compose)
@@ -399,6 +405,7 @@ Run the package smoke check from the repository root:
 
 ~~~bash
 ./deploy/compose/smoke.sh
+PROBEHIVE_COMPOSE_PROVIDER=docker ./deploy/compose/smoke.sh
 ~~~
 
 The packaged checks probe their actual Compose files with `ps` and fall back to

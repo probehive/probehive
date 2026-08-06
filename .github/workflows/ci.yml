@@ -121,6 +121,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      - name: Test Compose provider selection
+        run: ./deploy/compose/provider-test.sh
+
       - name: Smoke-test rootless Compose package
         run: ./deploy/compose/smoke.sh
         env:
