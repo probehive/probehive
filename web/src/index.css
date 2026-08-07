@@ -282,6 +282,27 @@ dd {
   padding-top: 1.25rem;
 }
 
+.runs-section > .section-heading {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.manual-run-control {
+  flex: 0 0 auto;
+}
+
+.manual-run-control button {
+  margin-top: 0;
+}
+
+.manual-run-control .error {
+  margin-bottom: 0;
+  max-width: 28rem;
+}
+
 .section-heading h2,
 .section-heading p,
 .run-detail-section h2 {

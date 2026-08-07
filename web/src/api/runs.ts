@@ -1,4 +1,4 @@
-import { getJson } from './http'
+import { getJson, postJson } from './http'
 
 export type RunOutcome = 'passed' | 'failed' | 'errored' | 'timedout' | 'cancelled' | 'skipped'
 export type RunKind = 'scheduled' | 'confirmation' | 'manual'
@@ -90,6 +90,15 @@ export function listRuns(
   return getJson<RunPageResponse>(
     `${runsPath(organizationId, projectId, monitorId)}?${query.toString()}`,
   )
+}
+
+export async function triggerManualRun(
+  organizationId: string,
+  projectId: string,
+  monitorId: string,
+): Promise<RunResponse> {
+  const response = await postJson(runsPath(organizationId, projectId, monitorId))
+  return (await response.json()) as RunResponse
 }
 
 export function getRun(

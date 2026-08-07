@@ -216,6 +216,9 @@ export const en = {
 
   'run.heading': 'Runs',
   'run.range': 'Runs retained from the last {days} days.',
+  'run.manual.action': 'Run now',
+  'run.manual.running': 'Running...',
+  'run.manual.failed': 'The manual Run could not be started.',
   'run.loading': 'Loading Runs...',
   'run.loadFailed': 'The Runs could not be loaded.',
   'run.empty': 'No Runs in this time range.',
@@ -312,6 +315,9 @@ export const en = {
   'error.server.internalError': 'Something went wrong. Try again.',
   'error.monitor.state.activationWithoutRevision':
     'A Monitor cannot be activated before it has a revision.',
+  'error.run.manual.unconfigured': 'Add a revision before running this Monitor.',
+  'error.run.manual.unavailable':
+    'Manual Run execution is unavailable. Try again later.',
   'error.monitor.state.transitionNotAllowed':
     'The Monitor cannot make that state transition.',
   'monitor.lifecycle.heading': 'Lifecycle',

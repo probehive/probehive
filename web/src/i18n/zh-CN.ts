@@ -195,6 +195,9 @@ export const zhCN: Catalog = {
 
   'run.heading': '运行记录',
   'run.range': '最近 {days} 天内保留的运行记录。',
+  'run.manual.action': '立即运行',
+  'run.manual.running': '正在运行...',
+  'run.manual.failed': '无法启动手动运行。',
   'run.loading': '正在加载运行记录...',
   'run.loadFailed': '无法加载运行记录。',
   'run.empty': '该时间范围内没有运行记录。',
@@ -298,6 +301,9 @@ export const zhCN: Catalog = {
   'monitor.intervalEdit.submitting': '正在更新...',
   'monitor.intervalEdit.done': '执行间隔已更新。',
   'monitor.intervalEdit.failed': '无法更新执行间隔。',
+  'error.run.manual.unconfigured': '请先为此监控添加修订版本。',
+  'error.run.manual.unavailable':
+    '手动运行执行器当前不可用，请稍后重试。',
   'error.monitor.concurrentUpdate': '更新完成前该监控已被修改，请重试。',
   'error.monitor.archived.readOnly': '已归档的监控不能修改。',
   'error.monitor.state.activationWithoutRevision': '监控必须先有修订版本才能启用。',

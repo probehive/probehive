@@ -78,32 +78,26 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await expect(inventoryRow).toBeVisible()
   await expect(inventoryRow.getByText('300 seconds')).toBeVisible()
 
-  // Seed one deterministic completed Run through the existing API, then exercise
-  // the new read-only Monitor -> Run -> Observation browser path.
-  const manualRun = await page.evaluate(async (scope) => {
-    const tokenResponse = await fetch('/api/v1/auth/antiforgery')
-    const token = await tokenResponse.json() as { headerName: string; requestToken: string }
-    const response = await fetch(
-      `/api/v1/organizations/${scope.organizationId}/projects/${scope.projectId}/monitors/${scope.id}/runs`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          [token.headerName]: token.requestToken,
-        },
-      },
-    )
-    return { status: response.status, body: await response.json() as { outcome: string } }
-  }, createdMonitor)
-  expect(manualRun.status).toBe(201)
-  expect(manualRun.body.outcome).toBe('passed')
-
+  // Trigger a completed manual Run through the operator UI and follow its direct
+  // navigation into the existing Run -> Observation evidence path.
   await page.getByRole('link', { name: 'ProbeHive Readiness' }).click()
   await expect(page.getByRole('heading', { name: 'Runs' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Health' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Incidents' })).toBeVisible()
-  const manualRow = page.getByRole('row').filter({ hasText: 'Manual' }).filter({ hasText: 'Passed' })
-  await manualRow.getByRole('link', { name: 'View evidence' }).click()
+  const manualRunResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST' &&
+    response.url().endsWith(`/monitors/${createdMonitor.id}/runs`) &&
+    response.status() === 201,
+  )
+  await page.getByRole('button', { name: 'Run now' }).click()
+  const manualRun = await (await manualRunResponse).json() as {
+    id: string
+    kind: string
+    outcome: string
+  }
+  expect(manualRun.kind).toBe('manual')
+  expect(manualRun.outcome).toBe('passed')
+  await expect(page).toHaveURL(new RegExp(`/runs/${manualRun.id}$`))
   await expect(page.getByRole('heading', { name: 'Run evidence' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Observation' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'HTTP response' })).toBeVisible()

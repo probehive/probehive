@@ -14,6 +14,7 @@ import {
 } from '../api/runs'
 import { useTranslation } from '../i18n/context'
 import ChangeMonitorIntervalForm from './ChangeMonitorIntervalForm'
+import ManualRunControl from './ManualRunControl'
 import MonitorAlertsSection from './MonitorAlertsSection'
 import MonitorHealthSection from './MonitorHealthSection'
 import MonitorIncidentsSection from './MonitorIncidentsSection'
@@ -448,6 +449,7 @@ export default function MonitorPage() {
             <h2 id="runs-heading">{t('run.heading')}</h2>
             <p className="muted">{t('run.range', { days: runLookbackDays })}</p>
           </div>
+          <ManualRunControl monitor={monitor.data} />
         </div>
         {runs.isPending && <p>{t('run.loading')}</p>}
         {runs.isError && <p className="error" role="alert">{t('run.loadFailed')}</p>}
