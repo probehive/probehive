@@ -14,6 +14,7 @@ import {
 } from '../api/runs'
 import { useTranslation } from '../i18n/context'
 import ChangeMonitorIntervalForm from './ChangeMonitorIntervalForm'
+import ChangeMonitorTargetForm from './ChangeMonitorTargetForm'
 import ManualRunControl from './ManualRunControl'
 import MonitorAlertsSection from './MonitorAlertsSection'
 import MonitorHealthSection from './MonitorHealthSection'
@@ -423,6 +424,7 @@ export default function MonitorPage() {
       <MonitorLifecycleControls monitor={monitor.data} />
       <RenameMonitorForm monitor={monitor.data} />
       <ChangeMonitorIntervalForm monitor={monitor.data} />
+      <ChangeMonitorTargetForm monitor={monitor.data} />
 
       <MonitorHealthSection
         organizationId={organizationId}

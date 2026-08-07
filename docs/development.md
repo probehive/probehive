@@ -235,7 +235,11 @@ npm --prefix web run build
 
 ## Browser Journeys
 
-Playwright runs the browser journeys against the real Go API and a dedicated `probehive_e2e` database: the first-run journey, and a second that switches the interface to `zh-CN` and confirms the preference survives a reload. It requires the development PostgreSQL service, Go, and Playwright Chromium:
+Playwright runs the browser journeys against the real Go API and a dedicated
+`probehive_e2e` database. The first-run journey creates, exercises, fails, and
+recovers HTTP Monitors through a later target revision. A second journey switches
+the interface to `zh-CN` and confirms the preference survives a reload. It requires
+the development PostgreSQL service, Go, and Playwright Chromium:
 
 ```bash
 npx --prefix web playwright install chromium

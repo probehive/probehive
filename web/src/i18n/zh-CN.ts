@@ -364,4 +364,12 @@ export const zhCN: Catalog = {
   'alert.delivery.outcome.succeeded': '成功',
   'alert.delivery.outcome.failed': '失败',
   'alert.delivery.outcome.cancelled': '已取消',
+
+  'monitor.targetEdit.heading': '\u76ee\u6807 URL',
+  'monitor.targetEdit.form': '\u66ff\u6362\u76d1\u63a7\u76ee\u6807',
+  'monitor.targetEdit.url': '\u65b0\u76ee\u6807 URL',
+  'monitor.targetEdit.submit': '\u66ff\u6362\u76ee\u6807',
+  'monitor.targetEdit.submitting': '\u6b63\u5728\u66ff\u6362...',
+  'monitor.targetEdit.done': '\u76d1\u63a7\u76ee\u6807\u5df2\u5728\u4fee\u8ba2\u7248\u672c v{revision} \u4e2d\u66ff\u6362\u3002',
+  'monitor.targetEdit.failed': '\u65e0\u6cd5\u66ff\u6362\u76d1\u63a7\u76ee\u6807\u3002',
 }

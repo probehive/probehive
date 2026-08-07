@@ -13,7 +13,7 @@ interface CreatedMonitor {
 // usable, the administrator signs out and back in, and provisions a second
 // Organization.
 test('first run: setup lands on a provisioned Organization, then sign in and add another', async ({ page }) => {
-  test.setTimeout(120_000)
+  test.setTimeout(240_000)
   // A fresh installation routes every visitor to first-administrator setup.
   await page.goto('/')
   await expect(page).toHaveURL(/\/setup$/)
@@ -157,6 +157,42 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await expect(incidentDetail.getByText('Incident acknowledged.')).toBeVisible()
   await expect(incidentDetail.locator('.incident-state')).toHaveText('Acknowledged')
   await expect(incidentDetail.locator('.incident-timeline-heading strong').last()).toHaveText('Acknowledged')
+
+  // Replace the failed target through a later immutable revision, then observe
+  // the scheduled and confirmation Runs resolve the acknowledged Incident.
+  const target = page.getByRole('region', { name: 'Target URL' })
+  await target.getByLabel('New target URL').fill('http://127.0.0.1:5080/readyz')
+  const revisionResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST' &&
+    response.url().endsWith('/monitors/' + failingMonitor.id + '/revisions') &&
+    response.status() === 201,
+  )
+  await target.getByRole('button', { name: 'Replace target' }).click()
+  const replacementRevision = await (await revisionResponse).json() as {
+    revisionNumber: number
+  }
+  expect(replacementRevision.revisionNumber).toBe(2)
+  await expect(target.getByText('Monitor target replaced in revision v2.')).toBeVisible()
+  await expect(page.locator('.monitor-summary').getByText('v2', { exact: true })).toBeVisible()
+
+  await expect.poll(async () => page.evaluate(async (scope) => {
+    const response = await fetch(
+      '/api/v1/organizations/' + scope.organizationId + '/projects/' + scope.projectId +
+      '/monitors/' + scope.id + '/incidents?pageSize=1',
+    )
+    const body = await response.json() as { items: Array<{ state: string }> }
+    return body.items[0]?.state
+  }, failingMonitor), { timeout: 90_000 }).toBe('resolved')
+
+  await page.reload()
+  const resolvedIncident = page.getByRole('region', { name: 'Incident evidence' })
+  await expect(resolvedIncident.locator('.incident-state')).toHaveText('Resolved')
+  await expect(
+    resolvedIncident.locator('.incident-timeline-heading strong').last(),
+  ).toHaveText('Resolved')
+  const resolvedAlertRow = page.getByRole('region', { name: 'Alert intents' })
+    .getByRole('row').filter({ hasText: 'Incident resolved' })
+  await expect(resolvedAlertRow).toBeVisible()
 
   // Sign out to exercise the login journey with the created credentials.
   await page.getByRole('button', { name: 'Sign out' }).click()

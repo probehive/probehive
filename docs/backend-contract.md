@@ -919,11 +919,15 @@ Before launching the API, `web/e2e/start-api.sh` must preserve this reset contra
 The browser journey assumes an empty database, routes `/` to `/setup`, creates and signs
 in the first Administrator, and lands directly on the Organization that setup provisioned,
 rendering its `Default` heading and default Project. It renames that Organization and
-asserts the slug did not move. It then signs out, signs back in,
-lands on the Organization list containing the renamed Organization, creates slug `acme` with display name
-`Acme Monitoring`, follows the returned Organization, and renders its default Project.
-A second journey switches the interface to `zh-CN`, asserts the translated heading and
-the `lang` attribute of the document element, and reloads to confirm the preference
+asserts the slug did not move. It creates and operates a passing HTTP Monitor, triggers a
+manual Run, and follows the returned evidence. It then creates a failing HTTP Monitor,
+waits for its Incident and Alert intent, acknowledges the Incident, replaces the target
+through revision 2, and waits for confirmed recovery and its Alert intent. Finally, it
+signs out, signs back in, lands on the Organization list containing the renamed
+Organization, creates slug `acme` with display name `Acme Monitoring`, follows the
+returned Organization, and renders its default Project. A second journey switches the
+interface to `zh-CN`, asserts the translated heading and the `lang` attribute of the
+document element, and reloads to confirm the preference
 persists rather than renegotiating from the browser.
 
 The journeys and `web/src` are contract consumers: either may change, but a change that

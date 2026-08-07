@@ -263,13 +263,15 @@ dd {
 
 .monitor-lifecycle-section,
 .monitor-rename-section,
-.monitor-interval-section {
+.monitor-interval-section,
+.monitor-target-section {
   margin-top: 1.25rem;
 }
 
 .monitor-lifecycle-section h2,
 .monitor-rename-section h2,
-.monitor-interval-section h2 {
+.monitor-interval-section h2,
+.monitor-target-section h2 {
   font-size: 1rem;
   margin: 0 0 0.75rem;
 }
