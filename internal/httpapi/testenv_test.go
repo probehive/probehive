@@ -21,6 +21,7 @@ import (
 	"github.com/probehive/probehive/internal/health"
 	api "github.com/probehive/probehive/internal/httpapi/v1"
 	"github.com/probehive/probehive/internal/incident"
+	"github.com/probehive/probehive/internal/maintenance"
 	"github.com/probehive/probehive/internal/monitor"
 	"github.com/probehive/probehive/internal/organization"
 	"github.com/probehive/probehive/internal/run"
@@ -37,6 +38,7 @@ type testEnvironment struct {
 	antiforgery   *memoryAntiforgeryStore
 	organizations *memoryOrganizationStore
 	monitors      *memoryMonitorStore
+	maintenance   *memoryMaintenanceStore
 	runs          *memoryRunStore
 	health        *memoryHealthStore
 	incidents     *memoryIncidentStore
@@ -52,12 +54,14 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 	antiforgery := newMemoryAntiforgeryStore()
 	organizations := newMemoryOrganizationStore()
 	monitors := newMemoryMonitorStore()
+	maintenanceWindows := newMemoryMaintenanceStore(monitors)
 	runs := newMemoryRunStore(monitors)
 	ids := &testUUIDGenerator{}
 
 	organizationService := organization.NewService(organizations, clock, ids)
 	userService := user.NewService(users, testPasswordHasher{}, clock, ids)
 	monitorService := monitor.NewService(monitors, check.NewCatalog(), clock, ids)
+	maintenanceService := maintenance.NewService(maintenanceWindows, clock, ids)
 	runService := run.NewQueryService(runs)
 	healthStore := &memoryHealthStore{monitors: monitors}
 	incidentStore := &memoryIncidentStore{monitors: monitors}
@@ -83,6 +87,7 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 		Monitors:                    monitorService,
 		Runs:                        runService,
 		MonitorHealth:               healthService,
+		Maintenance:                 maintenanceService,
 		Incidents:                   incidentService,
 		Alerts:                      alertService,
 		Webhooks:                    webhookService,
@@ -112,7 +117,8 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 		server: server, client: &http.Client{Jar: jar}, clock: clock,
 		users: users, sessions: sessions, antiforgery: antiforgery,
 		organizations: organizations, monitors: monitors,
-		runs: runs, health: healthStore, incidents: incidentStore,
+		maintenance: maintenanceWindows,
+		runs:        runs, health: healthStore, incidents: incidentStore,
 		alerts:   alertStore,
 		webhooks: webhookStore,
 	}

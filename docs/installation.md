@@ -334,10 +334,12 @@ then restore the custom archive:
 ~~~
 
 Wait for `https://localhost:18444/readyz`, sign in with a restored administrator,
-and inspect representative Organizations, Monitors, Runs, Observations,
-Incidents, Alerts, Webhook Integrations, and Webhook delivery evidence. A ready
-API also proves that every retained encrypted Webhook secret could be opened by
-the supplied keyring during startup. If startup reports `initialize Webhook
+and inspect representative Organizations, Monitors, maintenance windows, Runs,
+Observations, Incidents, Alerts, Webhook Integrations, and Webhook delivery
+evidence. Confirm that scheduled bounds and durable cancellation state survived
+unchanged. A ready API also proves that every retained encrypted Webhook secret
+could be opened by the supplied keyring during startup. If startup reports
+`initialize Webhook
 secrets`, stop: the matching complete keyring has not been supplied or its
 content is invalid. Do not generate replacement wrapping keys for restored
 ciphertext.
@@ -447,10 +449,11 @@ Set PROBEHIVE_SMOKE_PORT when port 18443 is already occupied.
 
 Run `./deploy/compose/recovery.sh` to exercise the documented logical backup
 and clean-restore path. It creates isolated source and restore projects, seeds
-real Organization, Monitor, Run, Observation, Incident, Alert, Webhook route,
-and delivery-attempt evidence, stops source writers, dumps PostgreSQL, restores
-into a distinct clean volume, and starts the restored API with the copied
-keyring. It verifies only counts and identifiers and does not print secrets.
+real Organization, Monitor, cancelled maintenance window, Run, Observation,
+Incident, Alert, Webhook route, and delivery-attempt evidence, stops source
+writers, dumps PostgreSQL, restores into a distinct clean volume, and starts
+the restored API with the copied keyring. It verifies only counts and identifiers
+and does not print secrets.
 Both projects, volumes, the logical dump, cookies, and generated secrets are
 removed when the check exits. Set `PROBEHIVE_RECOVERY_SOURCE_PORT` and
 `PROBEHIVE_RECOVERY_RESTORE_PORT` if 18443 or 18444 is occupied.

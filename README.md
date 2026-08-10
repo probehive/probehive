@@ -38,6 +38,7 @@ The current foundation implements:
 - PostgreSQL-backed browser sessions with antiforgery, origin validation, fixed expiry, and deny-by-default authorization.
 - Organization membership with permission-based authorization: a non-member cannot distinguish an Organization from one that does not exist.
 - Monitors with immutable revisions and strict HTTP check configuration validation.
+- Monitor-scoped one-time maintenance windows with explicit UTC bounds, overlap prevention, durable cancellation, and Viewer-readable current and upcoming state.
 - Stable machine-readable error codes on every API failure, so clients localize without the API ever returning a translated string.
 - An embedded scheduler and bounded worker that execute validated HTTP checks through the shared outbound-access policy and persist partitioned Runs and Observations.
 - An antiforgery-protected manual Run endpoint that executes a Monitor's latest revision immediately through the same bounded worker.
@@ -52,11 +53,12 @@ The current foundation implements:
 - A Monitor-scoped Incident view with cursor history, lifecycle state, an immutable timeline, complete quorum counts, causal Run links, and authorized acknowledgement.
 - A Monitor-scoped Run evidence screen with 30-day keyset history, deep-linked Run detail, and bounded HTTP Observation detail.
 - A production-like rootless Compose package with pinned images, a non-root TLS gateway, external secret files, persistent PostgreSQL data, health checks, graceful shutdown, and a disposable first-result smoke check.
-- A documented logical PostgreSQL backup and clean-restore procedure with deterministic Organization, monitoring, Incident, Alert, and encrypted Webhook recovery verification.
+- A documented logical PostgreSQL backup and clean-restore procedure with deterministic Organization, maintenance, monitoring, Incident, Alert, and encrypted Webhook recovery verification.
 - A deterministic packaged schema-upgrade exercise with persisted-evidence verification and a documented restore-based rollback boundary.
 - A documented raw-evidence retention and troubleshooting workflow with a disposable package exercise that preserves current and durable evidence while expiring old raw partitions.
 
-Operator readiness for the self-hosted HTTP dogfood milestone is implemented in the current source. Status pages and Agents remain later work.
+Operator readiness for the self-hosted HTTP dogfood milestone and bounded maintenance
+controls are implemented in the current source. Maintenance effects, status pages, and Agents remain later work.
 
 ## Get Started
 
@@ -74,9 +76,10 @@ Useful project references:
 
 ## Current Focus
 
-The current source implements the self-hosted HTTP dogfood milestone. It remains
-pre-alpha: owner review, signing, publishing, and initial dogfood feedback are
-still required before any release claim.
+The current source extends the self-hosted HTTP dogfood baseline with bounded
+maintenance controls. Applying maintenance to monitoring and delivery evidence,
+basic status communication, workflow closure, and release validation remain queued.
+The project remains pre-alpha; no release claim is made.
 
 New Check Types, remote Agents, identity expansion, public status pages, CLI, monitoring as code, Kubernetes packaging, and hosted-service implementation remain deferred until self-hosted dogfood establishes the next concrete product need.
 
@@ -90,6 +93,7 @@ internal/
   organization/
   user/
   monitor/
+  maintenance/
   check/
   outbound/
   probe/

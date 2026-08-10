@@ -68,6 +68,18 @@ type MonitorResponse struct {
 	UpdatedAt            time.Time `json:"updatedAt"`
 }
 
+type MaintenanceWindowResponse struct {
+	ID             string     `json:"id"`
+	OrganizationID string     `json:"organizationId"`
+	ProjectID      string     `json:"projectId"`
+	MonitorID      string     `json:"monitorId"`
+	StartsAt       time.Time  `json:"startsAt"`
+	EndsAt         time.Time  `json:"endsAt"`
+	Status         string     `json:"status"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	CancelledAt    *time.Time `json:"cancelledAt"`
+}
+
 type MonitorHealthResponse struct {
 	OrganizationID            string                   `json:"organizationId"`
 	ProjectID                 string                   `json:"projectId"`
@@ -283,6 +295,11 @@ type CreateMonitorRequest struct {
 	// created in Draft and cannot run before it has a revision, so the frequency is not a
 	// decision the caller has to make up front.
 	IntervalSeconds *Integer `json:"intervalSeconds"`
+}
+
+type CreateMaintenanceWindowRequest struct {
+	StartsAt *time.Time `json:"startsAt"`
+	EndsAt   *time.Time `json:"endsAt"`
 }
 
 type ChangeMonitorIntervalRequest struct {

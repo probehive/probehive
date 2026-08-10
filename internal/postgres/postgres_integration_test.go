@@ -78,6 +78,7 @@ func TestMigrationsAreConcurrentSafeAndIdempotent(t *testing.T) {
 		"incident_timeline_entries", "alerts",
 		"webhook_integrations", "webhook_signing_secrets", "webhook_deliveries",
 		"webhook_delivery_attempts",
+		"maintenance_windows",
 	}
 	for _, table := range requiredTables {
 		if !relationExists(t, database, table) {

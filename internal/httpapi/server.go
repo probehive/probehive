@@ -15,6 +15,7 @@ import (
 	"github.com/probehive/probehive/internal/alert"
 	"github.com/probehive/probehive/internal/health"
 	"github.com/probehive/probehive/internal/incident"
+	"github.com/probehive/probehive/internal/maintenance"
 	"github.com/probehive/probehive/internal/monitor"
 	"github.com/probehive/probehive/internal/organization"
 	"github.com/probehive/probehive/internal/run"
@@ -40,6 +41,7 @@ type Config struct {
 	Runs                        *run.QueryService
 	ManualRuns                  ManualRunService
 	MonitorHealth               *health.Service
+	Maintenance                 *maintenance.Service
 	Incidents                   *incident.Service
 	Alerts                      *alert.Service
 	Webhooks                    *webhook.Service
@@ -61,6 +63,7 @@ type Server struct {
 	runs          *run.QueryService
 	manualRuns    ManualRunService
 	monitorHealth *health.Service
+	maintenance   *maintenance.Service
 	incidents     *incident.Service
 	alerts        *alert.Service
 	webhooks      *webhook.Service
@@ -78,7 +81,7 @@ type Server struct {
 
 func New(config Config) (*Server, error) {
 	if config.Organizations == nil || config.Users == nil || config.Monitors == nil || config.Runs == nil ||
-		config.MonitorHealth == nil || config.Incidents == nil || config.Alerts == nil || config.Webhooks == nil || config.Sessions == nil || config.Antiforgery == nil || config.Clock == nil || config.Ready == nil {
+		config.MonitorHealth == nil || config.Maintenance == nil || config.Incidents == nil || config.Alerts == nil || config.Webhooks == nil || config.Sessions == nil || config.Antiforgery == nil || config.Clock == nil || config.Ready == nil {
 		return nil, errors.New("httpapi requires feature services, security stores, a clock, and readiness check")
 	}
 	if config.Random == nil {
@@ -102,7 +105,8 @@ func New(config Config) (*Server, error) {
 		organizations: config.Organizations, users: config.Users, monitors: config.Monitors,
 		sessions: config.Sessions, antiforgery: config.Antiforgery, clock: config.Clock,
 		runs: config.Runs, manualRuns: config.ManualRuns,
-		monitorHealth: config.MonitorHealth, incidents: config.Incidents, alerts: config.Alerts, webhooks: config.Webhooks,
+		monitorHealth: config.MonitorHealth, maintenance: config.Maintenance,
+		incidents: config.Incidents, alerts: config.Alerts, webhooks: config.Webhooks,
 		ready: config.Ready, random: config.Random, logger: config.Logger,
 		development:  config.Development,
 		publicOrigin: publicOrigin,
@@ -163,6 +167,9 @@ func (server *Server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/interval", server.changeMonitorInterval)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions", server.monitorRevisions)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}", server.monitorRevisionItem)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows", server.maintenanceWindows)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows/{maintenanceWindowId}", server.maintenanceWindowItem)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows/{maintenanceWindowId}/cancel", server.cancelMaintenanceWindow)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs", server.monitorRuns)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}", server.monitorRun)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}/observation", server.monitorRunObservation)

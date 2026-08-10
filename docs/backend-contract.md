@@ -105,9 +105,9 @@ antiforgery token and `request.origin.rejected` for a browser-origin mismatch.
 All response fields below are required and non-null unless explicitly marked nullable.
 Nullable fields are still present in the JSON object: `nextCursor`, `outcome`, `startedAt`,
 `finishedAt`, `leaseExpiresAt`, `confirmation`, `http`, `tls`, `certificateExpiresAt`,
-health evidence pointers, a health `candidate`, Incident acknowledgement/resolution
-pointers, and acknowledgement-only timeline evidence serialize as JSON `null` when
-absent.
+health evidence pointers, a health `candidate`, maintenance cancellation, Incident
+acknowledgement/resolution pointers, and acknowledgement-only timeline evidence serialize
+as JSON `null` when absent.
 
 | Type | Exact JSON fields |
 | --- | --- |
@@ -120,6 +120,7 @@ absent.
 | `OrganizationResponse` | `id: UUID string`, `slug: string`, `displayName: string`, `createdAt: UTC timestamp string`, `defaultProject: ProjectResponse` |
 | `MonitorResponse` | `id`, `organizationId`, `projectId` as UUID strings; `name`, `checkType`, `state` as strings; `intervalSeconds`, `latestRevisionNumber` as integers; `createdAt`, `updatedAt` as UTC timestamp strings |
 | `MonitorRevisionResponse` | `id`, `monitorId` as UUID strings; `revisionNumber: integer`; `checkType: string`; `checkSchemaVersion: integer`; `checkConfiguration: JSON value`; `createdAt: UTC timestamp string` |
+| `MaintenanceWindowResponse` | `id`, `organizationId`, `projectId`, `monitorId` as UUID strings; `startsAt`, `endsAt`, `createdAt` as UTC timestamp strings; `status` exactly `upcoming`, `active`, `ended`, or `cancelled`; `cancelledAt: nullable UTC timestamp string` |
 | `MonitorHealthResponse` | scoped Organization, Project, and Monitor UUIDs; `state`, `stableState`, `policyVersion`; `version`; nullable source revision, Run, cohort, candidate, and determinate-finish pointers; `counts: HealthCountsResponse`; transition/update timestamps |
 | `HealthCountsResponse` | `configured`, `eligible`, `responding`, `passing`, `failing`, `locationFault`, `indeterminate`, and `missing` non-negative integers |
 | `RunPageResponse` | `items: RunResponse[]`; `nextCursor: nullable opaque string` |
@@ -157,6 +158,7 @@ Request shapes are:
 | `ChangeMonitorStateRequest` | `state` string |
 | `ChangeMonitorIntervalRequest` | `intervalSeconds: integer` |
 | `CreateMonitorRevisionRequest` | `checkSchemaVersion: integer`, `checkConfiguration: JSON value` |
+| `CreateMaintenanceWindowRequest` | `startsAt`, `endsAt` (nullable timestamp strings at decoding boundary; required by validation and restricted to an explicit zero UTC offset) |
 
 Current Organization role strings are exactly `Administrator` and `Viewer`. Monitor state strings are
 exactly `draft`, `active`, `paused`, and `archived`. The only supported check type is
@@ -198,6 +200,10 @@ antiforgery and origin rules in section 5 also apply.
 | `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions` | `monitor.write`, unsafe | `201 MonitorRevisionResponse` and canonical revision `Location` | `400`, `404`, `409`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions` | `monitor.read` | `200 MonitorRevisionResponse[]` in ascending revision number | `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}` | `monitor.read` | `200 MonitorRevisionResponse` | `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows` | `maintenance.read` | `200 MaintenanceWindowResponse[]` for current, upcoming, and cancelled-but-not-ended windows in ascending `(startsAt, id)` order | `404`, `401`, `403` |
+| `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows` | `maintenance.write`, unsafe | `201 MaintenanceWindowResponse` and canonical maintenance-window `Location` | `400`, `404`; `409` on overlap; `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows/{maintenanceWindowId}` | `maintenance.read` | `200 MaintenanceWindowResponse` | `404`, `401`, `403` |
+| `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows/{maintenanceWindowId}/cancel` | `maintenance.write`, unsafe | `200 MaintenanceWindowResponse`; repeat cancellation is idempotent | `404`; `409` after the window ended or on an unresolved concurrent update; `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/health` | `monitor.read` | `200 MonitorHealthResponse` | `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents` | `incident.read` | `200 IncidentPageResponse`, newest first by `(createdAt, id)` | `400`, `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/alerts` | `alert.read` | `200 AlertPageResponse`, newest first by `(occurredAt, id)` | `400`, `404`, `401`, `403` |
@@ -243,8 +249,9 @@ Organization roles and the permissions they carry are `Administrator` (every per
 including ones added in later releases) and `Viewer` (every read permission). The
 permissions in use are `organization.read`, `organization.write`, `monitor.read`,
 `monitor.write`, `incident.read`, `incident.write`, `alert.read`, and
-`integration.manage`. The last permission deliberately does not end in `.read` because
-Webhook destinations are Administrator-only configuration rather than Viewer evidence.
+`maintenance.read`, `maintenance.write`, and `integration.manage`. The last permission
+deliberately does not end in `.read` because Webhook destinations are Administrator-only
+configuration rather than Viewer evidence.
 The permission catalog itself is internal and not published; endpoints document the
 permission they require. Provisioning makes the creator an `Administrator` member of the
 new Organization in the same transaction, so no Organization exists without a member.
@@ -591,6 +598,35 @@ returns `409` with detail
 must GET fresh state and retry its operation. There is no ETag or client-supplied row
 version. The server must never silently reorder or renumber revisions.
 
+### Maintenance windows
+
+Maintenance windows are one-time, Monitor-scoped half-open intervals `[startsAt, endsAt)`.
+Creation requires explicit zero-offset UTC instants, rejects a start before the server
+clock, requires the end after the start, and caps duration at 30 days. Invalid bounds use
+the `startsAt` or `endsAt` validation paths and the stable maintenance codes in section 13.
+
+Two non-cancelled windows for one Monitor cannot overlap. Adjacency is valid because the
+end instant is excluded. A conflicting create returns `409` `maintenance.overlap`.
+Cancellation records `cancelledAt` without deleting the interval and is idempotent. It is
+allowed while the window has not ended; an ended window returns `409`
+`maintenance.window.ended`. A lost cancellation update returns `409`
+`maintenance.concurrentUpdate` unless the competing update already cancelled the window,
+in which case the operation succeeds with the retained cancellation.
+
+Response status is evaluated against the server clock: `upcoming` before `startsAt`,
+`active` from `startsAt` through but excluding `endsAt`, `ended` at or after `endsAt`, and
+`cancelled` whenever cancellation is recorded. The collection retains cancelled windows
+until their original end and omits every ended interval. Cancelling a window releases its
+time range for a replacement. Item lookup can still return an ended interval by id.
+
+Every create, list, get, and cancel operation carries Organization, Project, and Monitor
+scope. Wrong-tenant and wrong-parent identities return the ordinary hidden `404`. Viewers
+can inspect windows through `maintenance.read`; only Administrators can schedule or cancel
+through `maintenance.write`.
+
+This slice records maintenance policy only. It does not pause checks or rewrite, suppress,
+or hide Runs, Observations, health, Incidents, Alerts, or Delivery Attempts.
+
 ### Run and Observation queries
 
 Run history is a bounded, newest-first keyset query ordered by descending `scheduledFor`,
@@ -712,6 +748,13 @@ All listed columns are `NOT NULL` unless marked nullable.
   index `ix_organization_members_user_id(user_id)` serves the caller's Organization list.
   Role strings are exactly `Administrator` and `Viewer`. The "at least one Administrator
   per Organization" rule is a use-case invariant, not a database constraint.
+- `maintenance_windows`: `id uuid` PK `pk_maintenance_windows`; `organization_id uuid`;
+  `monitor_id uuid`; `starts_at`, `ends_at`, `created_at` as `timestamptz`;
+  `cancelled_at` as nullable `timestamptz`. Composite FK
+  `fk_maintenance_windows_monitor(monitor_id, organization_id)` ->
+  `monitors(id, organization_id)` ON DELETE CASCADE. Checks enforce positive duration no
+  longer than 30 days, creation no later than start, and cancellation between creation and
+  the excluded end. Monitor/start and non-cancelled-overlap indexes serve bounded queries.
 - `sessions`: a 32-byte `token_hash` primary key, `user_id`,
   `authenticated_at`, and `expires_at`, with a cascading user foreign key and
   indexes for user lookup and expiry cleanup.
@@ -774,6 +817,10 @@ Monitor mutation uses the loaded PostgreSQL `xmin` in the update predicate. Revi
 creation inserts the immutable revision and advances the Monitor counter in one
 transaction. Zero updated Monitor rows is a concurrency conflict; the unique revision
 number index is the second backstop and maps to the same `409`.
+
+Maintenance creation locks the scoped Monitor row before checking overlap and inserting,
+so concurrent creators cannot commit overlapping windows. Cancellation compares the loaded
+PostgreSQL `xmin`; the row remains durable after cancellation and through backup/restore.
 
 ## 10. Health Contract
 
@@ -920,7 +967,8 @@ The browser journey assumes an empty database, routes `/` to `/setup`, creates a
 in the first Administrator, and lands directly on the Organization that setup provisioned,
 rendering its `Default` heading and default Project. It renames that Organization and
 asserts the slug did not move. It creates and operates a passing HTTP Monitor, triggers a
-manual Run, and follows the returned evidence. It then creates a failing HTTP Monitor,
+manual Run, follows the returned evidence, then schedules and cancels a one-time maintenance
+window. It then creates a failing HTTP Monitor,
 waits for its Incident and Alert intent, acknowledges the Incident, replaces the target
 through revision 2, and waits for confirmed recovery and its Alert intent. Finally, it
 signs out, signs back in, lands on the Organization list containing the renamed
@@ -966,6 +1014,14 @@ Monitors:
 monitor.name.invalid       monitor.checkType.invalid      monitor.checkType.unsupported
 monitor.state.invalidTarget monitor.concurrentUpdate      monitor.archived.readOnly
 monitor.state.activationWithoutRevision                    monitor.state.transitionNotAllowed
+```
+
+Maintenance windows:
+
+```text
+maintenance.startsAt.invalid  maintenance.endsAt.invalid
+maintenance.duration.invalid  maintenance.overlap
+maintenance.window.ended      maintenance.concurrentUpdate
 ```
 
 Check configuration:

@@ -71,6 +71,31 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await expect(lifecycle.getByText('Monitor activated.')).toBeVisible()
   await expect(page.getByText('Active', { exact: true })).toBeVisible()
 
+  const maintenance = page.getByRole('region', { name: 'Maintenance windows' })
+  const maintenanceStart = new Date(Date.now() + 15 * 60_000)
+  maintenanceStart.setUTCSeconds(0, 0)
+  const maintenanceEnd = new Date(maintenanceStart.getTime() + 60 * 60_000)
+  await maintenance.getByLabel('Start (UTC)').fill(maintenanceStart.toISOString().slice(0, 16))
+  await maintenance.getByLabel('End (UTC)').fill(maintenanceEnd.toISOString().slice(0, 16))
+  const maintenanceResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST' &&
+    response.url().endsWith('/maintenance-windows') &&
+    response.status() === 201,
+  )
+  await maintenance.getByRole('button', { name: 'Schedule window' }).click()
+  const createdWindow = await (await maintenanceResponse).json() as { id: string }
+  await expect(maintenance.getByText('Maintenance window scheduled.')).toBeVisible()
+  await expect(maintenance.getByText('Upcoming')).toBeVisible()
+  const cancellationResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST' &&
+    response.url().endsWith('/maintenance-windows/' + createdWindow.id + '/cancel') &&
+    response.status() === 200,
+  )
+  await maintenance.getByRole('button', { name: 'Cancel window' }).click()
+  await cancellationResponse
+  await expect(maintenance.getByText('Maintenance window cancelled.')).toBeVisible()
+  await expect(maintenance.getByText('Cancelled', { exact: true })).toBeVisible()
+
   // The detail and inventory use distinct query keys. Returning to the
   // Organization proves successful mutations refreshed both views.
   await page.getByRole('link', { name: 'Back to Organization' }).click()

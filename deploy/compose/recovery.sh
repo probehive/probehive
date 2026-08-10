@@ -5,7 +5,7 @@ script_dir="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 base_compose="$script_dir/compose.yaml"
 smoke_compose="$script_dir/compose.smoke.yaml"
 
-for command_name in curl jq openssl mktemp timeout cmp; do
+for command_name in curl date jq openssl mktemp timeout cmp; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     printf 'Required command is unavailable: %s\n' "$command_name" >&2
     exit 1
@@ -130,6 +130,31 @@ passing_observation="$(curl "${curl_common[@]}" \
   "$monitors_url/$passing_monitor_id/runs/$passing_run_id/observation")"
 jq -e --arg run_id "$passing_run_id" \
   '.runId == $run_id and .http.statusCode == 200' <<<"$passing_observation" >/dev/null
+
+maintenance_now="$(date -u +%s)"
+maintenance_starts_at="$(TZ=UTC0 printf '%(%Y-%m-%dT%H:%M:00Z)T' "$((maintenance_now + 24 * 60 * 60))")"
+maintenance_ends_at="$(TZ=UTC0 printf '%(%Y-%m-%dT%H:%M:00Z)T' "$((maintenance_now + 25 * 60 * 60))")"
+maintenance_payload="$(jq -nc \
+  --arg starts_at "$maintenance_starts_at" \
+  --arg ends_at "$maintenance_ends_at" \
+  '{startsAt:$starts_at,endsAt:$ends_at}')"
+request_antiforgery
+maintenance_window="$(curl "${curl_common[@]}" \
+  --request POST \
+  --header 'Content-Type: application/json' \
+  --header "$request_header_name: $request_token" \
+  --data "$maintenance_payload" \
+  "$monitors_url/$passing_monitor_id/maintenance-windows")"
+maintenance_window_id="$(jq -er '.id' <<<"$maintenance_window")"
+
+request_antiforgery
+cancelled_maintenance_window="$(curl "${curl_common[@]}" \
+  --request POST \
+  --header "$request_header_name: $request_token" \
+  "$monitors_url/$passing_monitor_id/maintenance-windows/$maintenance_window_id/cancel")"
+jq -e --arg window_id "$maintenance_window_id" \
+  '.id == $window_id and .status == "cancelled" and .cancelledAt != null' \
+  <<<"$cancelled_maintenance_window" >/dev/null
 
 request_antiforgery
 webhook_integration="$(curl "${curl_common[@]}" \
@@ -289,6 +314,8 @@ assert_min_count 'Run' \
   "SELECT count(*) FROM runs WHERE id='$passing_run_id' AND organization_id='$organization_id';" 1
 assert_min_count 'Observation' \
   "SELECT count(*) FROM observations WHERE run_id='$passing_run_id' AND organization_id='$organization_id';" 1
+assert_min_count 'cancelled maintenance window' \
+  "SELECT count(*) FROM maintenance_windows WHERE id='$maintenance_window_id' AND organization_id='$organization_id' AND monitor_id='$passing_monitor_id' AND cancelled_at IS NOT NULL;" 1
 assert_min_count 'Incident' \
   "SELECT count(*) FROM incidents WHERE id='$incident_id' AND organization_id='$organization_id';" 1
 assert_min_count 'Alert' \
@@ -303,4 +330,4 @@ assert_min_count 'retained encrypted Webhook secret' \
   "SELECT count(*) FROM webhook_signing_secrets WHERE organization_id='$organization_id' AND integration_id='$integration_id' AND state <> 'retired' AND octet_length(ciphertext) >= 16;" 1
 
 failed=0
-printf 'Recovery check passed: logical backup, clean restore, business evidence, Webhook delivery evidence, and keyring recovery.\n'
+printf 'Recovery check passed: logical backup, clean restore, business and maintenance evidence, Webhook delivery evidence, and keyring recovery.\n'

@@ -12,6 +12,7 @@
     { "name": "Organizations" },
     { "name": "Integrations" },
     { "name": "Monitors" },
+    { "name": "Maintenance" },
     { "name": "Runs" },
     { "name": "Incidents" }
   ],
@@ -732,6 +733,109 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" }
+      ],
+      "get": {
+        "tags": ["Maintenance"],
+        "operationId": "listMonitorMaintenanceWindows",
+        "summary": "List current and upcoming maintenance windows",
+        "description": "Requires maintenance.read. Returns start-ordered windows whose half-open interval has not ended, including cancelled windows until their original end so cancellation remains inspectable.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "Current, upcoming, and cancelled-but-not-ended maintenance windows.",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/MaintenanceWindowResponse" } }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      },
+      "post": {
+        "tags": ["Maintenance"],
+        "operationId": "createMonitorMaintenanceWindow",
+        "summary": "Create one bounded Monitor maintenance window",
+        "description": "Requires maintenance.write and antiforgery. Starts and ends are explicit UTC instants defining [startsAt, endsAt); startsAt cannot be in the past, duration is at most 30 days, and non-cancelled windows cannot overlap.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CreateMaintenanceWindowRequest" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The maintenance window was created.",
+            "headers": { "Location": { "$ref": "#/components/headers/Location" } },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MaintenanceWindowResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows/{maintenanceWindowId}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" },
+        { "$ref": "#/components/parameters/MaintenanceWindowID" }
+      ],
+      "get": {
+        "tags": ["Maintenance"],
+        "operationId": "getMonitorMaintenanceWindow",
+        "summary": "Return one fully scoped maintenance window",
+        "description": "Requires maintenance.read. A real window under the wrong Organization, Project, or Monitor returns 404.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/MaintenanceWindow" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows/{maintenanceWindowId}/cancel": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" },
+        { "$ref": "#/components/parameters/MonitorID" },
+        { "$ref": "#/components/parameters/MaintenanceWindowID" }
+      ],
+      "post": {
+        "tags": ["Maintenance"],
+        "operationId": "cancelMonitorMaintenanceWindow",
+        "summary": "Cancel a current or upcoming maintenance window",
+        "description": "Requires maintenance.write and antiforgery. Cancellation is idempotent and retains the original half-open interval as durable evidence; an ended window cannot be cancelled.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "responses": {
+          "200": { "$ref": "#/components/responses/MaintenanceWindow" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/health": {
       "parameters": [
         { "$ref": "#/components/parameters/OrganizationID" },
@@ -1046,6 +1150,12 @@
         "required": true,
         "schema": { "type": "string", "format": "uuid" }
       },
+      "MaintenanceWindowID": {
+        "name": "maintenanceWindowId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "format": "uuid" }
+      },
       "RevisionNumber": {
         "name": "revisionNumber",
         "in": "path",
@@ -1172,6 +1282,10 @@
       "MonitorRevision": {
         "description": "The immutable Monitor revision.",
         "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MonitorRevisionResponse" } } }
+      },
+      "MaintenanceWindow": {
+        "description": "The fully scoped one-time Monitor maintenance window.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MaintenanceWindowResponse" } } }
       },
       "MonitorHealth": {
         "description": "The Monitor's current evaluated health and bounded evidence summary.",
@@ -1339,6 +1453,22 @@
           "latestRevisionNumber": { "type": "integer", "minimum": 0 },
           "createdAt": { "type": "string", "format": "date-time" },
           "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "MaintenanceWindowResponse": {
+        "type": "object",
+        "description": "One durable Monitor maintenance interval. The status is evaluated by the server clock; interval bounds are half-open [startsAt, endsAt).",
+        "required": ["id", "organizationId", "projectId", "monitorId", "startsAt", "endsAt", "status", "createdAt", "cancelledAt"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "organizationId": { "type": "string", "format": "uuid" },
+          "projectId": { "type": "string", "format": "uuid" },
+          "monitorId": { "type": "string", "format": "uuid" },
+          "startsAt": { "type": "string", "format": "date-time" },
+          "endsAt": { "type": "string", "format": "date-time" },
+          "status": { "type": "string", "enum": ["upcoming", "active", "ended", "cancelled"] },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "cancelledAt": { "type": ["string", "null"], "format": "date-time" }
         }
       },
       "MonitorRevisionResponse": {
@@ -1774,6 +1904,16 @@
           "name": { "type": ["string", "null"] },
           "checkType": { "type": ["string", "null"] },
           "intervalSeconds": { "type": "integer", "minimum": 30, "maximum": 86400, "default": 60 }
+        }
+      },
+      "CreateMaintenanceWindowRequest": {
+        "type": "object",
+        "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown. Both values must carry an explicit zero UTC offset.",
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "required": ["startsAt", "endsAt"],
+        "properties": {
+          "startsAt": { "type": ["string", "null"], "format": "date-time" },
+          "endsAt": { "type": ["string", "null"], "format": "date-time" }
         }
       },
       "RenameOrganizationRequest": {

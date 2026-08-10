@@ -945,3 +945,56 @@ dd {
     display: inline;
   }
 }
+.maintenance-section {
+  border-top: 1px solid var(--border);
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+}
+
+.maintenance-section h2 {
+  margin-top: 0;
+}
+
+.maintenance-form {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+}
+
+.maintenance-table {
+  border-collapse: collapse;
+  min-width: 42rem;
+  width: 100%;
+}
+
+.maintenance-table th,
+.maintenance-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.maintenance-table thead th {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.maintenance-status {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.maintenance-status[data-status='active'] {
+  color: var(--accent);
+}
+
+.maintenance-status[data-status='cancelled'],
+.maintenance-status[data-status='ended'] {
+  color: var(--text-muted);
+}
+
+.maintenance-cancel {
+  white-space: nowrap;
+}

@@ -22,6 +22,7 @@ import (
 	"github.com/probehive/probehive/internal/health"
 	"github.com/probehive/probehive/internal/httpapi"
 	"github.com/probehive/probehive/internal/incident"
+	"github.com/probehive/probehive/internal/maintenance"
 	"github.com/probehive/probehive/internal/monitor"
 	"github.com/probehive/probehive/internal/organization"
 	"github.com/probehive/probehive/internal/password"
@@ -102,6 +103,7 @@ func serve(logger *slog.Logger) error {
 	monitors := monitor.NewService(database.Monitors(), check.NewCatalog(), systemClock, identifiers)
 	runQueries := run.NewQueryService(database.Runs())
 	healthService := health.NewService(database.Health(), systemClock, identifiers)
+	maintenanceService := maintenance.NewService(database.Maintenance(), systemClock, identifiers)
 	incidentService := incident.NewService(database.Incidents(), systemClock, identifiers)
 	alertService := alert.NewService(database.Alerts(), systemClock, identifiers)
 	webhookService := webhook.NewService(
@@ -129,6 +131,7 @@ func serve(logger *slog.Logger) error {
 		Runs:                        runQueries,
 		ManualRuns:                  manualRuns,
 		MonitorHealth:               healthService,
+		Maintenance:                 maintenanceService,
 		Incidents:                   incidentService,
 		Alerts:                      alertService,
 		Webhooks:                    webhookService,

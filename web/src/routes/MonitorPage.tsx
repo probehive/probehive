@@ -19,6 +19,7 @@ import ManualRunControl from './ManualRunControl'
 import MonitorAlertsSection from './MonitorAlertsSection'
 import MonitorHealthSection from './MonitorHealthSection'
 import MonitorIncidentsSection from './MonitorIncidentsSection'
+import MonitorMaintenanceSection from './MonitorMaintenanceSection'
 import MonitorLifecycleControls from './MonitorLifecycleControls'
 import RenameMonitorForm from './RenameMonitorForm'
 import { monitorQueryKey } from './monitorQueries'
@@ -426,6 +427,7 @@ export default function MonitorPage() {
       <ChangeMonitorIntervalForm monitor={monitor.data} />
       <ChangeMonitorTargetForm monitor={monitor.data} />
 
+      <MonitorMaintenanceSection organizationId={organizationId} projectId={projectId} monitorId={monitorId} />
       <MonitorHealthSection
         organizationId={organizationId}
         projectId={projectId}
