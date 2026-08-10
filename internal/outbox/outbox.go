@@ -279,12 +279,15 @@ func (dispatcher *Dispatcher) handle(
 		}
 		return handledLost
 	}
+	if dead {
+		dispatcher.config.Logger.Error("outbox entry dead-lettered",
+			"eventId", entry.ID, "topic", entry.Topic,
+			"failureCode", code, "attempt", entry.Attempts)
+		return handledDeadLettered
+	}
 	if handleErr != nil && !permanent {
 		dispatcher.config.Logger.Warn("outbox handler failed",
 			"topic", entry.Topic, "failureCode", code, "attempt", entry.Attempts)
-	}
-	if dead {
-		return handledDeadLettered
 	}
 	return handledRetried
 }

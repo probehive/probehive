@@ -8,6 +8,8 @@ import (
 
 const TopicRunRecordedV1 = "run.recorded.v1"
 
+const postgresTimePrecision = time.Microsecond
+
 type RunRecordedV1 struct {
 	EventID          string    `json:"eventId"`
 	OrganizationID   string    `json:"organizationId"`
@@ -39,7 +41,7 @@ func NewRunRecordedEntry(id ID, value Run, occurredAt time.Time) (OutboxEntry, e
 		OccurredAt: occurredAt, AggregateType: "run", AggregateID: string(value.ID),
 		AggregateVersion: 1, RunID: string(value.ID), MonitorID: value.Slot.MonitorID,
 		RevisionNumber: value.Slot.RevisionNumber, Location: value.Slot.Location,
-		ScheduledFor: value.Slot.ScheduledFor, Kind: string(value.Kind), Outcome: string(value.Outcome),
+		ScheduledFor: canonicalInstant(value.Slot.ScheduledFor), Kind: string(value.Kind), Outcome: string(value.Outcome),
 	}
 	payload, err := json.Marshal(event)
 	if err != nil {
@@ -53,4 +55,10 @@ func NewRunRecordedEntry(id ID, value Run, occurredAt time.Time) (OutboxEntry, e
 		return OutboxEntry{}, err
 	}
 	return entry, nil
+}
+
+// PostgreSQL timestamptz stores microseconds; event timestamps compared with persisted Run rows
+// must use the same precision.
+func canonicalInstant(value time.Time) time.Time {
+	return value.UTC().Truncate(postgresTimePrecision)
 }

@@ -238,6 +238,26 @@ reading evidence rows:
       ORDER BY parent.relname, child.relname;"'
 ~~~
 
+### Outbox Dead Letters
+
+When an outbox entry cannot be processed permanently, the API records it in
+`dead_letter_outbox_entries` for 30 days and logs `eventId`, `topic`,
+`failureCode`, and `attempt`. The log deliberately omits the event payload.
+Inspect only the retained metadata when a dead-letter signal appears:
+
+~~~bash
+"${compose[@]}" -f deploy/compose/compose.yaml exec -T postgres \
+  psql --username=probehive --dbname=probehive --no-align --tuples-only \
+  --command="SELECT id, topic, attempts, final_failure_code,
+    created_at, dead_lettered_at FROM dead_letter_outbox_entries
+    ORDER BY dead_lettered_at DESC;"
+~~~
+
+Use the `eventId`, topic, and failure code from the API log to correlate one
+row. Do not print or copy the `payload` column: it may contain tenant-scoped
+event data. A permanent payload or organization mismatch is an application
+defect; preserve the metadata and the surrounding API log when reporting it.
+
 ## PostgreSQL Backup and Restore
 
 Use PostgreSQL's custom logical format from the PostgreSQL image pinned by this
