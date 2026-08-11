@@ -64,13 +64,21 @@ func toAlertDeliveryResponse(value webhook.DeliveryAudit) api.AlertDeliveryRespo
 			FailureCode: failureCode,
 		}
 	}
+	var suppressionReason *string
+	if value.SuppressionReason != "" {
+		reason := value.SuppressionReason
+		suppressionReason = &reason
+	}
+	var maintenanceWindowID *string
+	if value.MaintenanceWindowID != "" {
+		id := value.MaintenanceWindowID
+		maintenanceWindowID = &id
+	}
 	return api.AlertDeliveryResponse{
-		ID:                 value.DeliveryID,
-		Channel:            webhook.DeliveryChannel,
-		IntegrationID:      value.IntegrationID,
-		IntegrationVersion: value.IntegrationVersion,
-		SecretVersion:      value.SecretVersion,
-		RoutedAt:           value.RoutedAt,
-		Attempts:           attempts,
+		ID: value.DeliveryID, Channel: webhook.DeliveryChannel,
+		IntegrationID: value.IntegrationID, IntegrationVersion: value.IntegrationVersion,
+		SecretVersion: value.SecretVersion, RoutedAt: value.RoutedAt,
+		SuppressionReason: suppressionReason, MaintenanceWindowID: maintenanceWindowID,
+		Attempts: attempts,
 	}
 }

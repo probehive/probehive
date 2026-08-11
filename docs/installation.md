@@ -337,8 +337,10 @@ Wait for `https://localhost:18444/readyz`, sign in with a restored administrator
 and inspect representative Organizations, Monitors, maintenance windows, Runs,
 Observations, Incidents, Alerts, Webhook Integrations, and Webhook delivery
 evidence. Confirm that scheduled bounds and durable cancellation state survived
-unchanged. A ready API also proves that every retained encrypted Webhook secret
-could be opened by the supplied keyring during startup. If startup reports
+unchanged. When the backup contains a maintenance-suppressed route, confirm its
+suppression reason and maintenance-window ID survived with zero Delivery Attempts.
+A ready API also proves that every retained encrypted Webhook secret could be opened
+by the supplied keyring during startup. If startup reports
 `initialize Webhook
 secrets`, stop: the matching complete keyring has not been supplied or its
 content is invalid. Do not generate replacement wrapping keys for restored

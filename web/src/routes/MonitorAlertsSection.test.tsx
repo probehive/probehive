@@ -39,6 +39,8 @@ const delivery: AlertDeliveryResponse = {
   integrationVersion: 4,
   secretVersion: 2,
   routedAt: '2026-07-30T02:10:00.010Z',
+  suppressionReason: null,
+  maintenanceWindowId: null,
   attempts: [
     {
       sequence: 1,
@@ -57,6 +59,14 @@ const delivery: AlertDeliveryResponse = {
       failureCode: null,
     },
   ],
+}
+
+const suppressedDelivery: AlertDeliveryResponse = {
+  ...delivery,
+  id: '019f8f3d-5bb0-7990-8b16-7b9485f79d3b',
+  suppressionReason: 'maintenance',
+  maintenanceWindowId: '019f8f3d-5bb0-7990-8b16-7b9485f79d3c',
+  attempts: [],
 }
 
 const openedAlert: AlertResponse = {
@@ -141,12 +151,15 @@ test('loads scoped delivery evidence on demand without rendering sensitive mater
     requested.push(url)
     if (url === deliveriesURL) {
       return Promise.resolve(jsonResponse(200, {
-        items: [{
-          ...delivery,
-          destinationUrl: 'https://hooks.example.test/private',
-          signingSecret: 'phwh_should-not-render',
-          providerText: 'provider response should not render',
-        }],
+        items: [
+          {
+            ...delivery,
+            destinationUrl: 'https://hooks.example.test/private',
+            signingSecret: 'phwh_should-not-render',
+            providerText: 'provider response should not render',
+          },
+          suppressedDelivery,
+        ],
       }))
     }
     return Promise.resolve(jsonResponse(200, { items: [resolvedAlert], nextCursor: null }))
@@ -166,6 +179,10 @@ test('loads scoped delivery evidence on demand without rendering sensitive mater
   expect(within(evidence).getByText('503')).toBeInTheDocument()
   expect(within(evidence).getByText('webhook.delivery.http.retryable')).toBeInTheDocument()
   expect(within(evidence).getByText(en['alert.delivery.outcome.succeeded'])).toBeInTheDocument()
+  expect(within(evidence).getByText(en['alert.delivery.suppressed.maintenance'])).toBeInTheDocument()
+  expect(within(evidence).getByText(
+    suppressedDelivery.maintenanceWindowId as string,
+  )).toBeInTheDocument()
   expect(requested).toContain(deliveriesURL)
   expect(screen.queryByText('hooks.example.test')).not.toBeInTheDocument()
   expect(screen.queryByText('phwh_should-not-render')).not.toBeInTheDocument()

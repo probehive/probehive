@@ -67,6 +67,11 @@ function DeliveryAudit({ delivery }: { delivery: AlertDeliveryResponse }) {
         <strong>{t('alert.delivery.webhook')}</strong>
         <span>{formatDateTime(delivery.routedAt)}</span>
       </div>
+      {delivery.suppressionReason === 'maintenance' && (
+        <p className="muted" data-reason="maintenance">
+          {t('alert.delivery.suppressed.maintenance')}
+        </p>
+      )}
       <dl className="delivery-metadata">
         <div>
           <dt>{t('alert.delivery.identifier')}</dt>
@@ -84,10 +89,16 @@ function DeliveryAudit({ delivery }: { delivery: AlertDeliveryResponse }) {
           <dt>{t('alert.delivery.secretVersion')}</dt>
           <dd>{delivery.secretVersion}</dd>
         </div>
+        {delivery.maintenanceWindowId !== null && (
+          <div>
+            <dt>{t('alert.delivery.maintenanceWindow')}</dt>
+            <dd>{delivery.maintenanceWindowId}</dd>
+          </div>
+        )}
       </dl>
-      {delivery.attempts.length === 0 ? (
+      {delivery.suppressionReason === null && delivery.attempts.length === 0 ? (
         <p className="muted">{t('alert.delivery.pending')}</p>
-      ) : (
+      ) : delivery.attempts.length > 0 ? (
         <div className="table-scroll">
           <table className="delivery-attempts-table">
             <thead>
@@ -122,7 +133,7 @@ function DeliveryAudit({ delivery }: { delivery: AlertDeliveryResponse }) {
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
     </article>
   )
 }

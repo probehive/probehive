@@ -29,6 +29,10 @@ const (
 )
 
 const (
+	SuppressionReasonMaintenance = "maintenance"
+)
+
+const (
 	FailureCodeCancelled         = "webhook.delivery.cancelled"
 	FailureCodeDestination       = "webhook.delivery.destination.invalid"
 	FailureCodeHTTPRejected      = "webhook.delivery.http.rejected"
@@ -88,12 +92,14 @@ type DeliveryAttempt struct {
 }
 
 type DeliveryAudit struct {
-	DeliveryID         string
-	IntegrationID      string
-	IntegrationVersion int64
-	SecretVersion      int64
-	RoutedAt           time.Time
-	Attempts           []DeliveryAttempt
+	DeliveryID          string
+	IntegrationID       string
+	IntegrationVersion  int64
+	SecretVersion       int64
+	RoutedAt            time.Time
+	SuppressionReason   string
+	MaintenanceWindowID string
+	Attempts            []DeliveryAttempt
 }
 
 type DeliveryScope struct {

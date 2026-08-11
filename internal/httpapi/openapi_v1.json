@@ -898,8 +898,8 @@
       "get": {
         "tags": ["Alerts"],
         "operationId": "listAlertDeliveries",
-        "summary": "List routed deliveries and append-only attempts for one Alert",
-        "description": "Requires alert.read. Every lookup carries Organization, Project, Monitor, and Alert scope. The audit omits destination URLs, secrets, signatures, response bodies, arbitrary headers, and provider text.",
+        "summary": "List routed deliveries, maintenance suppression, and attempts for one Alert",
+        "description": "Requires alert.read. Every lookup carries Organization, Project, Monitor, and Alert scope. A maintenance-suppressed route identifies its retained window and has no network attempt. The audit omits destination URLs, secrets, signatures, response bodies, arbitrary headers, and provider text.",
         "security": [{ "sessionCookie": [] }],
         "responses": {
           "200": {
@@ -1578,7 +1578,7 @@
       },
       "AlertDeliveryResponse": {
         "type": "object",
-        "required": ["id", "channel", "integrationId", "integrationVersion", "secretVersion", "routedAt", "attempts"],
+        "required": ["id", "channel", "integrationId", "integrationVersion", "secretVersion", "routedAt", "suppressionReason", "maintenanceWindowId", "attempts"],
         "description": "One stable routed delivery. It deliberately omits destination URL and secret material.",
         "properties": {
           "id": { "type": "string", "format": "uuid" },
@@ -1587,6 +1587,16 @@
           "integrationVersion": { "type": "integer", "format": "int64", "minimum": 1 },
           "secretVersion": { "type": "integer", "format": "int64", "minimum": 1 },
           "routedAt": { "type": "string", "format": "date-time" },
+          "suppressionReason": {
+            "type": ["string", "null"],
+            "enum": ["maintenance", null],
+            "description": "Stable reason no external call will be made; null for an unsuppressed route."
+          },
+          "maintenanceWindowId": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "The event-time maintenance window when suppressionReason is maintenance; otherwise null."
+          },
           "attempts": {
             "type": "array",
             "maxItems": 5,

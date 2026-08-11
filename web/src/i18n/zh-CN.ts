@@ -353,6 +353,8 @@ export const zhCN: Catalog = {
   'alert.delivery.integrationVersion': 'Integration 版本',
   'alert.delivery.secretVersion': '签名密钥版本',
   'alert.delivery.pending': '尚未开始任何投递调用。',
+  'alert.delivery.suppressed.maintenance': '\u56e0\u544a\u8b66\u53d1\u751f\u65f6\u76d1\u63a7\u5904\u4e8e\u7ef4\u62a4\u65f6\u6bb5\uff0cWebhook \u6295\u9012\u5df2\u88ab\u6291\u5236\uff1b\u672a\u53d1\u8d77\u7f51\u7edc\u8bf7\u6c42\u3002',
+  'alert.delivery.maintenanceWindow': '\u7ef4\u62a4\u65f6\u6bb5',
   'alert.delivery.attempt': '尝试',
   'alert.delivery.outcome': '结果',
   'alert.delivery.started': '开始时间',

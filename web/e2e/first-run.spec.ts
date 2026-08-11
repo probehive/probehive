@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 const administratorEmail = 'admin@example.test'
 const administratorPassword = 'a-long-admin-password'
@@ -7,6 +7,34 @@ interface CreatedMonitor {
   id: string
   organizationId: string
   projectId: string
+}
+
+async function unsafeJSON<T>(
+  page: Page,
+  method: 'POST' | 'PUT',
+  path: string,
+  data: unknown,
+): Promise<T> {
+  const tokenResponse = await page.request.get('/api/v1/auth/antiforgery')
+  expect(tokenResponse.ok()).toBe(true)
+  const token = await tokenResponse.json() as {
+    headerName: string
+    requestToken: string
+  }
+  const response = await page.request.fetch(path, {
+    method,
+    data,
+    headers: {
+      Origin: 'http://127.0.0.1:5173',
+      [token.headerName]: token.requestToken,
+    },
+  })
+  if (!response.ok()) {
+    throw new Error(
+      `${method} ${path} returned ${response.status()}: ${await response.text()}`,
+    )
+  }
+  return await response.json() as T
 }
 
 // The first critical journey: a fresh installation is set up and is immediately
@@ -137,19 +165,41 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   // A scheduled failure plus its confirmation creates an open Incident. Poll the
   // real API for that durable state, then acknowledge it through the browser UI.
   await page.getByRole('link', { name: 'Back to Organization' }).click()
-  const createMonitorForm = page.getByRole('form', { name: 'Create and activate HTTP Monitor' })
-  await expect(createMonitorForm).toBeVisible()
-  await createMonitorForm.getByLabel('Monitor name').fill('Unavailable Service')
-  await createMonitorForm.getByLabel('Interval (seconds)').fill('30')
-  await createMonitorForm.getByLabel('Target URL').fill('http://127.0.0.1:5080/not-found')
-  const failingMonitorResponse = page.waitForResponse((response) =>
-    response.request().method() === 'POST' &&
-    response.url().endsWith('/monitors') &&
-    response.status() === 201,
+  const organizationAPI = `/api/v1/organizations/${createdMonitor.organizationId}`
+  const monitorsAPI = `${organizationAPI}/projects/${createdMonitor.projectId}/monitors`
+  const webhook = await unsafeJSON<{
+    integration: { id: string; version: number }
+  }>(page, 'POST', `${organizationAPI}/webhook-integrations`, {
+    name: 'Maintenance receiver',
+    destinationUrl: 'https://127.0.0.1:5080/webhook',
+  })
+  await unsafeJSON(page, 'PUT',
+    `${organizationAPI}/webhook-integrations/${webhook.integration.id}/state`, {
+      enabled: true,
+      version: webhook.integration.version,
+    },
   )
-  await createMonitorForm.getByRole('button', { name: 'Create and activate' }).click()
-  const failingMonitor = await (await failingMonitorResponse).json() as CreatedMonitor
-  await expect(page.getByText('Unavailable Service is active.')).toBeVisible()
+  const failingMonitor = await unsafeJSON<CreatedMonitor>(page, 'POST', monitorsAPI, {
+    name: 'Unavailable Service',
+    checkType: 'http',
+    intervalSeconds: 30,
+  })
+  const failingMonitorAPI = `${monitorsAPI}/${failingMonitor.id}`
+  await unsafeJSON(page, 'POST', `${failingMonitorAPI}/revisions`, {
+    checkSchemaVersion: 1,
+    checkConfiguration: { url: 'http://127.0.0.1:5080/not-found' },
+  })
+  const maintenanceStartsAt = new Date(Date.now() + 3_000)
+  const maintainedWindow = await unsafeJSON<{ id: string }>(
+    page, 'POST', `${failingMonitorAPI}/maintenance-windows`, {
+      startsAt: maintenanceStartsAt.toISOString(),
+      endsAt: new Date(maintenanceStartsAt.getTime() + 10 * 60_000).toISOString(),
+    },
+  )
+  await expect.poll(() => Date.now(), { timeout: 10_000 })
+    .toBeGreaterThanOrEqual(maintenanceStartsAt.getTime())
+  await unsafeJSON(page, 'PUT', `${failingMonitorAPI}/state`, { state: 'active' })
+  await page.reload()
   await expect.poll(async () => page.evaluate(async (scope) => {
     const response = await fetch(
       `/api/v1/organizations/${scope.organizationId}/projects/${scope.projectId}` +
@@ -174,8 +224,9 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await openedAlertRow.getByRole('button', { name: 'Show delivery evidence' }).click()
   await expect(alertIntents.getByRole('heading', { name: 'Delivery evidence' })).toBeVisible()
   await expect(
-    alertIntents.getByText('No Webhook deliveries were routed for this Alert.'),
+    alertIntents.getByText('Suppressed by Monitor maintenance at the Alert occurrence time. No Webhook call was made.'),
   ).toBeVisible()
+  await expect(alertIntents.getByText(maintainedWindow.id)).toBeVisible()
   await openedAlertRow.getByRole('link', { name: 'View source Incident' }).click()
   const incidentDetail = page.getByRole('region', { name: 'Incident evidence' })
   await incidentDetail.getByRole('button', { name: 'Acknowledge Incident' }).click()
@@ -208,6 +259,15 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
     const body = await response.json() as { items: Array<{ state: string }> }
     return body.items[0]?.state
   }, failingMonitor), { timeout: 90_000 }).toBe('resolved')
+
+  await expect.poll(async () => page.evaluate(async (scope) => {
+    const response = await fetch(
+      `/api/v1/organizations/${scope.organizationId}/projects/${scope.projectId}` +
+      `/monitors/${scope.id}/alerts?pageSize=2`,
+    )
+    const body = await response.json() as { items: unknown[] }
+    return body.items.length
+  }, failingMonitor), { timeout: 60_000 }).toBe(2)
 
   await page.reload()
   const resolvedIncident = page.getByRole('region', { name: 'Incident evidence' })

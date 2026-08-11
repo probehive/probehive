@@ -10,6 +10,7 @@ import (
 	"github.com/probehive/probehive/internal/alert"
 	"github.com/probehive/probehive/internal/health"
 	"github.com/probehive/probehive/internal/incident"
+	"github.com/probehive/probehive/internal/maintenance"
 	"github.com/probehive/probehive/internal/run"
 	"github.com/probehive/probehive/internal/webhook"
 )
@@ -369,6 +370,35 @@ WHERE delivery_id=$1 AND sequence=1`, deliveryID).Scan(
 	if err != nil || !found || acknowledged.State != incident.StateAcknowledged {
 		t.Fatalf("AcknowledgeIncident() = %#v, found %v, error %v", acknowledged, found, err)
 	}
+	reenabled := true
+	reenabledWebhook, err := webhookService.SetEnabled(t.Context(), webhook.StateCommand{
+		OrganizationID:  string(organizationValue.ID),
+		IntegrationID:   createdWebhook.Integration.ID,
+		ExpectedVersion: disabledWebhook.Integration.Version,
+		Enabled:         &reenabled,
+	})
+	if err != nil || reenabledWebhook.Kind != webhook.StateUpdated ||
+		!reenabledWebhook.Integration.Enabled {
+		t.Fatalf("SetEnabled(Webhook true) = %#v, %v", reenabledWebhook, err)
+	}
+
+	maintenanceStartsAt := base.Add(time.Minute + 5*time.Second)
+	maintenanceService := maintenance.NewService(
+		database.Maintenance(), fixedClock{base.Add(30 * time.Second)},
+		&sequenceUUIDs{values: []string{testUUID(1260)}},
+	)
+	maintenanceResult, err := maintenanceService.Create(t.Context(), maintenance.CreateCommand{
+		Scope: maintenance.Scope{
+			OrganizationID: scope.OrganizationID,
+			ProjectID:      scope.ProjectID,
+			MonitorID:      scope.MonitorID,
+		},
+		StartsAt: maintenanceStartsAt,
+		EndsAt:   base.Add(2 * time.Minute),
+	})
+	if err != nil || maintenanceResult.Kind != maintenance.CreateCreated {
+		t.Fatalf("Create(event-time maintenance) = %#v, %v", maintenanceResult, err)
+	}
 
 	recoveryEvent := completeHealthTestRun(
 		t, database, run.KindScheduled, nil,
@@ -442,6 +472,18 @@ WHERE delivery_id=$1 AND sequence=1`, deliveryID).Scan(
 	if err != nil || !found {
 		t.Fatalf("GetIncident(resolved) found/error = %v/%v", found, err)
 	}
+	maintenanceService = maintenance.NewService(
+		database.Maintenance(),
+		fixedClock{base.Add(time.Minute + 8*time.Second + 500*time.Millisecond)},
+		&sequenceUUIDs{},
+	)
+	cancelledMaintenance, err := maintenanceService.Cancel(
+		t.Context(), maintenanceResult.Window.Scope(), maintenanceResult.Window.ID,
+	)
+	if err != nil || cancelledMaintenance.Kind != maintenance.CancelCancelled ||
+		cancelledMaintenance.Window.CancelledAt == nil {
+		t.Fatalf("Cancel(event-time maintenance) = %#v, %v", cancelledMaintenance, err)
+	}
 	if resolved.State != incident.StateResolved || resolved.Version != 3 ||
 		len(resolved.Timeline) != 3 || resolved.Timeline[2].ID != resolvedTimelineID ||
 		resolved.Timeline[2].Counts == nil || resolved.Timeline[2].Counts.Passing != 1 {
@@ -450,13 +492,23 @@ WHERE delivery_id=$1 AND sequence=1`, deliveryID).Scan(
 
 	alertService = alert.NewService(
 		database.Alerts(), fixedClock{base.Add(time.Minute + 9*time.Second)},
-		&sequenceUUIDs{values: []string{testUUID(1244)}},
+		&sequenceUUIDs{values: []string{testUUID(1244), testUUID(1261)}},
 	)
 	if err := alertService.HandleIncidentTransition(
 		t.Context(), resolvedAlertEventID, string(organizationValue.ID),
 		loadOutboxPayload(t, database, resolvedAlertEventID),
 	); err != nil {
 		t.Fatalf("HandleIncidentTransition(resolved) error = %v", err)
+	}
+	replayService := alert.NewService(
+		database.Alerts(), fixedClock{base.Add(time.Minute + 10*time.Second)},
+		&sequenceUUIDs{values: []string{testUUID(1262)}},
+	)
+	if err := replayService.HandleIncidentTransition(
+		t.Context(), resolvedAlertEventID, string(organizationValue.ID),
+		loadOutboxPayload(t, database, resolvedAlertEventID),
+	); err != nil {
+		t.Fatalf("redelivered resolved Alert event error = %v", err)
 	}
 	alertPage, found, err = alertService.List(
 		t.Context(), alertScope, alert.ListQuery{PageSize: 50},
@@ -472,8 +524,37 @@ SELECT count(*) FROM webhook_deliveries WHERE organization_id=$1`,
 		string(organizationValue.ID)).Scan(&deliveryCount); err != nil {
 		t.Fatalf("count Webhook routes: %v", err)
 	}
-	if deliveryCount != 1 {
-		t.Fatalf("Webhook route count after disabled resolved Alert = %d", deliveryCount)
+	if deliveryCount != 2 {
+		t.Fatalf("Webhook route count after maintained resolved Alert = %d", deliveryCount)
+	}
+	resolvedAudits, found, err := deliveryStore.ListAudit(
+		t.Context(), webhook.DeliveryScope{
+			OrganizationID: string(organizationValue.ID),
+			ProjectID:      string(project.ID),
+			MonitorID:      string(monitorValue.ID),
+			AlertID:        testUUID(1244),
+		},
+	)
+	if err != nil || !found || len(resolvedAudits) != 1 ||
+		resolvedAudits[0].SuppressionReason != webhook.SuppressionReasonMaintenance ||
+		resolvedAudits[0].MaintenanceWindowID != string(maintenanceResult.Window.ID) ||
+		len(resolvedAudits[0].Attempts) != 0 {
+		t.Fatalf("maintained Webhook delivery audit = %#v, found %v, error %v", resolvedAudits, found, err)
+	}
+	claimAt := base.Add(3 * time.Minute)
+	claims, err = deliveryStore.Claim(
+		t.Context(), testUUID(1263), claimAt,
+		claimAt.Add(webhook.DeliveryLeaseDuration), webhook.DeliveryBatchSize,
+	)
+	if err != nil || len(claims) != 0 {
+		t.Fatalf("Claim(suppressed Webhook delivery) = %#v, %v", claims, err)
+	}
+	var suppressedAttemptCount int
+	if err := database.pool.QueryRow(t.Context(), `
+SELECT count(*) FROM webhook_delivery_attempts WHERE alert_id=$1`, testUUID(1244)).Scan(
+		&suppressedAttemptCount,
+	); err != nil || suppressedAttemptCount != 0 {
+		t.Fatalf("suppressed Webhook attempt count/error = %d/%v", suppressedAttemptCount, err)
 	}
 }
 

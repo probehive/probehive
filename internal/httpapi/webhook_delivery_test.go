@@ -19,6 +19,8 @@ func TestAlertDeliveryAuditEnforcesScopeAndOmitsSensitiveMaterial(t *testing.T) 
 	alertID := "00000000-0000-7000-8000-000000000220"
 	deliveryID := "00000000-0000-7000-8000-000000000221"
 	integrationID := "00000000-0000-7000-8000-000000000222"
+	suppressedDeliveryID := "00000000-0000-7000-8000-000000000223"
+	maintenanceWindowID := "00000000-0000-7000-8000-000000000224"
 	now := environment.clock.Now().UTC()
 	firstFinished := now.Add(-30 * time.Second)
 	secondFinished := now.Add(-10 * time.Second)
@@ -48,6 +50,14 @@ func TestAlertDeliveryAuditEnforcesScopeAndOmitsSensitiveMaterial(t *testing.T) 
 				HTTPStatus: &secondStatus,
 			},
 		},
+	}, {
+		DeliveryID:          suppressedDeliveryID,
+		IntegrationID:       integrationID,
+		IntegrationVersion:  4,
+		SecretVersion:       2,
+		RoutedAt:            now.Add(-time.Minute),
+		SuppressionReason:   webhook.SuppressionReasonMaintenance,
+		MaintenanceWindowID: maintenanceWindowID,
 	}})
 
 	path := "/api/v1/organizations/" + organizationID + "/projects/" + projectID +
@@ -59,13 +69,18 @@ func TestAlertDeliveryAuditEnforcesScopeAndOmitsSensitiveMaterial(t *testing.T) 
 	if err := json.Unmarshal(response.Body, &page); err != nil {
 		t.Fatal(err)
 	}
-	if response.StatusCode != http.StatusOK || len(page.Items) != 1 ||
+	if response.StatusCode != http.StatusOK || len(page.Items) != 2 ||
 		page.Items[0].ID != deliveryID ||
 		page.Items[0].Channel != webhook.DeliveryChannel ||
 		len(page.Items[0].Attempts) != 2 ||
 		page.Items[0].Attempts[0].FailureCode == nil ||
 		*page.Items[0].Attempts[0].FailureCode != webhook.FailureCodeHTTPRetryable ||
-		page.Items[0].Attempts[1].FailureCode != nil {
+		page.Items[0].Attempts[1].FailureCode != nil ||
+		page.Items[1].SuppressionReason == nil ||
+		*page.Items[1].SuppressionReason != webhook.SuppressionReasonMaintenance ||
+		page.Items[1].MaintenanceWindowID == nil ||
+		*page.Items[1].MaintenanceWindowID != maintenanceWindowID ||
+		len(page.Items[1].Attempts) != 0 {
 		t.Fatalf("delivery audit = %d, %#v", response.StatusCode, page)
 	}
 	for _, forbidden := range []string{

@@ -179,13 +179,15 @@ type AlertDeliveryPageResponse struct {
 }
 
 type AlertDeliveryResponse struct {
-	ID                 string                    `json:"id"`
-	Channel            string                    `json:"channel"`
-	IntegrationID      string                    `json:"integrationId"`
-	IntegrationVersion int64                     `json:"integrationVersion"`
-	SecretVersion      int64                     `json:"secretVersion"`
-	RoutedAt           time.Time                 `json:"routedAt"`
-	Attempts           []DeliveryAttemptResponse `json:"attempts"`
+	ID                  string                    `json:"id"`
+	Channel             string                    `json:"channel"`
+	IntegrationID       string                    `json:"integrationId"`
+	IntegrationVersion  int64                     `json:"integrationVersion"`
+	SecretVersion       int64                     `json:"secretVersion"`
+	RoutedAt            time.Time                 `json:"routedAt"`
+	SuppressionReason   *string                   `json:"suppressionReason"`
+	MaintenanceWindowID *string                   `json:"maintenanceWindowId"`
+	Attempts            []DeliveryAttemptResponse `json:"attempts"`
 }
 
 type DeliveryAttemptResponse struct {

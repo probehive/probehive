@@ -137,6 +137,37 @@ func TestWindowStatusUsesHalfOpenBounds(t *testing.T) {
 	}
 }
 
+func TestWindowAppliesAtRetainsHistoricalCancellationSemantics(t *testing.T) {
+	now := time.Date(2026, time.August, 11, 10, 0, 0, 0, time.UTC)
+	window, err := NewWindow(
+		"window", testScope, now.Add(time.Hour), now.Add(2*time.Hour), now,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancelledAt := now.Add(90 * time.Minute)
+	if err := window.Cancel(cancelledAt); err != nil {
+		t.Fatal(err)
+	}
+
+	checks := []struct {
+		at   time.Time
+		want bool
+	}{
+		{window.StartsAt.Add(-time.Nanosecond), false},
+		{window.StartsAt, true},
+		{cancelledAt.Add(-time.Nanosecond), true},
+		{cancelledAt, false},
+		{window.EndsAt, false},
+		{window.StartsAt.In(time.FixedZone("UTC+08:00", 8*60*60)), false},
+	}
+	for _, check := range checks {
+		if got := window.AppliesAt(check.at); got != check.want {
+			t.Errorf("AppliesAt(%s) = %v, want %v", check.at, got, check.want)
+		}
+	}
+}
+
 func TestCreateRejectsOverlapAndAllowsAdjacentOrCancelledIntervals(t *testing.T) {
 	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
 	clock := &mutableClock{value: now}

@@ -96,16 +96,17 @@ func TestOpenAPIDocumentDescribesEveryRoute(t *testing.T) {
 
 func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 	type property struct {
-		Format               string          `json:"format"`
-		Minimum              int             `json:"minimum"`
-		Pattern              string          `json:"pattern"`
-		Maximum              int             `json:"maximum"`
-		Default              json.RawMessage `json:"default"`
-		MinLength            int             `json:"minLength"`
-		MaxBytes             int             `json:"x-probehive-max-bytes"`
-		LengthUnit           string          `json:"x-probehive-length-unit"`
-		UniqueNameComparison string          `json:"x-probehive-unique-name-comparison"`
-		ForbiddenNames       []string        `json:"x-probehive-forbidden-names"`
+		Format               string            `json:"format"`
+		Minimum              int               `json:"minimum"`
+		Pattern              string            `json:"pattern"`
+		Maximum              int               `json:"maximum"`
+		Default              json.RawMessage   `json:"default"`
+		MinLength            int               `json:"minLength"`
+		MaxBytes             int               `json:"x-probehive-max-bytes"`
+		LengthUnit           string            `json:"x-probehive-length-unit"`
+		UniqueNameComparison string            `json:"x-probehive-unique-name-comparison"`
+		ForbiddenNames       []string          `json:"x-probehive-forbidden-names"`
+		Enum                 []json.RawMessage `json:"enum"`
 	}
 	type schema struct {
 		PropertyNameComparison string              `json:"x-probehive-property-name-comparison"`
@@ -207,6 +208,17 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 	preparedWebhook := document.Components.Schemas["PrepareWebhookSigningSecretResponse"]
 	if signature := preparedWebhook.Properties["signingSecret"]; signature.Pattern != "^phwh_[A-Za-z0-9_-]{43}$" {
 		t.Errorf("Webhook prepared one-time secret schema = %#v", signature)
+	}
+
+	deliveryResponse := document.Components.Schemas["AlertDeliveryResponse"]
+	suppressionReason := deliveryResponse.Properties["suppressionReason"]
+	if len(suppressionReason.Enum) != 2 ||
+		string(suppressionReason.Enum[0]) != `"maintenance"` ||
+		string(suppressionReason.Enum[1]) != "null" {
+		t.Errorf("delivery suppression-reason enum = %#v", suppressionReason.Enum)
+	}
+	if maintenanceWindow := deliveryResponse.Properties["maintenanceWindowId"]; maintenanceWindow.Format != "uuid" {
+		t.Errorf("delivery maintenance-window schema = %#v", maintenanceWindow)
 	}
 
 	httpConfiguration := document.Components.Schemas["HTTPCheckConfigurationV1"]

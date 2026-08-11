@@ -23,6 +23,32 @@ func routeWebhookDeliveries(
 	value alert.Alert,
 	routeIDs alert.IDGenerator,
 ) error {
+	var maintenanceWindowID *string
+	var matchedWindowID string
+	err := transaction.QueryRow(ctx, `
+SELECT id
+FROM maintenance_windows
+WHERE organization_id=$1
+  AND monitor_id=$2
+  AND created_at <= $3
+  AND starts_at <= $3
+  AND ends_at > $3
+  AND (cancelled_at IS NULL OR cancelled_at > $3)
+ORDER BY starts_at, id
+LIMIT 1`, value.OrganizationID, value.MonitorID, value.OccurredAt.UTC()).Scan(&matchedWindowID)
+	if err == nil {
+		maintenanceWindowID = &matchedWindowID
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("find event-time maintenance window for Alert routing: %w", err)
+	}
+
+	var suppressionReason any
+	var completedAt any
+	if maintenanceWindowID != nil {
+		suppressionReason = webhook.SuppressionReasonMaintenance
+		completedAt = value.CreatedAt.UTC()
+	}
+
 	rows, err := transaction.Query(ctx, `
 SELECT id, version, active_secret_version
 FROM webhook_integrations
@@ -60,11 +86,13 @@ FOR SHARE`, value.OrganizationID, webhook.MaxEnabledIntegrations+1)
 		}
 		if _, err := transaction.Exec(ctx, `
 INSERT INTO webhook_deliveries (
-    id, organization_id, alert_id, integration_id,
-    integration_version, secret_version, routed_at, available_at
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$7)`,
+    id, organization_id, alert_id, integration_id, integration_version,
+    secret_version, routed_at, available_at, completed_at,
+    suppression_reason, maintenance_window_id
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,$9,$10)`,
 			deliveryID, value.OrganizationID, value.ID, target.integrationID,
 			target.integrationVersion, target.secretVersion, value.CreatedAt.UTC(),
+			completedAt, suppressionReason, maintenanceWindowID,
 		); err != nil {
 			return fmt.Errorf("insert Webhook delivery route: %w", err)
 		}

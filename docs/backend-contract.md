@@ -460,6 +460,14 @@ id and snapshots the Integration version and active secret version. Enabling doe
 backfill older Alerts, and disabling does not remove existing routes. A route is not a
 Delivery Attempt and makes no sent or delivered claim.
 
+Routing evaluates maintenance at the Alert's immutable `occurredAt`, not at delayed
+projection or retry time. A retained window matches only when it was created no later than
+that instant, its half-open bounds contain the instant, and it was either not cancelled or
+cancelled later. Each matching route is inserted as terminal with `suppressionReason`
+`maintenance`, the `maintenanceWindowId`, and zero Delivery Attempts, so the dispatcher
+cannot claim it. Cancellation after `occurredAt`, restarts, and replay of the processed
+Incident event do not change the stored result.
+
 The operator keyring is required for creation and rotation preparation. Without it, an
 otherwise valid request returns `503` with `webhook.keyring.unavailable`. At process
 startup every non-retired secret must authenticate using a retained wrapping key; old-key
@@ -624,8 +632,10 @@ scope. Wrong-tenant and wrong-parent identities return the ordinary hidden `404`
 can inspect windows through `maintenance.read`; only Administrators can schedule or cancel
 through `maintenance.write`.
 
-This slice records maintenance policy only. It does not pause checks or rewrite, suppress,
-or hide Runs, Observations, health, Incidents, Alerts, or Delivery Attempts.
+Maintenance does not pause checks or rewrite, suppress, or hide Runs, Observations,
+evaluated health, Incidents, or Alerts. Webhook routing overlays that evidence at the Alert
+occurrence instant: an applicable route retains the explicit window attribution as terminal
+suppression evidence and creates no Delivery Attempt.
 
 ### Run and Observation queries
 
@@ -785,6 +795,13 @@ All listed columns are `NOT NULL` unless marked nullable.
   Monitor, source Incident and source Incident version identity, kind, source occurrence,
   and projection creation timestamps. The Organization, Incident, and Incident-version
   tuple is unique for idempotent projection.
+- `webhook_deliveries`: immutable Organization-scoped Alert routes that snapshot the
+  Integration and signing-secret versions. Nullable `suppression_reason` and
+  `maintenance_window_id` retain event-time suppression attribution; the latter has an
+  Organization-scoped foreign key to `maintenance_windows`. A check constraint allows only
+  the `maintenance` reason paired with a window and requires a suppressed route to be
+  completed with zero attempts and no lease. `webhook_delivery_attempts` remain separate
+  append-only evidence of actual external calls.
 
 ### Tenant foreign-key invariants
 
@@ -869,8 +886,9 @@ An Incident opening creates one `incident.opened` Alert and confirmed recovery c
 `incident.resolved` Alert. Acknowledgement creates none. Alerts are immutable,
 render-neutral intents: they contain no localized prose, Monitor-name snapshot, target,
 recipient, route, secret, or provider payload. Alert existence does not mean a notification
-was attempted, sent, suppressed, or delivered; no Delivery Attempt is created until a
-separately accepted channel contract exists.
+was attempted, sent, suppressed, or delivered. The separately queried delivery audit
+distinguishes no route, a pending route, terminal maintenance suppression, and actual
+Delivery Attempt outcomes.
 
 Alert lists are newest-first by descending `(occurredAt, id)` and use the same default 50,
 range 1 through 100, opaque exclusive cursor, and final null `nextCursor` rules as Incident
@@ -959,7 +977,8 @@ Before launching the API, `web/e2e/start-api.sh` must preserve this reset contra
    `DROP DATABASE IF EXISTS probehive_e2e WITH (FORCE)` and then
    `CREATE DATABASE probehive_e2e`.
 3. Point the API at `probehive_e2e`, apply all embedded migrations, and listen in
-   Development mode on `http://127.0.0.1:5080`.
+   Development mode on `http://127.0.0.1:5080`, with a fixed test-only Webhook wrapping
+   key and a loopback-only outbound allowlist.
 4. Build and launch `cmd/probehive` as a fresh process after migration. Keep the
    override names, reset, database name, ports, and readiness gate stable.
 
@@ -968,9 +987,11 @@ in the first Administrator, and lands directly on the Organization that setup pr
 rendering its `Default` heading and default Project. It renames that Organization and
 asserts the slug did not move. It creates and operates a passing HTTP Monitor, triggers a
 manual Run, follows the returned evidence, then schedules and cancels a one-time maintenance
-window. It then creates a failing HTTP Monitor,
-waits for its Incident and Alert intent, acknowledges the Incident, replaces the target
-through revision 2, and waits for confirmed recovery and its Alert intent. Finally, it
+window. It then creates an enabled loopback Webhook Integration, a failing HTTP Monitor,
+and an active maintenance window. After the Incident and Alert intent appear, the journey
+asserts that delivery evidence shows the maintenance reason and exact window id without a
+Webhook call. It acknowledges the Incident, replaces the target through revision 2, and
+waits for confirmed recovery and its Alert intent. Finally, it
 signs out, signs back in, lands on the Organization list containing the renamed
 Organization, creates slug `acme` with display name `Acme Monitoring`, follows the
 returned Organization, and renders its default Project. A second journey switches the

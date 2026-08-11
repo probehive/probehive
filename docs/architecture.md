@@ -119,6 +119,14 @@ Delivery Attempts separately record bounded retries and outcomes. Signed Webhook
 Integrations keep secrets encrypted, disclose them once, rotate in two phases,
 and deliver only through the shared outbound policy.
 
+Maintenance is an event-time overlay evaluated at the immutable Alert occurrence
+instant against retained window creation, bounds, and cancellation timestamps. It
+never pauses Checks or changes Runs, Observations, evaluated health, Incidents, or
+Alerts. A matching window terminally completes each applicable Webhook route with a
+stable maintenance reason and window identity, without creating a Delivery Attempt.
+Delayed or replayed projection therefore preserves the same result after later
+window cancellation.
+
 ## Frontend and Deployment
 
 The frontend uses React, strict TypeScript, Vite, React Router, TanStack Query,

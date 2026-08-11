@@ -39,13 +39,14 @@ The current foundation implements:
 - Organization membership with permission-based authorization: a non-member cannot distinguish an Organization from one that does not exist.
 - Monitors with immutable revisions and strict HTTP check configuration validation.
 - Monitor-scoped one-time maintenance windows with explicit UTC bounds, overlap prevention, durable cancellation, and Viewer-readable current and upcoming state.
+- Event-time maintenance semantics that preserve Runs, Observations, health, Incidents, and Alerts while terminally suppressing matching Webhook routes with explicit window attribution and no network attempt.
 - Stable machine-readable error codes on every API failure, so clients localize without the API ever returning a translated string.
 - An embedded scheduler and bounded worker that execute validated HTTP checks through the shared outbound-access policy and persist partitioned Runs and Observations.
 - An antiforgery-protected manual Run endpoint that executes a Monitor's latest revision immediately through the same bounded worker.
 - Fully scoped Run history and Observation query APIs with bounded keyset pagination and stable filters.
 - Auditable Monitor health evaluation with explicit failure and recovery confirmation Runs, honest single-location quorum counts, and staleness handling.
 - Automatic per-Monitor Incidents with open, acknowledge, and resolve lifecycle, immutable timelines, scoped keyset query APIs, and PostgreSQL-backed outbox dispatch.
-- Immutable Alert intents for Incident opening and confirmed recovery, with Monitor-scoped API and React audit history that makes no delivery claim.
+- Immutable Alert intents for Incident opening and confirmed recovery, with Monitor-scoped API and React audit history whose separate delivery evidence distinguishes no route, pending work, maintenance suppression, and attempt outcomes.
 - Administrator-only signed Webhook Integrations with one-time-disclosed secrets, operator-keyring encryption, two-phase rotation, point-in-time Alert routing, strict HTTPS delivery, bounded retries, and Viewer-safe delivery-attempt evidence.
 - A React administration application in English and Simplified Chinese, rendering instants in the viewer's time zone, with Playwright browser journeys.
 - Default-Project Monitor inventory, a recoverable first-HTTP-Monitor flow, and authorized lifecycle, name, execution-interval, manual Run, and later HTTP target revision controls.
@@ -58,7 +59,8 @@ The current foundation implements:
 - A documented raw-evidence retention and troubleshooting workflow with a disposable package exercise that preserves current and durable evidence while expiring old raw partitions.
 
 Operator readiness for the self-hosted HTTP dogfood milestone and bounded maintenance
-controls are implemented in the current source. Maintenance effects, status pages, and Agents remain later work.
+controls, including their event-time Webhook delivery effects, are implemented in the
+current source. Status pages and Agents remain later work.
 
 ## Get Started
 
@@ -77,8 +79,9 @@ Useful project references:
 ## Current Focus
 
 The current source extends the self-hosted HTTP dogfood baseline with bounded
-maintenance controls. Applying maintenance to monitoring and delivery evidence,
-basic status communication, workflow closure, and release validation remain queued.
+maintenance controls and event-time Webhook suppression evidence. Private status
+configuration, public status communication, workflow closure, and release validation
+remain queued.
 The project remains pre-alpha; no release claim is made.
 
 New Check Types, remote Agents, identity expansion, public status pages, CLI, monitoring as code, Kubernetes packaging, and hosted-service implementation remain deferred until self-hosted dogfood establishes the next concrete product need.

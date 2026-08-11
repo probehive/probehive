@@ -129,6 +129,17 @@ func (value Window) Status(now time.Time) Status {
 	return StatusEnded
 }
 
+// AppliesAt evaluates the retained interval and cancellation instant at one event time.
+func (value Window) AppliesAt(at time.Time) bool {
+	if !isUTC(at) || at.Before(value.StartsAt) || !at.Before(value.EndsAt) {
+		return false
+	}
+	if value.CancelledAt != nil && !at.Before(*value.CancelledAt) {
+		return false
+	}
+	return true
+}
+
 // Cancel retains the window and records when it stopped applying. Repeated cancellation is idempotent.
 func (value *Window) Cancel(at time.Time) error {
 	if value.CancelledAt != nil {

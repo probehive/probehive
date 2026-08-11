@@ -293,6 +293,7 @@ SELECT EXISTS (
 SELECT delivery.id, delivery.integration_id,
        delivery.integration_version, delivery.secret_version,
        delivery.routed_at,
+       delivery.suppression_reason, delivery.maintenance_window_id,
        attempt.sequence, attempt.started_at, attempt.finished_at,
        attempt.outcome, attempt.http_status, attempt.failure_code
 FROM webhook_deliveries AS delivery
@@ -312,14 +313,15 @@ ORDER BY delivery.routed_at, delivery.id, attempt.sequence`,
 	values := make([]webhook.DeliveryAudit, 0, webhook.MaxEnabledIntegrations)
 	for rows.Next() {
 		var (
-			deliveryID, integrationID string
-			integrationVersion        int64
-			secretVersion             int64
-			routedAt                  time.Time
-			sequence                  *int64
-			startedAt, finishedAt     *time.Time
-			outcome, failureCode      *string
-			httpStatus                *int
+			deliveryID, integrationID              string
+			integrationVersion                     int64
+			secretVersion                          int64
+			routedAt                               time.Time
+			suppressionReason, maintenanceWindowID *string
+			sequence                               *int64
+			startedAt, finishedAt                  *time.Time
+			outcome, failureCode                   *string
+			httpStatus                             *int
 		)
 		if err := rows.Scan(
 			&deliveryID,
@@ -327,6 +329,8 @@ ORDER BY delivery.routed_at, delivery.id, attempt.sequence`,
 			&integrationVersion,
 			&secretVersion,
 			&routedAt,
+			&suppressionReason,
+			&maintenanceWindowID,
 			&sequence,
 			&startedAt,
 			&finishedAt,
@@ -338,12 +342,14 @@ ORDER BY delivery.routed_at, delivery.id, attempt.sequence`,
 		}
 		if len(values) == 0 || values[len(values)-1].DeliveryID != deliveryID {
 			values = append(values, webhook.DeliveryAudit{
-				DeliveryID:         deliveryID,
-				IntegrationID:      integrationID,
-				IntegrationVersion: integrationVersion,
-				SecretVersion:      secretVersion,
-				RoutedAt:           routedAt.UTC(),
-				Attempts:           []webhook.DeliveryAttempt{},
+				DeliveryID:          deliveryID,
+				IntegrationID:       integrationID,
+				IntegrationVersion:  integrationVersion,
+				SecretVersion:       secretVersion,
+				RoutedAt:            routedAt.UTC(),
+				SuppressionReason:   valueOrEmptyString(suppressionReason),
+				MaintenanceWindowID: valueOrEmptyString(maintenanceWindowID),
+				Attempts:            []webhook.DeliveryAttempt{},
 			})
 		}
 		if sequence == nil {

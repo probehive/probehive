@@ -34,6 +34,8 @@ export interface DeliveryAttemptResponse {
   failureCode: string | null
 }
 
+export type DeliverySuppressionReason = 'maintenance'
+
 export interface AlertDeliveryResponse {
   id: string
   channel: 'webhook'
@@ -41,6 +43,8 @@ export interface AlertDeliveryResponse {
   integrationVersion: number
   secretVersion: number
   routedAt: string
+  suppressionReason: DeliverySuppressionReason | null
+  maintenanceWindowId: string | null
   attempts: DeliveryAttemptResponse[]
 }
 

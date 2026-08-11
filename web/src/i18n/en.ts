@@ -403,6 +403,8 @@ export const en = {
   'alert.delivery.integrationVersion': 'Integration version',
   'alert.delivery.secretVersion': 'Signing secret version',
   'alert.delivery.pending': 'No delivery call has started yet.',
+  'alert.delivery.suppressed.maintenance': 'Suppressed by Monitor maintenance at the Alert occurrence time. No Webhook call was made.',
+  'alert.delivery.maintenanceWindow': 'Maintenance window',
   'alert.delivery.attempt': 'Attempt',
   'alert.delivery.outcome': 'Outcome',
   'alert.delivery.started': 'Started',
