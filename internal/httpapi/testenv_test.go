@@ -25,6 +25,7 @@ import (
 	"github.com/probehive/probehive/internal/monitor"
 	"github.com/probehive/probehive/internal/organization"
 	"github.com/probehive/probehive/internal/run"
+	"github.com/probehive/probehive/internal/statuspage"
 	"github.com/probehive/probehive/internal/user"
 	"github.com/probehive/probehive/internal/webhook"
 )
@@ -40,6 +41,7 @@ type testEnvironment struct {
 	monitors      *memoryMonitorStore
 	maintenance   *memoryMaintenanceStore
 	runs          *memoryRunStore
+	statusPages   *memoryStatusPageStore
 	health        *memoryHealthStore
 	incidents     *memoryIncidentStore
 	alerts        *memoryAlertStore
@@ -56,12 +58,14 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 	monitors := newMemoryMonitorStore()
 	maintenanceWindows := newMemoryMaintenanceStore(monitors)
 	runs := newMemoryRunStore(monitors)
+	statusPages := &memoryStatusPageStore{monitors: monitors}
 	ids := &testUUIDGenerator{}
 
 	organizationService := organization.NewService(organizations, clock, ids)
 	userService := user.NewService(users, testPasswordHasher{}, clock, ids)
 	monitorService := monitor.NewService(monitors, check.NewCatalog(), clock, ids)
 	maintenanceService := maintenance.NewService(maintenanceWindows, clock, ids)
+	statusPageService := statuspage.NewService(statusPages, clock, ids)
 	runService := run.NewQueryService(runs)
 	healthStore := &memoryHealthStore{monitors: monitors}
 	incidentStore := &memoryIncidentStore{monitors: monitors}
@@ -88,6 +92,7 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 		Runs:                        runService,
 		MonitorHealth:               healthService,
 		Maintenance:                 maintenanceService,
+		StatusPages:                 statusPageService,
 		Incidents:                   incidentService,
 		Alerts:                      alertService,
 		Webhooks:                    webhookService,
@@ -115,7 +120,8 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 	}
 	environment := &testEnvironment{
 		server: server, client: &http.Client{Jar: jar}, clock: clock,
-		users: users, sessions: sessions, antiforgery: antiforgery,
+		statusPages: statusPages,
+		users:       users, sessions: sessions, antiforgery: antiforgery,
 		organizations: organizations, monitors: monitors,
 		maintenance: maintenanceWindows,
 		runs:        runs, health: healthStore, incidents: incidentStore,

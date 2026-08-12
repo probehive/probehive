@@ -131,6 +131,33 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await expect(inventoryRow).toBeVisible()
   await expect(inventoryRow.getByText('300 seconds')).toBeVisible()
 
+  const statusDraft = page.getByRole('region', { name: 'Status page draft' })
+  await statusDraft.getByLabel('Page title').fill('My Services Status')
+  await statusDraft.getByRole('checkbox', { name: 'ProbeHive Readiness' }).check()
+  await statusDraft.getByLabel('Public label').fill('Public API')
+  const statusDraftResponse = page.waitForResponse((response) =>
+    response.request().method() === 'PUT' &&
+    response.url().endsWith('/status-page/draft') &&
+    response.status() === 200,
+  )
+  await statusDraft.getByRole('button', { name: 'Save draft' }).click()
+  const savedStatusDraft = await (await statusDraftResponse).json() as {
+    title: string
+    version: number
+    components: Array<{ monitorId: string; label: string; position: number }>
+  }
+  expect(savedStatusDraft.title).toBe('My Services Status')
+  expect(savedStatusDraft.version).toBe(1)
+  expect(savedStatusDraft.components).toMatchObject([{
+    monitorId: createdMonitor.id,
+    label: 'Public API',
+    position: 0,
+  }])
+  await expect(statusDraft.getByText('Private status page draft saved.')).toBeVisible()
+  await page.reload()
+  await expect(statusDraft.getByLabel('Page title')).toHaveValue('My Services Status')
+  await expect(statusDraft.getByLabel('Public label')).toHaveValue('Public API')
+
   // Trigger a completed manual Run through the operator UI and follow its direct
   // navigation into the existing Run -> Observation evidence path.
   await page.getByRole('link', { name: 'ProbeHive Readiness' }).click()
@@ -151,6 +178,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   expect(manualRun.kind).toBe('manual')
   expect(manualRun.outcome).toBe('passed')
   await expect(page).toHaveURL(new RegExp(`/runs/${manualRun.id}$`))
+
   await expect(page.getByRole('heading', { name: 'Run evidence' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Observation' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'HTTP response' })).toBeVisible()

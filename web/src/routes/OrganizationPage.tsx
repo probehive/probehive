@@ -5,6 +5,7 @@ import { ApiError, getOrganization } from '../api/organizations'
 import { useTranslation } from '../i18n/context'
 import MonitorsPanel from './MonitorsPanel.tsx'
 import RenameOrganizationForm from './RenameOrganizationForm.tsx'
+import StatusPageDraftSection from './StatusPageDraftSection.tsx'
 
 export default function OrganizationPage() {
   const { organizationId } = useParams<'organizationId'>()
@@ -53,6 +54,10 @@ export default function OrganizationPage() {
         </dd>
       </dl>
       <MonitorsPanel
+        organizationId={organization.id}
+        projectId={organization.defaultProject.id}
+      />
+      <StatusPageDraftSection
         organizationId={organization.id}
         projectId={organization.defaultProject.id}
       />

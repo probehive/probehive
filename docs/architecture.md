@@ -57,6 +57,11 @@ The required ownership path is:
 Organization -> Project -> Monitor -> Monitor Revision -> Run -> Observation
 ```
 
+Status Components are Organization-owned communication identities associated with
+explicitly selected Monitors; they are not Monitors and do not copy targets or monitoring
+evidence into configuration. Draft configuration is private. Anonymous publication,
+revocation, and disclosure-safe current-state projection are separate boundaries.
+
 Organization is the tenant, authorization, and isolation boundary. Every
 Organization creation path uses the same idempotent core operation and creates a
 default Project transactionally. Monitors never move between Organizations.

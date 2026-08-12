@@ -13,6 +13,7 @@
     { "name": "Integrations" },
     { "name": "Monitors" },
     { "name": "Maintenance" },
+    { "name": "Status Pages" },
     { "name": "Runs" },
     { "name": "Incidents" }
   ],
@@ -286,6 +287,54 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" },
           "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/status-page/draft": {
+      "parameters": [{ "$ref": "#/components/parameters/OrganizationID" }],
+      "get": {
+        "tags": ["Status Pages"],
+        "operationId": "getStatusPageDraft",
+        "summary": "Return the private status-page draft",
+        "description": "Requires statusPage.write, which built-in roles grant only to Organization administrators. Returns no content before a draft exists. There is no anonymous route in this milestone slice.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "The Organization's private status-page draft.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StatusPageDraftResponse" } } }
+          },
+          "204": { "description": "No status-page draft exists." },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      },
+      "put": {
+        "tags": ["Status Pages"],
+        "operationId": "replaceStatusPageDraft",
+        "summary": "Replace the private status-page draft",
+        "description": "Requires statusPage.write and antiforgery. The request explicitly selects one through fifty non-archived Monitors in this Organization, supplies operator-chosen labels, and defines deterministic array order. Version zero creates the first draft; later updates require the current positive version.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ReplaceStatusPageDraftRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The complete replacement draft.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StatusPageDraftResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
           "405": { "$ref": "#/components/responses/MethodNotAllowed" }
         }
       }
@@ -1471,6 +1520,36 @@
           "cancelledAt": { "type": ["string", "null"], "format": "date-time" }
         }
       },
+      "StatusPageDraftResponse": {
+        "type": "object",
+        "description": "Private Organization-owned configuration only. It includes no Monitor target, internal evidence, publication token, or anonymous URL.",
+        "required": ["id", "organizationId", "title", "version", "components", "createdAt", "updatedAt"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "organizationId": { "type": "string", "format": "uuid" },
+          "title": { "type": "string", "minLength": 1, "maxLength": 100, "x-probehive-length-unit": "utf16-code-units" },
+          "version": { "type": "integer", "format": "int64", "minimum": 1 },
+          "components": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "items": { "$ref": "#/components/schemas/StatusComponentResponse" }
+          },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "StatusComponentResponse": {
+        "type": "object",
+        "description": "A public label and deterministic position associated with one Monitor. This identity is distinct from Monitor identity.",
+        "required": ["id", "monitorId", "label", "position"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "monitorId": { "type": "string", "format": "uuid" },
+          "label": { "type": "string", "minLength": 1, "maxLength": 100, "x-probehive-length-unit": "utf16-code-units" },
+          "position": { "type": "integer", "minimum": 0, "maximum": 49 }
+        }
+      },
       "MonitorRevisionResponse": {
         "type": "object",
         "required": ["id", "monitorId", "revisionNumber", "checkType", "checkSchemaVersion", "checkConfiguration", "createdAt"],
@@ -1924,6 +2003,32 @@
         "properties": {
           "startsAt": { "type": ["string", "null"], "format": "date-time" },
           "endsAt": { "type": ["string", "null"], "format": "date-time" }
+        }
+      },
+      "ReplaceStatusPageDraftRequest": {
+        "type": "object",
+        "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown. Array order is the component presentation order.",
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "required": ["title", "version", "components"],
+        "properties": {
+          "title": { "type": ["string", "null"], "maxLength": 100, "x-probehive-length-unit": "utf16-code-units" },
+          "version": { "type": "integer", "format": "int64", "minimum": 0 },
+          "components": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "items": { "$ref": "#/components/schemas/ReplaceStatusComponentInput" }
+          }
+        }
+      },
+      "ReplaceStatusComponentInput": {
+        "type": "object",
+        "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown.",
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "required": ["monitorId", "label"],
+        "properties": {
+          "monitorId": { "type": ["string", "null"], "format": "uuid" },
+          "label": { "type": ["string", "null"], "maxLength": 100, "x-probehive-length-unit": "utf16-code-units" }
         }
       },
       "RenameOrganizationRequest": {

@@ -60,6 +60,18 @@ export function setAntiforgeryForTests(token: { headerName: string; requestToken
 
 export async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url)
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await readProblem(response))
+  }
+  return (await response.json()) as T
+}
+
+export async function getOptionalJson<T>(url: string): Promise<T | null> {
+  const response = await fetch(url)
+  if (response.status === 204) {
+    return null
+  }
   if (!response.ok) {
     throw new ApiError(response.status, await readProblem(response))
   }

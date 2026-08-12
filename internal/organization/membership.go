@@ -21,6 +21,7 @@ const (
 	PermissionIntegrationManage Permission = "integration.manage"
 	PermissionMaintenanceRead   Permission = "maintenance.read"
 	PermissionMaintenanceWrite  Permission = "maintenance.write"
+	PermissionStatusPageWrite   Permission = "statusPage.write"
 	PermissionMemberRead        Permission = "member.read"
 	PermissionMemberWrite       Permission = "member.write"
 )

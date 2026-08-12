@@ -121,6 +121,8 @@ as JSON `null` when absent.
 | `MonitorResponse` | `id`, `organizationId`, `projectId` as UUID strings; `name`, `checkType`, `state` as strings; `intervalSeconds`, `latestRevisionNumber` as integers; `createdAt`, `updatedAt` as UTC timestamp strings |
 | `MonitorRevisionResponse` | `id`, `monitorId` as UUID strings; `revisionNumber: integer`; `checkType: string`; `checkSchemaVersion: integer`; `checkConfiguration: JSON value`; `createdAt: UTC timestamp string` |
 | `MaintenanceWindowResponse` | `id`, `organizationId`, `projectId`, `monitorId` as UUID strings; `startsAt`, `endsAt`, `createdAt` as UTC timestamp strings; `status` exactly `upcoming`, `active`, `ended`, or `cancelled`; `cancelledAt: nullable UTC timestamp string` |
+| `StatusPageDraftResponse` | `id`, `organizationId` as UUID strings; `title`; positive `version`; `components: StatusComponentResponse[]` in deterministic position order; `createdAt`, `updatedAt` as UTC timestamp strings |
+| `StatusComponentResponse` | component `id`, selected `monitorId` as distinct UUID strings; operator-chosen `label`; zero-based `position` |
 | `MonitorHealthResponse` | scoped Organization, Project, and Monitor UUIDs; `state`, `stableState`, `policyVersion`; `version`; nullable source revision, Run, cohort, candidate, and determinate-finish pointers; `counts: HealthCountsResponse`; transition/update timestamps |
 | `HealthCountsResponse` | `configured`, `eligible`, `responding`, `passing`, `failing`, `locationFault`, `indeterminate`, and `missing` non-negative integers |
 | `RunPageResponse` | `items: RunResponse[]`; `nextCursor: nullable opaque string` |
@@ -159,6 +161,8 @@ Request shapes are:
 | `ChangeMonitorIntervalRequest` | `intervalSeconds: integer` |
 | `CreateMonitorRevisionRequest` | `checkSchemaVersion: integer`, `checkConfiguration: JSON value` |
 | `CreateMaintenanceWindowRequest` | `startsAt`, `endsAt` (nullable timestamp strings at decoding boundary; required by validation and restricted to an explicit zero UTC offset) |
+| `ReplaceStatusPageDraftRequest` | `title` nullable string at decoding boundary; `version` non-negative integer (`0` creates); `components: ReplaceStatusComponentInput[]` in desired order |
+| `ReplaceStatusComponentInput` | `monitorId`, `label` nullable strings at decoding boundary; required by validation |
 
 Current Organization role strings are exactly `Administrator` and `Viewer`. Monitor state strings are
 exactly `draft`, `active`, `paused`, and `archived`. The only supported check type is
@@ -192,6 +196,8 @@ antiforgery and origin rules in section 5 also apply.
 | `POST /api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/activate` | `integration.manage`, unsafe | `200 WebhookIntegrationResponse`; activates the pending secret and marks the former active secret retiring | `400`, `404`, `409`, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/retire` | `integration.manage`, unsafe | `200 WebhookIntegrationResponse`; clears the retiring secret's ciphertext and retains audit metadata | `400`, `404`, `409` while unfinished deliveries still reference the secret, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | `monitor.write`, unsafe | `201 MonitorResponse` and canonical monitor `Location` | `400`, `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/status-page/draft` | `statusPage.write` | `200 StatusPageDraftResponse`; `204` before configuration exists | `404`, `401`, `403` |
+| `PUT /api/v1/organizations/{organizationId}/status-page/draft` | `statusPage.write`, unsafe | `200 StatusPageDraftResponse`; whole-draft replacement keeps array order | `400` invalid or unavailable Monitor; `409` stale version; `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | `monitor.read` | `200 MonitorResponse[]` in creation order, UUID as tie-breaker | `404` if the Project is not in the Organization; `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}` | `monitor.read` | `200 MonitorResponse` | `404`, `401`, `403` |
 | `PUT /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/name` | `monitor.write`, unsafe | `200 MonitorResponse` | `400`, `404`, `409`, `401`, `403` |
@@ -249,9 +255,9 @@ Organization roles and the permissions they carry are `Administrator` (every per
 including ones added in later releases) and `Viewer` (every read permission). The
 permissions in use are `organization.read`, `organization.write`, `monitor.read`,
 `monitor.write`, `incident.read`, `incident.write`, `alert.read`, and
-`maintenance.read`, `maintenance.write`, and `integration.manage`. The last permission
-deliberately does not end in `.read` because Webhook destinations are Administrator-only
-configuration rather than Viewer evidence.
+`maintenance.read`, `maintenance.write`, `integration.manage`, and `statusPage.write`.
+The last two permissions deliberately do not end in `.read` because Webhook destinations
+and private status configuration are Administrator-only rather than Viewer evidence.
 The permission catalog itself is internal and not published; endpoints document the
 permission they require. Provisioning makes the creator an `Administrator` member of the
 new Organization in the same transaction, so no Organization exists without a member.
@@ -635,6 +641,27 @@ through `maintenance.write`.
 Maintenance does not pause checks or rewrite, suppress, or hide Runs, Observations,
 evaluated health, Incidents, or Alerts. Webhook routing overlays that evidence at the Alert
 occurrence instant: an applicable route retains the explicit window attribution as terminal
+### Private status-page drafts
+
+An Organization has at most one private status-page draft. Creating it uses request
+version `0`; updates use the current positive version and return `409
+statusPage.concurrentUpdate` when stale. A draft contains a 1-to-100-UTF-16-unit title
+and one through fifty explicitly selected components. Array order is presentation order.
+
+Each component has its own stable UUID, one Organization-scoped Monitor reference, and an
+operator-chosen 1-to-100-UTF-16-unit label. Keeping component and Monitor identities
+distinct allows public naming and order without renaming monitoring configuration. A
+Monitor appears at most once. An archived, cross-Organization, missing, or concurrently
+archived Monitor fails the whole replacement as `400
+statusPage.component.monitorUnavailable`; the response does not distinguish these cases.
+Unchanged Monitor selections keep their component identity across replacement.
+
+The draft response and tables contain no Monitor target, revision, Run, Observation,
+health detail, Incident, Alert, Integration, member, secret, publication token, or
+anonymous URL. Both `GET` and `PUT` require `statusPage.write`, so Viewers receive `403`
+and non-members receive the normal non-disclosing `404`. This slice defines no anonymous
+route. Publication and revocation are separate later operations.
+
 suppression evidence and creates no Delivery Attempt.
 
 ### Run and Observation queries
@@ -769,6 +796,19 @@ All listed columns are `NOT NULL` unless marked nullable.
   `authenticated_at`, and `expires_at`, with a cascading user foreign key and
   indexes for user lookup and expiry cleanup.
 - `antiforgery_tokens`: 32-byte selector and request-token hashes, one required
+- `status_pages`: `id uuid` PK `pk_status_pages`; `organization_id uuid` unique;
+  `title varchar(100)`; positive `version bigint`; `created_at`, `updated_at` as
+  `timestamptz`. The Organization foreign key cascades, and checks enforce trimmed title
+  length and timestamp order.
+- `status_page_components`: distinct component `id uuid` PK; `organization_id uuid`;
+  `status_page_id uuid`; `monitor_id uuid`; `label varchar(100)`; zero-based `position`
+  from 0 through 49. Composite page and Monitor foreign keys carry Organization identity
+  and cascade. `(status_page_id, position)` and `(status_page_id, monitor_id)` are unique;
+  the feature validates one through fifty components before the transactional replacement.
+  Whole-draft replacement locks the page, updates its optimistic version, deletes prior
+  component rows, verifies every Monitor is in the Organization and not archived, inserts
+  all ordered components, and commits atomically.
+
   session token hash, fixed expiry, and a unique record per authenticated session.
 - `anonymous_antiforgery_keys`: one row identified by the checked singleton id
   `1`, containing exactly 32 bytes of HMAC key material and its creation time.
@@ -1048,6 +1088,14 @@ maintenance.window.ended      maintenance.concurrentUpdate
 Check configuration:
 
 ```text
+Status-page drafts:
+
+```text
+statusPage.title.invalid              statusPage.components.invalid
+statusPage.component.label.invalid    statusPage.component.monitor.invalid
+statusPage.component.monitor.duplicate statusPage.component.monitorUnavailable
+statusPage.concurrentUpdate
+```
 check.checkType.unsupported          check.schemaVersion.unsupported
 check.configuration.notObject        check.configuration.tooLarge
 check.http.field.unknown

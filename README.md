@@ -45,6 +45,7 @@ The current foundation implements:
 - An antiforgery-protected manual Run endpoint that executes a Monitor's latest revision immediately through the same bounded worker.
 - Fully scoped Run history and Observation query APIs with bounded keyset pagination and stable filters.
 - Auditable Monitor health evaluation with explicit failure and recovery confirmation Runs, honest single-location quorum counts, and staleness handling.
+- Administrator-only private status-page drafts with explicitly selected Monitor-backed components, operator-chosen public labels, and deterministic ordering.
 - Automatic per-Monitor Incidents with open, acknowledge, and resolve lifecycle, immutable timelines, scoped keyset query APIs, and PostgreSQL-backed outbox dispatch.
 - Immutable Alert intents for Incident opening and confirmed recovery, with Monitor-scoped API and React audit history whose separate delivery evidence distinguishes no route, pending work, maintenance suppression, and attempt outcomes.
 - Administrator-only signed Webhook Integrations with one-time-disclosed secrets, operator-keyring encryption, two-phase rotation, point-in-time Alert routing, strict HTTPS delivery, bounded retries, and Viewer-safe delivery-attempt evidence.
@@ -60,7 +61,7 @@ The current foundation implements:
 
 Operator readiness for the self-hosted HTTP dogfood milestone and bounded maintenance
 controls, including their event-time Webhook delivery effects, are implemented in the
-current source. Status pages and Agents remain later work.
+current source. Private status configuration is implemented; anonymous status publication and Agents remain later work.
 
 ## Get Started
 
@@ -78,13 +79,13 @@ Useful project references:
 
 ## Current Focus
 
-The current source extends the self-hosted HTTP dogfood baseline with bounded
-maintenance controls and event-time Webhook suppression evidence. Private status
-configuration, public status communication, workflow closure, and release validation
+The current source extends the self-hosted HTTP dogfood baseline with bounded maintenance
+and private status-page configuration. Public status communication, workflow closure,
+and release validation
 remain queued.
 The project remains pre-alpha; no release claim is made.
 
-New Check Types, remote Agents, identity expansion, public status pages, CLI, monitoring as code, Kubernetes packaging, and hosted-service implementation remain deferred until self-hosted dogfood establishes the next concrete product need.
+New Check Types, remote Agents, identity expansion, richer status pages, CLI, monitoring as code, Kubernetes packaging, and hosted-service implementation remain deferred until self-hosted dogfood establishes the next concrete product need.
 
 ## Architecture
 

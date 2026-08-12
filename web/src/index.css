@@ -998,3 +998,70 @@ dd {
 .maintenance-cancel {
   white-space: nowrap;
 }
+
+.status-page-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #d7dde5;
+}
+
+.status-page-section h2 {
+  margin: 0;
+}
+
+.status-page-form {
+  display: grid;
+  gap: 1rem;
+  max-width: 48rem;
+}
+
+.status-page-form fieldset {
+  margin: 0;
+  padding: 0.8rem;
+  border: 1px solid #c6ced8;
+}
+
+.status-monitor-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.6rem;
+}
+
+.status-monitor-options label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.status-component-list {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0;
+  padding-left: 1.8rem;
+}
+
+.status-component-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: end;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid #e4e8ed;
+}
+
+.status-component-list label {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.status-order-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+@media (max-width: 38rem) {
+  .status-component-list li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

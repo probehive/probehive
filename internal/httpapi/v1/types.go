@@ -79,6 +79,33 @@ type MaintenanceWindowResponse struct {
 	CreatedAt      time.Time  `json:"createdAt"`
 	CancelledAt    *time.Time `json:"cancelledAt"`
 }
+type StatusPageDraftResponse struct {
+	ID             string                    `json:"id"`
+	OrganizationID string                    `json:"organizationId"`
+	Title          string                    `json:"title"`
+	Version        int64                     `json:"version"`
+	Components     []StatusComponentResponse `json:"components"`
+	CreatedAt      time.Time                 `json:"createdAt"`
+	UpdatedAt      time.Time                 `json:"updatedAt"`
+}
+
+type StatusComponentResponse struct {
+	ID        string `json:"id"`
+	MonitorID string `json:"monitorId"`
+	Label     string `json:"label"`
+	Position  int    `json:"position"`
+}
+
+type ReplaceStatusPageDraftRequest struct {
+	Title      *string                       `json:"title"`
+	Version    Integer                       `json:"version"`
+	Components []ReplaceStatusComponentInput `json:"components"`
+}
+
+type ReplaceStatusComponentInput struct {
+	MonitorID *string `json:"monitorId"`
+	Label     *string `json:"label"`
+}
 
 type MonitorHealthResponse struct {
 	OrganizationID            string                   `json:"organizationId"`

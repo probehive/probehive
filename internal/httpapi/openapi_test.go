@@ -43,6 +43,7 @@ func TestOpenAPIDocumentDescribesEveryRoute(t *testing.T) {
 		"/api/v1/organizations/{organizationId}/webhook-integrations":                                                                       {"get", "post"},
 		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/state":                                                 {"put"},
 		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/prepare":                               {"post"},
+		"/api/v1/organizations/{organizationId}/status-page/draft":                                                                          {"get", "put"},
 		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/activate":                              {"post"},
 		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/retire":                                {"post"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors":                                                              {"get", "post"},
@@ -152,7 +153,7 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 	}
 	for _, name := range []string{
 		"RunPageResponse", "RunResponse", "ConfirmationCauseResponse", "ObservationResponse",
-		"MaintenanceWindowResponse",
+		"MaintenanceWindowResponse", "StatusPageDraftResponse", "StatusComponentResponse",
 		"MonitorHealthResponse", "HealthCountsResponse", "IncidentPageResponse", "IncidentResponse", "IncidentTimelineResponse",
 		"AlertPageResponse", "AlertResponse", "AlertDeliveryPageResponse",
 		"AlertDeliveryResponse", "DeliveryAttemptResponse",
@@ -171,6 +172,7 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 		"WebhookIntegrationVersionRequest", "WebhookIntegrationStateRequest",
 		"CreateMonitorRequest", "RenameMonitorRequest", "ChangeMonitorStateRequest",
 		"CreateMonitorRevisionRequest", "CreateMaintenanceWindowRequest",
+		"ReplaceStatusPageDraftRequest", "ReplaceStatusComponentInput",
 	}
 	for _, name := range requestSchemas {
 		if got := document.Components.Schemas[name].PropertyNameComparison; got != "ascii-case-insensitive" {

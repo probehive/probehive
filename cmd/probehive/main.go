@@ -28,6 +28,7 @@ import (
 	"github.com/probehive/probehive/internal/password"
 	"github.com/probehive/probehive/internal/postgres"
 	"github.com/probehive/probehive/internal/run"
+	"github.com/probehive/probehive/internal/statuspage"
 	"github.com/probehive/probehive/internal/user"
 	"github.com/probehive/probehive/internal/uuidv7"
 	"github.com/probehive/probehive/internal/webhook"
@@ -104,6 +105,7 @@ func serve(logger *slog.Logger) error {
 	runQueries := run.NewQueryService(database.Runs())
 	healthService := health.NewService(database.Health(), systemClock, identifiers)
 	maintenanceService := maintenance.NewService(database.Maintenance(), systemClock, identifiers)
+	statusPageService := statuspage.NewService(database.StatusPages(), systemClock, identifiers)
 	incidentService := incident.NewService(database.Incidents(), systemClock, identifiers)
 	alertService := alert.NewService(database.Alerts(), systemClock, identifiers)
 	webhookService := webhook.NewService(
@@ -132,6 +134,7 @@ func serve(logger *slog.Logger) error {
 		ManualRuns:                  manualRuns,
 		MonitorHealth:               healthService,
 		Maintenance:                 maintenanceService,
+		StatusPages:                 statusPageService,
 		Incidents:                   incidentService,
 		Alerts:                      alertService,
 		Webhooks:                    webhookService,

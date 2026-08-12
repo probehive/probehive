@@ -30,6 +30,7 @@ function renderPage(organizationId: string) {
 test('renders the organization and its default project', async () => {
   const monitorURL = `/api/v1/organizations/${organization.id}/projects/${organization.defaultProject.id}/monitors`
   const fetchMock = mockFetchRoutes({
+    [`/api/v1/organizations/${organization.id}/status-page/draft`]: () => new Response(null, { status: 204 }),
     [monitorURL]: () => jsonResponse(200, []),
     [`/api/v1/organizations/${organization.id}`]: () => jsonResponse(200, organization),
   })
