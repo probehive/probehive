@@ -121,8 +121,12 @@ as JSON `null` when absent.
 | `MonitorResponse` | `id`, `organizationId`, `projectId` as UUID strings; `name`, `checkType`, `state` as strings; `intervalSeconds`, `latestRevisionNumber` as integers; `createdAt`, `updatedAt` as UTC timestamp strings |
 | `MonitorRevisionResponse` | `id`, `monitorId` as UUID strings; `revisionNumber: integer`; `checkType: string`; `checkSchemaVersion: integer`; `checkConfiguration: JSON value`; `createdAt: UTC timestamp string` |
 | `MaintenanceWindowResponse` | `id`, `organizationId`, `projectId`, `monitorId` as UUID strings; `startsAt`, `endsAt`, `createdAt` as UTC timestamp strings; `status` exactly `upcoming`, `active`, `ended`, or `cancelled`; `cancelledAt: nullable UTC timestamp string` |
-| `StatusPageDraftResponse` | `id`, `organizationId` as UUID strings; `title`; positive `version`; `components: StatusComponentResponse[]` in deterministic position order; `createdAt`, `updatedAt` as UTC timestamp strings |
+| `StatusPageDraftResponse` | `id`, `organizationId` as UUID strings; `title`; positive `version`; `components: StatusComponentResponse[]` in deterministic position order; `publication: nullable StatusPagePublicationResponse`; `createdAt`, `updatedAt` as UTC timestamp strings |
 | `StatusComponentResponse` | component `id`, selected `monitorId` as distinct UUID strings; operator-chosen `label`; zero-based `position` |
+| `StatusPagePublicationResponse` | `publishedAt: UTC timestamp string`; never a token or URL |
+| `PublishStatusPageResponse` | one-time `publicUrl`; `publishedAt: UTC timestamp string` |
+| `PublicStatusPageResponse` | `title`; `components: PublicStatusComponentResponse[]` in draft order |
+| `PublicStatusComponentResponse` | operator `label`; `state` exactly `unknown`, `healthy`, `degraded`, or `down`; `updatedAt: UTC timestamp string`; `maintenance: boolean` |
 | `MonitorHealthResponse` | scoped Organization, Project, and Monitor UUIDs; `state`, `stableState`, `policyVersion`; `version`; nullable source revision, Run, cohort, candidate, and determinate-finish pointers; `counts: HealthCountsResponse`; transition/update timestamps |
 | `HealthCountsResponse` | `configured`, `eligible`, `responding`, `passing`, `failing`, `locationFault`, `indeterminate`, and `missing` non-negative integers |
 | `RunPageResponse` | `items: RunResponse[]`; `nextCursor: nullable opaque string` |
@@ -198,6 +202,9 @@ antiforgery and origin rules in section 5 also apply.
 | `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | `monitor.write`, unsafe | `201 MonitorResponse` and canonical monitor `Location` | `400`, `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/status-page/draft` | `statusPage.write` | `200 StatusPageDraftResponse`; `204` before configuration exists | `404`, `401`, `403` |
 | `PUT /api/v1/organizations/{organizationId}/status-page/draft` | `statusPage.write`, unsafe | `200 StatusPageDraftResponse`; whole-draft replacement keeps array order | `400` invalid or unavailable Monitor; `409` stale version; `404`, `401`, `403` |
+| `POST /api/v1/organizations/{organizationId}/status-page/publication` | `statusPage.write`, unsafe | `201 PublishStatusPageResponse`; publishes the existing draft and reveals the URL once | `409` no draft or already published; `404`, `401`, `403` |
+| `DELETE /api/v1/organizations/{organizationId}/status-page/publication` | `statusPage.write`, unsafe | `204`; idempotently revokes anonymous access | `404`, `401`, `403` |
+| `GET /api/v1/status-pages/{publicationToken}` | Anonymous, public-status rate limit | `200 PublicStatusPageResponse`; `Cache-Control: no-store` | byte-identical `404` for invalid, missing, or revoked token; `429` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | `monitor.read` | `200 MonitorResponse[]` in creation order, UUID as tie-breaker | `404` if the Project is not in the Organization; `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}` | `monitor.read` | `200 MonitorResponse` | `404`, `401`, `403` |
 | `PUT /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/name` | `monitor.write`, unsafe | `200 MonitorResponse` | `400`, `404`, `409`, `401`, `403` |
@@ -238,8 +245,9 @@ Development alone exposes anonymous `GET /openapi/v1.json`. There is no OpenAPI 
 ## 4. Authentication, Authorization, and Rate Limiting
 
 Authorization is deny by default for every endpoint. Explicit anonymous exceptions
-are `/healthz`, `/readyz`, development OpenAPI, setup status, setup admin, login, and
-antiforgery issuance. Logout, session, and the Organization list require authentication.
+are `/healthz`, `/readyz`, development OpenAPI, setup status, setup admin, login,
+antiforgery issuance, and an opaque `/api/v1/status-pages/{publicationToken}` read.
+Logout, session, and the Organization list require authentication.
 Creating an Organization requires the instance `Administrator` role.
 
 Every endpoint under `/api/v1/organizations/{organizationId}/` resolves the caller's
@@ -275,6 +283,10 @@ peer IP string (or `unknown` when absent):
 - no queue, so the next attempt receives `429` immediately;
 - the limit is shared by setup and login for one address;
 - it applies to attempts reaching those endpoints, not only failed credentials.
+
+Anonymous status reads use an independent fixed-window limiter with the same bounded
+partition behavior and a default allowance of 120 reads per transport address per minute.
+Invalid, missing, and revoked publication capabilities all use the same hidden `404`.
 
 Proxy-derived client IP is not trusted until a separately reviewed forwarded-client
 deployment profile exists.
@@ -641,7 +653,9 @@ through `maintenance.write`.
 Maintenance does not pause checks or rewrite, suppress, or hide Runs, Observations,
 evaluated health, Incidents, or Alerts. Webhook routing overlays that evidence at the Alert
 occurrence instant: an applicable route retains the explicit window attribution as terminal
-### Private status-page drafts
+suppression evidence and creates no Delivery Attempt.
+
+### Status-page drafts and publication
 
 An Organization has at most one private status-page draft. Creating it uses request
 version `0`; updates use the current positive version and return `409
@@ -656,13 +670,26 @@ archived Monitor fails the whole replacement as `400
 statusPage.component.monitorUnavailable`; the response does not distinguish these cases.
 Unchanged Monitor selections keep their component identity across replacement.
 
-The draft response and tables contain no Monitor target, revision, Run, Observation,
-health detail, Incident, Alert, Integration, member, secret, publication token, or
-anonymous URL. Both `GET` and `PUT` require `statusPage.write`, so Viewers receive `403`
-and non-members receive the normal non-disclosing `404`. This slice defines no anonymous
-route. Publication and revocation are separate later operations.
+The draft response and configuration rows contain no Monitor target, revision, Run,
+Observation, health detail, Incident, Alert, Integration, member, or secret. Both `GET`
+and `PUT` require `statusPage.write`, so Viewers receive `403` and non-members receive the
+normal non-disclosing `404`.
 
-suppression evidence and creates no Delivery Attempt.
+Publishing requires the same permission, origin validation, and antiforgery. It creates a
+32-byte random base64url path capability, persists only its SHA-256 digest and publication
+instant, and returns the complete anonymous URL once. Authenticated draft reads expose
+only `publishedAt`; an operator rotates a lost URL by revoking and publishing again.
+Revocation clears the digest idempotently, so the old capability stops resolving
+immediately without deleting the draft.
+
+Anonymous reads compare the supplied token digest and return only the page title plus
+each selected component's operator label, current evaluated state, state update instant,
+and whether a non-cancelled maintenance window is active at the read instant. A Monitor
+that is not active presents `unknown` and no maintenance. Component order is the private
+draft order. Responses are `no-store`, independently rate limited, and contain no tenant,
+Monitor, component, target, evidence, causal-link, configuration, membership, Integration,
+secret, or token identity. They describe only current state and make no uptime, history,
+delivery, Incident-detail, or SLO claim.
 
 ### Run and Observation queries
 
@@ -798,8 +825,10 @@ All listed columns are `NOT NULL` unless marked nullable.
 - `antiforgery_tokens`: 32-byte selector and request-token hashes, one required
 - `status_pages`: `id uuid` PK `pk_status_pages`; `organization_id uuid` unique;
   `title varchar(100)`; positive `version bigint`; `created_at`, `updated_at` as
-  `timestamptz`. The Organization foreign key cascades, and checks enforce trimmed title
-  length and timestamp order.
+  `timestamptz`; nullable `publication_token_hash bytea` and `published_at timestamptz`
+  that are both present or both absent. The publication digest is exactly 32 bytes and
+  uniquely indexed when present. The Organization foreign key cascades, and checks enforce
+  trimmed title length and timestamp order.
 - `status_page_components`: distinct component `id uuid` PK; `organization_id uuid`;
   `status_page_id uuid`; `monitor_id uuid`; `label varchar(100)`; zero-based `position`
   from 0 through 49. Composite page and Monitor foreign keys carry Organization identity

@@ -186,3 +186,42 @@ test('removes a component whose Monitor is no longer available', async () => {
     components: [{ monitorId: monitors[0]!.id, label: 'API' }],
   })
 })
+
+test('publishes a one-time anonymous URL and revokes it', async () => {
+  const user = userEvent.setup()
+  const publicationURL = `/api/v1/organizations/${organizationId}/status-page/publication`
+  const publicURL = 'https://status.example/status/opaque-token'
+  let published = false
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    if (url === publicationURL && init?.method === 'POST') {
+      published = true
+      return jsonResponse(201, { publicUrl: publicURL, publishedAt: '2026-08-13T00:00:00Z' })
+    }
+    if (url === publicationURL && init?.method === 'DELETE') {
+      published = false
+      return new Response(null, { status: 204 })
+    }
+    if (url === draftURL) {
+      return jsonResponse(200, {
+        id: 'page', organizationId, title: 'Service Status', version: 1,
+        components: [{ id: 'a', monitorId: monitors[0]!.id, label: 'Public API', position: 0 }],
+        publication: published ? { publishedAt: '2026-08-13T00:00:00Z' } : null,
+        createdAt: '2026-08-12T00:00:00Z', updatedAt: '2026-08-12T00:00:00Z',
+      })
+    }
+    if (url === monitorsURL) return jsonResponse(200, monitors)
+    throw new Error(`Unexpected fetch: ${url}`)
+  })
+  renderSection()
+
+  const form = await screen.findByRole('form', { name: en['statusPage.form'] })
+  await user.click(within(form).getByRole('button', { name: en['statusPage.publication.publish'] }))
+  expect(await within(form).findByRole('link', { name: publicURL })).toHaveAttribute('href', publicURL)
+  expect(within(form).getByText(en['statusPage.publication.once'])).toBeInTheDocument()
+
+  await user.click(within(form).getByRole('button', { name: en['statusPage.publication.revoke'] }))
+  expect(await within(form).findByText(en['statusPage.publication.revoked'])).toBeInTheDocument()
+  expect(within(form).queryByRole('link', { name: publicURL })).not.toBeInTheDocument()
+  expect(within(form).getByRole('button', { name: en['statusPage.publication.publish'] })).toBeEnabled()
+})

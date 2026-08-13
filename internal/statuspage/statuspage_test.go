@@ -2,6 +2,7 @@ package statuspage
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"testing"
 	"time"
@@ -35,6 +36,11 @@ func (store *memoryStore) ReplaceDraft(_ context.Context, draft Draft, _ int64) 
 	}
 	store.draft, store.found = draft, true
 	return nil
+}
+func (store *memoryStore) Publish(context.Context, string, Publication) error { return store.err }
+func (store *memoryStore) Revoke(context.Context, string) error               { return store.err }
+func (store *memoryStore) FindPublicPage(context.Context, TokenHash, time.Time) (PublicPage, bool, error) {
+	return PublicPage{}, false, store.err
 }
 
 func TestReplaceValidatesThenCreatesAnOrderedPrivateDraft(t *testing.T) {
@@ -156,5 +162,56 @@ func TestReplaceMapsUnavailableAndConcurrentStoreResults(t *testing.T) {
 	}
 	if !errors.Is(ErrConcurrentUpdate, ErrConcurrentUpdate) {
 		t.Fatal("sentinel mismatch")
+	}
+}
+
+func TestPublicationHashesCapabilitiesAndMapsConflicts(t *testing.T) {
+	now := time.Date(2026, 8, 13, 1, 2, 3, 0, time.UTC)
+	token := base64.RawURLEncoding.EncodeToString(make([]byte, 32))
+	tokenHash, valid := HashPublicationToken(token)
+	if !valid || tokenHash == (TokenHash{}) || string(tokenHash[:]) == token {
+		t.Fatalf("HashPublicationToken() valid/hash = %v/%x", valid, tokenHash)
+	}
+	if _, valid = HashPublicationToken(token + "="); valid {
+		t.Fatal("padded publication token was accepted")
+	}
+
+	service := NewService(&memoryStore{}, testClock{now}, &sequenceUUIDs{})
+	published, err := service.Publish(t.Context(), "organization", token)
+	if err != nil || published.Kind != PublishPublished ||
+		published.Publication.TokenHash != tokenHash || published.Publication.PublishedAt != now {
+		t.Fatalf("Publish() = %#v, %v", published, err)
+	}
+	for _, test := range []struct {
+		err  error
+		kind PublishKind
+		code string
+	}{
+		{ErrDraftMissing, PublishDraftMissing, DraftMissingCode},
+		{ErrAlreadyPublished, PublishAlreadyPublished, AlreadyPublishedCode},
+	} {
+		service = NewService(&memoryStore{err: test.err}, testClock{now}, &sequenceUUIDs{})
+		result, publishErr := service.Publish(t.Context(), "organization", token)
+		if publishErr != nil || result.Kind != test.kind || result.Code != test.code {
+			t.Fatalf("Publish(%v) = %#v, %v", test.err, result, publishErr)
+		}
+	}
+	if _, err = service.Publish(t.Context(), "organization", "invalid"); err == nil {
+		t.Fatal("invalid publication token was accepted")
+	}
+}
+
+func TestRestorePublicPageRejectsEvidenceBearingOrInvalidState(t *testing.T) {
+	now := time.Date(2026, 8, 13, 1, 2, 3, 0, time.UTC)
+	page, err := RestorePublicPage("Service Status", []PublicComponent{{
+		Label: "API", State: "healthy", UpdatedAt: now, Maintenance: true,
+	}})
+	if err != nil || page.Components[0].State != "healthy" || !page.Components[0].Maintenance {
+		t.Fatalf("RestorePublicPage() = %#v, %v", page, err)
+	}
+	if _, err = RestorePublicPage("Service Status", []PublicComponent{{
+		Label: "API", State: "incident-open", UpdatedAt: now,
+	}}); err == nil {
+		t.Fatal("unsupported public state was accepted")
 	}
 }

@@ -44,6 +44,8 @@ func TestOpenAPIDocumentDescribesEveryRoute(t *testing.T) {
 		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/state":                                                 {"put"},
 		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/prepare":                               {"post"},
 		"/api/v1/organizations/{organizationId}/status-page/draft":                                                                          {"get", "put"},
+		"/api/v1/organizations/{organizationId}/status-page/publication":                                                                    {"post", "delete"},
+		"/api/v1/status-pages/{publicationToken}":                                                                                           {"get"},
 		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/activate":                              {"post"},
 		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/retire":                                {"post"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors":                                                              {"get", "post"},
@@ -154,6 +156,8 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 	for _, name := range []string{
 		"RunPageResponse", "RunResponse", "ConfirmationCauseResponse", "ObservationResponse",
 		"MaintenanceWindowResponse", "StatusPageDraftResponse", "StatusComponentResponse",
+		"StatusPagePublicationResponse", "PublishStatusPageResponse",
+		"PublicStatusPageResponse", "PublicStatusComponentResponse",
 		"MonitorHealthResponse", "HealthCountsResponse", "IncidentPageResponse", "IncidentResponse", "IncidentTimelineResponse",
 		"AlertPageResponse", "AlertResponse", "AlertDeliveryPageResponse",
 		"AlertDeliveryResponse", "DeliveryAttemptResponse",

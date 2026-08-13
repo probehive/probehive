@@ -3,6 +3,7 @@ package httpapi
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	api "github.com/probehive/probehive/internal/httpapi/v1"
 	"github.com/probehive/probehive/internal/organization"
@@ -91,6 +92,90 @@ func (server *Server) statusPageDraft(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (server *Server) statusPagePublication(w http.ResponseWriter, r *http.Request) {
+	organizationID, ok := canonicalUUID(r.PathValue("organizationId"))
+	if !ok {
+		writeStatusProblem(w, http.StatusNotFound)
+		return
+	}
+	if r.Method != http.MethodPost && r.Method != http.MethodDelete {
+		methodNotAllowed(w, http.MethodPost, http.MethodDelete)
+		return
+	}
+	if _, ok = server.protectUnsafe(w, r, func(
+		writer http.ResponseWriter, request *http.Request,
+	) (*authenticatedSession, bool) {
+		return server.requireOrganizationPermission(
+			writer, request, organizationID, organization.PermissionStatusPageWrite,
+		)
+	}); !ok {
+		return
+	}
+	if r.Method == http.MethodDelete {
+		if err := server.statusPages.Revoke(r.Context(), organizationID); err != nil {
+			server.internalError(w, r, "revoke status page", err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	_, token, err := server.newOpaqueToken()
+	if err != nil {
+		server.internalError(w, r, "generate status page publication token", err)
+		return
+	}
+	result, err := server.statusPages.Publish(r.Context(), organizationID, token)
+	if err != nil {
+		server.internalError(w, r, "publish status page", err)
+		return
+	}
+	switch result.Kind {
+	case statuspage.PublishPublished:
+		writeJSON(w, http.StatusCreated, api.PublishStatusPageResponse{
+			PublicURL:   server.requestOrigin(r) + "/status/" + token,
+			PublishedAt: result.Publication.PublishedAt,
+		})
+	case statuspage.PublishDraftMissing, statuspage.PublishAlreadyPublished:
+		writeCodedProblem(w, http.StatusConflict, result.Code, statuspage.PublicationRejectedTitle, result.Detail)
+	default:
+		server.internalError(w, r, "publish status page", errUnexpectedResult)
+	}
+}
+
+func (server *Server) publicStatusPage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w, http.MethodGet)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	if !server.publicStatus.allow(credentialPartition(r)) {
+		writeStatusProblem(w, http.StatusTooManyRequests)
+		return
+	}
+	token := r.PathValue("publicationToken")
+	if token == "" || strings.Contains(token, "/") {
+		writeStatusProblem(w, http.StatusNotFound)
+		return
+	}
+	page, found, err := server.statusPages.GetPublic(r.Context(), token)
+	if err != nil {
+		server.internalError(w, r, "get public status page", err)
+		return
+	}
+	if !found {
+		writeStatusProblem(w, http.StatusNotFound)
+		return
+	}
+	components := make([]api.PublicStatusComponentResponse, len(page.Components))
+	for index, component := range page.Components {
+		components[index] = api.PublicStatusComponentResponse{
+			Label: component.Label, State: component.State,
+			UpdatedAt: component.UpdatedAt, Maintenance: component.Maintenance,
+		}
+	}
+	writeJSON(w, http.StatusOK, api.PublicStatusPageResponse{Title: page.Title, Components: components})
+}
+
 func toStatusPageDraftResponse(value statuspage.Draft) api.StatusPageDraftResponse {
 	components := make([]api.StatusComponentResponse, len(value.Components))
 	for index, component := range value.Components {
@@ -99,10 +184,15 @@ func toStatusPageDraftResponse(value statuspage.Draft) api.StatusPageDraftRespon
 			Label: component.Label, Position: component.Position,
 		}
 	}
+	var publication *api.StatusPagePublicationResponse
+	if value.Publication != nil {
+		publication = &api.StatusPagePublicationResponse{PublishedAt: value.Publication.PublishedAt}
+	}
 	return api.StatusPageDraftResponse{
 		ID: string(value.ID), OrganizationID: value.OrganizationID,
 		Title: value.Title, Version: value.Version, Components: components,
-		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		Publication: publication,
+		CreatedAt:   value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
 

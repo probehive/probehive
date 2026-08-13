@@ -10,6 +10,7 @@ import LoginPage from './routes/LoginPage.tsx'
 import MonitorPage from './routes/MonitorPage.tsx'
 import OrganizationPage from './routes/OrganizationPage.tsx'
 import OrganizationsPage from './routes/OrganizationsPage.tsx'
+import PublicStatusPage from './routes/PublicStatusPage.tsx'
 import SetupPage from './routes/SetupPage.tsx'
 import './index.css'
 
@@ -28,6 +29,7 @@ const router = createBrowserRouter([
     children: [
       { path: 'login', element: <LoginPage /> },
       { path: 'setup', element: <SetupPage /> },
+      { path: 'status/:publicationToken', element: <PublicStatusPage /> },
       {
         element: <RequireAuth />,
         children: [

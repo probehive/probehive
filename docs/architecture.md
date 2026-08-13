@@ -59,8 +59,12 @@ Organization -> Project -> Monitor -> Monitor Revision -> Run -> Observation
 
 Status Components are Organization-owned communication identities associated with
 explicitly selected Monitors; they are not Monitors and do not copy targets or monitoring
-evidence into configuration. Draft configuration is private. Anonymous publication,
-revocation, and disclosure-safe current-state projection are separate boundaries.
+evidence into configuration. Draft configuration is private. Publishing creates a random
+capability URL and persists only its SHA-256 digest and activation instant. Revocation
+removes that digest immediately. Anonymous reads resolve the digest into a live projection
+containing only the draft title, component labels, current evaluated states, update
+instants, and active-maintenance presentation. They expose no internal identity, target,
+evidence, membership, Integration, or secret and make no uptime or historical claim.
 
 Organization is the tenant, authorization, and isolation boundary. Every
 Organization creation path uses the same idempotent core operation and creates a

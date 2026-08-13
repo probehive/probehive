@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"unicode/utf8"
 
 	api "github.com/probehive/probehive/internal/httpapi/v1"
@@ -135,7 +136,14 @@ func methodNotAllowed(w http.ResponseWriter, allowed ...string) {
 	writeStatusProblem(w, http.StatusMethodNotAllowed)
 }
 
+func requestLogPath(r *http.Request) string {
+	if strings.HasPrefix(r.URL.Path, "/api/v1/status-pages/") {
+		return "/api/v1/status-pages/{publicationToken}"
+	}
+	return r.URL.Path
+}
+
 func (server *Server) internalError(w http.ResponseWriter, r *http.Request, operation string, err error) {
-	server.logger.Error("request failed", "operation", operation, "method", r.Method, "path", r.URL.Path, "error", err)
+	server.logger.Error("request failed", "operation", operation, "method", r.Method, "path", requestLogPath(r), "error", err)
 	writeCodedProblem(w, http.StatusInternalServerError, internalErrorCode, "Internal Server Error", "")
 }

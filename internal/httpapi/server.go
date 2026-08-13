@@ -24,7 +24,10 @@ import (
 	"github.com/probehive/probehive/internal/webhook"
 )
 
-const defaultCredentialAttemptsPerMinute = 10
+const (
+	defaultCredentialAttemptsPerMinute = 10
+	defaultPublicStatusReadsPerMinute  = 120
+)
 
 type Clock interface {
 	Now() time.Time
@@ -55,6 +58,7 @@ type Config struct {
 	Logger                      *slog.Logger
 	Development                 bool
 	CredentialAttemptsPerMinute int
+	PublicStatusReadsPerMinute  int
 	PublicOrigin                string
 }
 
@@ -78,6 +82,7 @@ type Server struct {
 	logger        *slog.Logger
 	development   bool
 	credentials   *credentialLimiter
+	publicStatus  *credentialLimiter
 	publicOrigin  string
 	mux           *http.ServeMux
 }
@@ -99,6 +104,12 @@ func New(config Config) (*Server, error) {
 	if config.CredentialAttemptsPerMinute < 1 {
 		return nil, errors.New("credential attempts per minute must be positive")
 	}
+	if config.PublicStatusReadsPerMinute == 0 {
+		config.PublicStatusReadsPerMinute = defaultPublicStatusReadsPerMinute
+	}
+	if config.PublicStatusReadsPerMinute < 1 {
+		return nil, errors.New("public status reads per minute must be positive")
+	}
 	publicOrigin, err := normalizePublicOrigin(config.PublicOrigin)
 	if err != nil {
 		return nil, err
@@ -115,6 +126,7 @@ func New(config Config) (*Server, error) {
 		publicOrigin: publicOrigin,
 	}
 	server.credentials = newCredentialLimiter(config.CredentialAttemptsPerMinute, config.Clock.Now)
+	server.publicStatus = newCredentialLimiter(config.PublicStatusReadsPerMinute, config.Clock.Now)
 	server.mux = server.routes()
 	return server, nil
 }
@@ -126,7 +138,7 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			server.logger.Error("request panic", "method", r.Method, "path", r.URL.Path, "panic", recovered)
+			server.logger.Error("request panic", "method", r.Method, "path", requestLogPath(r), "panic", recovered)
 			writeProblem(w, http.StatusInternalServerError, "Internal Server Error", "")
 		}
 	}()
@@ -171,6 +183,8 @@ func (server *Server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions", server.monitorRevisions)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}", server.monitorRevisionItem)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/status-page/draft", server.statusPageDraft)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/status-page/publication", server.statusPagePublication)
+	mux.HandleFunc("/api/v1/status-pages/{publicationToken}", server.publicStatusPage)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows", server.maintenanceWindows)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows/{maintenanceWindowId}", server.maintenanceWindowItem)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows/{maintenanceWindowId}/cancel", server.cancelMaintenanceWindow)

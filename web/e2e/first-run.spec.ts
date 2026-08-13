@@ -40,7 +40,7 @@ async function unsafeJSON<T>(
 // The first critical journey: a fresh installation is set up and is immediately
 // usable, the administrator signs out and back in, and provisions a second
 // Organization.
-test('first run: setup lands on a provisioned Organization, then sign in and add another', async ({ page }) => {
+test('first run: setup lands on a provisioned Organization, then sign in and add another', async ({ browser, page }) => {
   test.setTimeout(240_000)
   // A fresh installation routes every visitor to first-administrator setup.
   await page.goto('/')
@@ -190,9 +190,57 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Run evidence' })).toBeVisible()
 
+  // Manual Runs preserve evidence but do not advance scheduled health. Wait for
+  // the real evaluator so the public-state assertion has a proven precondition.
+  await expect.poll(async () => page.evaluate(async (scope) => {
+    const response = await fetch(
+      `/api/v1/organizations/${scope.organizationId}/projects/${scope.projectId}` +
+      `/monitors/${scope.id}/health`,
+    )
+    if (!response.ok) return null
+    const body = await response.json() as { state: string }
+    return body.state
+  }, createdMonitor), { timeout: 60_000 }).toBe('healthy')
+
+  // Publish through the operator UI, then use a cookie-free browser context to
+  // follow the one-time URL and read only its current public projection.
+  await page.getByRole('link', { name: 'Back to Organization' }).click()
+  const statusPublication = page.getByRole('region', { name: 'Status page draft' })
+  const publicationResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST' &&
+    response.url().endsWith('/status-page/publication') &&
+    response.status() === 201,
+  )
+  await statusPublication.getByRole('button', { name: 'Publish status page' }).click()
+  const publication = await (await publicationResponse).json() as { publicUrl: string }
+  await expect(statusPublication.locator('.status-public-url a')).toHaveAttribute(
+    'href', publication.publicUrl,
+  )
+
+  const anonymousContext = await browser.newContext({ locale: 'en-US', timezoneId: 'UTC' })
+  const anonymousPage = await anonymousContext.newPage()
+  await anonymousPage.goto(publication.publicUrl)
+  await expect(anonymousPage.getByRole('heading', { name: 'My Services Status' })).toBeVisible()
+  await expect(anonymousPage.getByRole('heading', { name: 'Public API' })).toBeVisible()
+  await expect(anonymousPage.getByText('Operational', { exact: true })).toBeVisible()
+
+  const revocationResponse = page.waitForResponse((response) =>
+    response.request().method() === 'DELETE' &&
+    response.url().endsWith('/status-page/publication') &&
+    response.status() === 204,
+  )
+  await statusPublication.getByRole('button', { name: 'Revoke public access' }).click()
+  await revocationResponse
+  await expect(statusPublication.getByText('Anonymous access revoked.')).toBeVisible()
+
+  await anonymousPage.reload()
+  await expect(anonymousPage.getByRole('alert')).toHaveText(
+    'This status page is not available.',
+  )
+  await anonymousContext.close()
+
   // A scheduled failure plus its confirmation creates an open Incident. Poll the
   // real API for that durable state, then acknowledge it through the browser UI.
-  await page.getByRole('link', { name: 'Back to Organization' }).click()
   const organizationAPI = `/api/v1/organizations/${createdMonitor.organizationId}`
   const monitorsAPI = `${organizationAPI}/projects/${createdMonitor.projectId}/monitors`
   const webhook = await unsafeJSON<{

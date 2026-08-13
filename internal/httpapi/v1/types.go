@@ -80,13 +80,14 @@ type MaintenanceWindowResponse struct {
 	CancelledAt    *time.Time `json:"cancelledAt"`
 }
 type StatusPageDraftResponse struct {
-	ID             string                    `json:"id"`
-	OrganizationID string                    `json:"organizationId"`
-	Title          string                    `json:"title"`
-	Version        int64                     `json:"version"`
-	Components     []StatusComponentResponse `json:"components"`
-	CreatedAt      time.Time                 `json:"createdAt"`
-	UpdatedAt      time.Time                 `json:"updatedAt"`
+	ID             string                         `json:"id"`
+	OrganizationID string                         `json:"organizationId"`
+	Title          string                         `json:"title"`
+	Version        int64                          `json:"version"`
+	Components     []StatusComponentResponse      `json:"components"`
+	Publication    *StatusPagePublicationResponse `json:"publication"`
+	CreatedAt      time.Time                      `json:"createdAt"`
+	UpdatedAt      time.Time                      `json:"updatedAt"`
 }
 
 type StatusComponentResponse struct {
@@ -94,6 +95,27 @@ type StatusComponentResponse struct {
 	MonitorID string `json:"monitorId"`
 	Label     string `json:"label"`
 	Position  int    `json:"position"`
+}
+
+type StatusPagePublicationResponse struct {
+	PublishedAt time.Time `json:"publishedAt"`
+}
+
+type PublishStatusPageResponse struct {
+	PublicURL   string    `json:"publicUrl"`
+	PublishedAt time.Time `json:"publishedAt"`
+}
+
+type PublicStatusPageResponse struct {
+	Title      string                          `json:"title"`
+	Components []PublicStatusComponentResponse `json:"components"`
+}
+
+type PublicStatusComponentResponse struct {
+	Label       string    `json:"label"`
+	State       string    `json:"state"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+	Maintenance bool      `json:"maintenance"`
 }
 
 type ReplaceStatusPageDraftRequest struct {

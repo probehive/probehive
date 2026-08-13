@@ -297,7 +297,7 @@
         "tags": ["Status Pages"],
         "operationId": "getStatusPageDraft",
         "summary": "Return the private status-page draft",
-        "description": "Requires statusPage.write, which built-in roles grant only to Organization administrators. Returns no content before a draft exists. There is no anonymous route in this milestone slice.",
+        "description": "Requires statusPage.write, which built-in roles grant only to Organization administrators. Returns no content before a draft exists. Publication state includes only its activation instant, never the opaque token or anonymous URL.",
         "security": [{ "sessionCookie": [] }],
         "responses": {
           "200": {
@@ -335,6 +335,73 @@
           "403": { "$ref": "#/components/responses/Forbidden" },
           "404": { "$ref": "#/components/responses/NotFound" },
           "409": { "$ref": "#/components/responses/Conflict" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/status-page/publication": {
+      "parameters": [{ "$ref": "#/components/parameters/OrganizationID" }],
+      "post": {
+        "tags": ["Status Pages"],
+        "operationId": "publishStatusPage",
+        "summary": "Publish an opaque anonymous status URL",
+        "description": "Requires statusPage.write, origin validation, and antiforgery. Publishes the existing draft, persists only the SHA-256 token digest, and returns the anonymous URL exactly once. Revoke before publishing again to rotate the URL.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "responses": {
+          "201": {
+            "description": "The one-time public URL and publication instant.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PublishStatusPageResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      },
+      "delete": {
+        "tags": ["Status Pages"],
+        "operationId": "revokeStatusPage",
+        "summary": "Revoke anonymous status access",
+        "description": "Requires statusPage.write, origin validation, and antiforgery. Idempotently removes the stored token digest so the anonymous URL returns the ordinary hidden 404 immediately.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "responses": {
+          "204": { "description": "Anonymous access is revoked." },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/status-pages/{publicationToken}": {
+      "parameters": [{
+        "name": "publicationToken",
+        "in": "path",
+        "required": true,
+        "description": "The 256-bit base64url publication capability. Invalid and revoked values are indistinguishable.",
+        "schema": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" }
+      }],
+      "get": {
+        "tags": ["Status Pages"],
+        "operationId": "getPublicStatusPage",
+        "summary": "Return the disclosure-safe current status page",
+        "description": "Anonymous and rate limited. Returns no tenant, Monitor, component, target, evidence, Incident, Alert, Integration, member, or secret identifiers. Cache-Control is no-store. Current state makes no uptime, history, delivery, or incident-detail claim.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The current public status projection.",
+            "headers": { "Cache-Control": { "schema": { "type": "string", "const": "no-store" } } },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PublicStatusPageResponse" } } }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
           "405": { "$ref": "#/components/responses/MethodNotAllowed" }
         }
       }
@@ -1523,7 +1590,7 @@
       "StatusPageDraftResponse": {
         "type": "object",
         "description": "Private Organization-owned configuration only. It includes no Monitor target, internal evidence, publication token, or anonymous URL.",
-        "required": ["id", "organizationId", "title", "version", "components", "createdAt", "updatedAt"],
+        "required": ["id", "organizationId", "title", "version", "components", "publication", "createdAt", "updatedAt"],
         "properties": {
           "id": { "type": "string", "format": "uuid" },
           "organizationId": { "type": "string", "format": "uuid" },
@@ -1534,6 +1601,12 @@
             "minItems": 1,
             "maxItems": 50,
             "items": { "$ref": "#/components/schemas/StatusComponentResponse" }
+          },
+          "publication": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/StatusPagePublicationResponse" },
+              { "type": "null" }
+            ]
           },
           "createdAt": { "type": "string", "format": "date-time" },
           "updatedAt": { "type": "string", "format": "date-time" }
@@ -1548,6 +1621,46 @@
           "monitorId": { "type": "string", "format": "uuid" },
           "label": { "type": "string", "minLength": 1, "maxLength": 100, "x-probehive-length-unit": "utf16-code-units" },
           "position": { "type": "integer", "minimum": 0, "maximum": 49 }
+        }
+      },
+      "StatusPagePublicationResponse": {
+        "type": "object",
+        "description": "Authenticated publication state. The capability and anonymous URL are deliberately absent.",
+        "required": ["publishedAt"],
+        "properties": {
+          "publishedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PublishStatusPageResponse": {
+        "type": "object",
+        "description": "One-time publication result. The public URL cannot be recovered from persisted state.",
+        "required": ["publicUrl", "publishedAt"],
+        "properties": {
+          "publicUrl": { "type": "string", "format": "uri", "pattern": "/status/[A-Za-z0-9_-]{43}$" },
+          "publishedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PublicStatusPageResponse": {
+        "type": "object",
+        "description": "Disclosure-safe current-state projection with no internal identifiers or historical claim.",
+        "required": ["title", "components"],
+        "properties": {
+          "title": { "type": "string", "minLength": 1, "maxLength": 100, "x-probehive-length-unit": "utf16-code-units" },
+          "components": {
+            "type": "array", "minItems": 1, "maxItems": 50,
+            "items": { "$ref": "#/components/schemas/PublicStatusComponentResponse" }
+          }
+        }
+      },
+      "PublicStatusComponentResponse": {
+        "type": "object",
+        "description": "One operator label with current evaluated state, its update instant, and active maintenance presentation.",
+        "required": ["label", "state", "updatedAt", "maintenance"],
+        "properties": {
+          "label": { "type": "string", "minLength": 1, "maxLength": 100, "x-probehive-length-unit": "utf16-code-units" },
+          "state": { "type": "string", "enum": ["unknown", "healthy", "degraded", "down"] },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "maintenance": { "type": "boolean" }
         }
       },
       "MonitorRevisionResponse": {

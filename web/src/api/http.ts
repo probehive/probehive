@@ -87,6 +87,10 @@ export function putJson(url: string, body?: unknown): Promise<Response> {
   return unsafeRequest('PUT', url, body)
 }
 
+export function deleteJson(url: string): Promise<Response> {
+  return unsafeRequest('DELETE', url)
+}
+
 async function unsafeRequest(method: string, url: string, body?: unknown): Promise<Response> {
   if (antiforgery === null) {
     await refreshAntiforgery()

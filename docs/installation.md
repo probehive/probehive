@@ -129,6 +129,24 @@ PROBEHIVE_OUTBOUND_ALLOWED_CIDRS. Metadata endpoints remain denied. Do not use
 the smoke overlay for an operator installation; it deliberately permits private
 Compose-network ranges only so a local Monitor can reach its fixture.
 
+## Public Status Page
+
+An Organization administrator can save a private status-page draft from the
+Organization view, then publish an anonymous URL. The URL is displayed only in the
+successful publish result because ProbeHive stores only its digest. Record the URL in the
+operator's intended communication system when it is created. Losing it does not expose
+additional data: revoke publication, then publish again to create a different URL.
+
+The anonymous page shows only the configured page title, operator labels, current
+evaluated state, update time, and active maintenance presentation. It does not disclose
+Monitor targets or identifiers, evidence, Incidents, Alerts, Integrations, members, or
+secrets, and it does not claim uptime or history. Revoking public access makes the old URL
+return not found immediately while retaining the private draft.
+
+Treat the URL as an intentionally shareable read capability. Do not place it in private
+diagnostic logs or support exports unless the intended audience may read the page. It has
+no write authority and cannot be used to discover any other Organization data.
+
 ## Raw Evidence Retention
 
 `PROBEHIVE_RETENTION_DAYS` controls raw Run and Observation evidence. It accepts

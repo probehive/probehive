@@ -5,7 +5,9 @@ import { ApiError } from '../api/http'
 import { listMonitors, type MonitorResponse } from '../api/monitors'
 import {
   getStatusPageDraft,
+  publishStatusPage,
   replaceStatusPageDraft,
+  revokeStatusPage,
   type StatusComponentInput,
   type StatusPageDraftResponse,
 } from '../api/statusPage'
@@ -32,7 +34,7 @@ export default function StatusPageDraftSection({
   organizationId: string
   projectId: string
 }) {
-  const { t, translateError, translateProblem } = useTranslation()
+  const { t, formatDateTime, translateError, translateProblem } = useTranslation()
   const queryClient = useQueryClient()
   const draftKey = statusPageQueryKey(organizationId)
   const monitorsKey = monitorsQueryKey(organizationId, projectId)
@@ -47,6 +49,7 @@ export default function StatusPageDraftSection({
   const [title, setTitle] = useState('')
   const [components, setComponents] = useState<StatusComponentInput[]>([])
   const [loadedVersion, setLoadedVersion] = useState<number | null>(null)
+  const [publicUrl, setPublicUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (!draftQuery.isSuccess) {
@@ -71,6 +74,26 @@ export default function StatusPageDraftSection({
     onSuccess: (draft) => {
       queryClient.setQueryData(draftKey, draft)
       setLoadedVersion(draft.version)
+    },
+  })
+  const publishMutation = useMutation({
+    mutationFn: () => publishStatusPage(organizationId),
+    onSuccess: (publication) => {
+      setPublicUrl(publication.publicUrl)
+      queryClient.setQueryData<StatusPageDraftResponse | null>(draftKey, (current) => current && ({
+        ...current,
+        publication: { publishedAt: publication.publishedAt },
+      }))
+    },
+  })
+  const revokeMutation = useMutation({
+    mutationFn: () => revokeStatusPage(organizationId),
+    onSuccess: () => {
+      setPublicUrl(null)
+      queryClient.setQueryData<StatusPageDraftResponse | null>(draftKey, (current) => current && ({
+        ...current,
+        publication: null,
+      }))
     },
   })
 
@@ -235,6 +258,46 @@ export default function StatusPageDraftSection({
           <button type="submit" disabled={!canSave || mutation.isPending}>
             {mutation.isPending ? t('statusPage.saving') : t('statusPage.save')}
           </button>
+          <div className="status-publication">
+            <h3>{t('statusPage.publication.heading')}</h3>
+            {draftQuery.data?.publication ? (
+              <>
+                <p className="muted">
+                  {t('statusPage.publication.published', {
+                    time: formatDateTime(draftQuery.data.publication.publishedAt),
+                  })}
+                </p>
+                {publicUrl && (
+                  <p className="status-public-url">
+                    <a href={publicUrl}>{publicUrl}</a>
+                  </p>
+                )}
+                <p className="muted">{t('statusPage.publication.once')}</p>
+                <button
+                  type="button"
+                  className="button-danger"
+                  disabled={revokeMutation.isPending}
+                  onClick={() => revokeMutation.mutate()}
+                >
+                  {revokeMutation.isPending ? t('statusPage.publication.revoking') : t('statusPage.publication.revoke')}
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="muted">{t('statusPage.publication.unpublished')}</p>
+                <button
+                  type="button"
+                  disabled={!draftQuery.data || publishMutation.isPending}
+                  onClick={() => publishMutation.mutate()}
+                >
+                  {publishMutation.isPending ? t('statusPage.publication.publishing') : t('statusPage.publication.publish')}
+                </button>
+              </>
+            )}
+            {publishMutation.isError && <p className="error" role="alert">{t('statusPage.publication.failed')}</p>}
+            {revokeMutation.isError && <p className="error" role="alert">{t('statusPage.publication.revokeFailed')}</p>}
+            {revokeMutation.isSuccess && <p className="success" role="status">{t('statusPage.publication.revoked')}</p>}
+          </div>
           {fieldErrors.length > 0 && (
             <ul className="field-errors" role="alert">
               {fieldErrors.map((message) => <li key={message}>{message}</li>)}

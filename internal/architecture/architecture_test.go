@@ -258,3 +258,29 @@ func TestForbiddenStandardPackageClassification(t *testing.T) {
 		}
 	}
 }
+
+func TestPackagedNginxRedactsPublicationCapabilities(t *testing.T) {
+	moduleRoot := findModuleRoot(t)
+	contents, err := os.ReadFile(filepath.Join(moduleRoot, "deploy", "compose", "nginx.conf"))
+	if err != nil {
+		t.Fatalf("read packaged nginx configuration: %v", err)
+	}
+	configuration := string(contents)
+	for _, required := range []string{
+		"~^/api/v1/status-pages/ /api/v1/status-pages/[publication-token];",
+		"~^/status/ /status/[publication-token];",
+		"access_log /dev/stdout probehive;",
+		"location ^~ /api/v1/status-pages/ {",
+		"error_log /dev/null crit;",
+		"add_header Referrer-Policy \"no-referrer\" always;",
+	} {
+		if !strings.Contains(configuration, required) {
+			t.Errorf("packaged nginx configuration omits %q", required)
+		}
+	}
+	for _, forbidden := range []string{"$request ", "$request_uri", "$http_referer"} {
+		if strings.Contains(configuration, forbidden) {
+			t.Errorf("packaged nginx access logging contains secret-bearing variable %q", forbidden)
+		}
+	}
+}

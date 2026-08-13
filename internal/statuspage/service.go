@@ -16,6 +16,9 @@ type UUIDGenerator interface {
 type Store interface {
 	FindDraft(context.Context, string) (Draft, bool, error)
 	ReplaceDraft(context.Context, Draft, int64) error
+	Publish(context.Context, string, Publication) error
+	Revoke(context.Context, string) error
+	FindPublicPage(context.Context, TokenHash, time.Time) (PublicPage, bool, error)
 }
 
 type ComponentInput struct {
@@ -67,6 +70,59 @@ func NewService(store Store, clock Clock, uuids UUIDGenerator) *Service {
 
 func (service *Service) Get(ctx context.Context, organizationID string) (Draft, bool, error) {
 	return service.store.FindDraft(ctx, organizationID)
+}
+
+type PublishKind uint8
+
+const (
+	PublishPublished PublishKind = iota + 1
+	PublishDraftMissing
+	PublishAlreadyPublished
+)
+
+type PublishResult struct {
+	Kind        PublishKind
+	Publication Publication
+	Code        string
+	Detail      string
+}
+
+func (service *Service) Publish(
+	ctx context.Context, organizationID, token string,
+) (PublishResult, error) {
+	tokenHash, valid := HashPublicationToken(token)
+	if organizationID == "" || !valid {
+		return PublishResult{}, errors.New("status page publication requires Organization identity and an opaque token")
+	}
+	publication := Publication{TokenHash: tokenHash, PublishedAt: service.clock.Now().UTC()}
+	if err := service.store.Publish(ctx, organizationID, publication); err != nil {
+		switch {
+		case errors.Is(err, ErrDraftMissing):
+			return PublishResult{Kind: PublishDraftMissing, Code: DraftMissingCode, Detail: DraftMissingDetail}, nil
+		case errors.Is(err, ErrAlreadyPublished):
+			return PublishResult{Kind: PublishAlreadyPublished, Code: AlreadyPublishedCode, Detail: AlreadyPublishedDetail}, nil
+		default:
+			return PublishResult{}, err
+		}
+	}
+	return PublishResult{Kind: PublishPublished, Publication: publication}, nil
+}
+
+func (service *Service) Revoke(ctx context.Context, organizationID string) error {
+	if organizationID == "" {
+		return errors.New("status page revocation requires Organization identity")
+	}
+	return service.store.Revoke(ctx, organizationID)
+}
+
+func (service *Service) GetPublic(
+	ctx context.Context, token string,
+) (PublicPage, bool, error) {
+	tokenHash, valid := HashPublicationToken(token)
+	if !valid {
+		return PublicPage{}, false, nil
+	}
+	return service.store.FindPublicPage(ctx, tokenHash, service.clock.Now().UTC())
 }
 
 func (service *Service) Replace(ctx context.Context, command ReplaceCommand) (ReplaceResult, error) {
@@ -159,7 +215,9 @@ func (service *Service) Replace(ctx context.Context, command ReplaceCommand) (Re
 			ID: componentID, MonitorID: input.MonitorID, Label: input.Label, Position: index,
 		}
 	}
-	draft, err := RestoreDraft(pageID, command.OrganizationID, title, version, createdAt, now, components)
+	draft, err := restoreDraft(
+		pageID, command.OrganizationID, title, version, createdAt, now, components, current.Publication,
+	)
 	if err != nil {
 		return ReplaceResult{}, err
 	}
