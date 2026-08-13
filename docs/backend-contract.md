@@ -1042,7 +1042,10 @@ certificate only in Playwright. Passing, failing, recovery, and Webhook fixture
 targets may be selected with `PROBEHIVE_E2E_PASSING_TARGET`,
 `PROBEHIVE_E2E_FAILING_TARGET`, `PROBEHIVE_E2E_RECOVERY_TARGET`, and
 `PROBEHIVE_E2E_WEBHOOK_TARGET`; application TLS verification remains enabled.
-
+Before activation, a manual Run must prove that the selected failing target
+produces failed evidence. This precondition does not advance evaluated health,
+so the subsequent scheduled and confirmation Runs remain the only cause of the
+Incident exercised by the journey.
 
 Before launching the API, `web/e2e/start-api.sh` must preserve this reset contract:
 

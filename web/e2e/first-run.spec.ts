@@ -280,6 +280,15 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
     checkSchemaVersion: 1,
     checkConfiguration: { url: failingMonitorTarget },
   })
+  // Prove the selected fixture fails before waiting on scheduled health. Manual
+  // Runs retain evidence but do not advance health or create an Incident.
+  const failingFixtureRun = await unsafeJSON<{
+    kind: string
+    outcome: string
+  }>(page, 'POST', `${failingMonitorAPI}/runs`, undefined)
+  expect(failingFixtureRun.kind).toBe('manual')
+  expect(failingFixtureRun.outcome).toBe('failed')
+
   const maintenanceStartsAt = new Date(Date.now() + 3_000)
   const maintainedWindow = await unsafeJSON<{ id: string }>(
     page, 'POST', `${failingMonitorAPI}/maintenance-windows`, {

@@ -258,7 +258,7 @@ stack, set its browser origin and reachable fixture targets. Supplying
 ```bash
 PROBEHIVE_E2E_BASE_URL=https://localhost:18443 \
 PROBEHIVE_E2E_PASSING_TARGET=https://web:8443/readyz \
-PROBEHIVE_E2E_FAILING_TARGET=https://web:8443/not-found \
+PROBEHIVE_E2E_FAILING_TARGET=https://web:8443/assets/probehive-e2e-intentional-404 \
 PROBEHIVE_E2E_RECOVERY_TARGET=https://web:8443/readyz \
 PROBEHIVE_E2E_WEBHOOK_TARGET=https://web:8443/healthz \
 npm --prefix web run e2e
@@ -268,6 +268,9 @@ The external stack must be disposable and permit only the fixture destinations
 required by the journey. A self-signed HTTPS base URL is accepted only by the
 test browser context; application probes still require their configured trust
 roots and never disable TLS verification.
+The journey runs the failing target once manually before activation and stops
+immediately unless it produces failed evidence; manual Runs do not advance
+evaluated health or create Incidents.
 
 ## Changing Dependencies
 
