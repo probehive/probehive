@@ -2,6 +2,13 @@ import { expect, test, type Page } from '@playwright/test'
 
 const administratorEmail = 'admin@example.test'
 const administratorPassword = 'a-long-admin-password'
+const applicationOrigin = new URL(
+  process.env.PROBEHIVE_E2E_BASE_URL ?? 'http://127.0.0.1:5173').origin
+const passingMonitorTarget = process.env.PROBEHIVE_E2E_PASSING_TARGET ?? 'http://127.0.0.1:5080/readyz'
+const webhookTarget = process.env.PROBEHIVE_E2E_WEBHOOK_TARGET ?? 'https://127.0.0.1:5080/webhook'
+const failingMonitorTarget = process.env.PROBEHIVE_E2E_FAILING_TARGET ?? 'http://127.0.0.1:5080/not-found'
+const recoveryMonitorTarget = process.env.PROBEHIVE_E2E_RECOVERY_TARGET ?? passingMonitorTarget
+const expectMonitorTLS = passingMonitorTarget.startsWith('https://')
 
 interface CreatedMonitor {
   id: string
@@ -25,7 +32,7 @@ async function unsafeJSON<T>(
     method,
     data,
     headers: {
-      Origin: 'http://127.0.0.1:5173',
+      Origin: applicationOrigin,
       [token.headerName]: token.requestToken,
     },
   })
@@ -69,7 +76,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
 
   // The default Project can immediately hold a fully configured HTTP Monitor.
   await page.getByLabel('Monitor name').fill('ProbeHive API')
-  await page.getByLabel('Target URL').fill('http://127.0.0.1:5080/readyz')
+  await page.getByLabel('Target URL').fill(passingMonitorTarget)
   const monitorResponse = page.waitForResponse((response) =>
     response.request().method() === 'POST' &&
     response.url().endsWith('/monitors') &&
@@ -183,7 +190,11 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await expect(page.getByRole('heading', { name: 'Observation' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'HTTP response' })).toBeVisible()
   await expect(page.getByText('200', { exact: true })).toBeVisible()
-  await expect(page.getByText('No TLS session was recorded.')).toBeVisible()
+  if (expectMonitorTLS) {
+    await expect(page.getByRole('heading', { name: 'TLS session' })).toBeVisible()
+  } else {
+    await expect(page.getByText('No TLS session was recorded.')).toBeVisible()
+  }
 
   // Reloading proves the scoped Run URL is a real deep link. It also resets the
   // application's antiforgery cache after the out-of-band seeding request above.
@@ -217,7 +228,11 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
     'href', publication.publicUrl,
   )
 
-  const anonymousContext = await browser.newContext({ locale: 'en-US', timezoneId: 'UTC' })
+  const anonymousContext = await browser.newContext({
+    locale: 'en-US',
+    timezoneId: 'UTC',
+    ignoreHTTPSErrors: applicationOrigin.startsWith('https://'),
+  })
   const anonymousPage = await anonymousContext.newPage()
   await anonymousPage.goto(publication.publicUrl)
   await expect(anonymousPage.getByRole('heading', { name: 'My Services Status' })).toBeVisible()
@@ -247,7 +262,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
     integration: { id: string; version: number }
   }>(page, 'POST', `${organizationAPI}/webhook-integrations`, {
     name: 'Maintenance receiver',
-    destinationUrl: 'https://127.0.0.1:5080/webhook',
+    destinationUrl: webhookTarget,
   })
   await unsafeJSON(page, 'PUT',
     `${organizationAPI}/webhook-integrations/${webhook.integration.id}/state`, {
@@ -263,7 +278,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   const failingMonitorAPI = `${monitorsAPI}/${failingMonitor.id}`
   await unsafeJSON(page, 'POST', `${failingMonitorAPI}/revisions`, {
     checkSchemaVersion: 1,
-    checkConfiguration: { url: 'http://127.0.0.1:5080/not-found' },
+    checkConfiguration: { url: failingMonitorTarget },
   })
   const maintenanceStartsAt = new Date(Date.now() + 3_000)
   const maintainedWindow = await unsafeJSON<{ id: string }>(
@@ -313,7 +328,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   // Replace the failed target through a later immutable revision, then observe
   // the scheduled and confirmation Runs resolve the acknowledged Incident.
   const target = page.getByRole('region', { name: 'Target URL' })
-  await target.getByLabel('New target URL').fill('http://127.0.0.1:5080/readyz')
+  await target.getByLabel('New target URL').fill(recoveryMonitorTarget)
   const revisionResponse = page.waitForResponse((response) =>
     response.request().method() === 'POST' &&
     response.url().endsWith('/monitors/' + failingMonitor.id + '/revisions') &&

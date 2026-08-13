@@ -250,6 +250,24 @@ The Playwright launcher preserves the existing `psql` reset with `ON_ERROR_STOP=
 
 The default disposable PostgreSQL connection can be overridden with `PROBEHIVE_E2E_PGHOST`, `PROBEHIVE_E2E_PGPORT`, `PROBEHIVE_E2E_PGUSER`, `PROBEHIVE_E2E_PGPASSWORD`, and `PROBEHIVE_E2E_PGDATABASE`. The launcher maps the host, port, user, and password to libpq-compatible `PG*` variables for pgx while always setting the API database to `probehive_e2e`. Set `PROBEHIVE_GO` when the pinned Go executable is not named `go`.
 
+To exercise the same journeys against an externally managed, freshly initialized
+stack, set its browser origin and reachable fixture targets. Supplying
+`PROBEHIVE_E2E_BASE_URL` disables the development API and Vite launchers:
+
+```bash
+PROBEHIVE_E2E_BASE_URL=https://localhost:18443 \
+PROBEHIVE_E2E_PASSING_TARGET=https://web:8443/readyz \
+PROBEHIVE_E2E_FAILING_TARGET=https://web:8443/not-found \
+PROBEHIVE_E2E_RECOVERY_TARGET=https://web:8443/readyz \
+PROBEHIVE_E2E_WEBHOOK_TARGET=https://web:8443/healthz \
+npm --prefix web run e2e
+```
+
+The external stack must be disposable and permit only the fixture destinations
+required by the journey. A self-signed HTTPS base URL is accepted only by the
+test browser context; application probes still require their configured trust
+roots and never disable TLS verification.
+
 ## Changing Dependencies
 
 Discover versions with current Go tooling and approved sources. After reviewing ownership, support, advisories, transitive dependencies, and exact-version licenses:

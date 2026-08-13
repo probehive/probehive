@@ -1025,8 +1025,9 @@ Playwright runs from `web/` with:
 - test directory `web/e2e`;
 - Chromium Desktop Chrome project;
 - one worker, `fullyParallel: false`, zero retries;
-- browser base URL `http://127.0.0.1:5173`;
-- API readiness URL `http://127.0.0.1:5080/readyz`, 180-second timeout, never reuse;
+- browser base URL `http://127.0.0.1:5173` by default;
+- when no external base URL is supplied,
+  API readiness URL `http://127.0.0.1:5080/readyz`, 180-second timeout, never reuse;
 - Vite at `127.0.0.1:5173` with `--strictPort`, 120-second timeout, never reuse;
 - pinned `locale: 'en-US'` and `timezoneId: 'UTC'`. These are load-bearing, not
   cosmetic: instants render through `Intl` in the viewer's locale and zone,
@@ -1034,6 +1035,14 @@ Playwright runs from `web/` with:
 
 Vite proxies `/api` to `http://localhost:5080` without `changeOrigin`, preserving the
 browser Host so same-origin validation succeeds.
+`PROBEHIVE_E2E_BASE_URL` selects an already running, freshly initialized external
+stack and disables both development web-server launchers. The journey derives
+unsafe-request `Origin` from that URL and accepts its self-signed HTTPS
+certificate only in Playwright. Passing, failing, recovery, and Webhook fixture
+targets may be selected with `PROBEHIVE_E2E_PASSING_TARGET`,
+`PROBEHIVE_E2E_FAILING_TARGET`, `PROBEHIVE_E2E_RECOVERY_TARGET`, and
+`PROBEHIVE_E2E_WEBHOOK_TARGET`; application TLS verification remains enabled.
+
 
 Before launching the API, `web/e2e/start-api.sh` must preserve this reset contract:
 

@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const externalBaseURL = process.env.PROBEHIVE_E2E_BASE_URL
+
 // End-to-end journeys against the real API and a dedicated disposable PostgreSQL
 // database. See docs/development.md; requires the development database server of
 // deploy/compose/compose.dev.yaml (or PROBEHIVE_E2E_PG* overrides) plus browsers
@@ -13,27 +15,30 @@ export default defineConfig({
   workers: 1,
   reporter: [['list']],
   use: {
-    baseURL: 'http://127.0.0.1:5173',
+    baseURL: externalBaseURL ?? 'http://127.0.0.1:5173',
     trace: 'retain-on-failure',
+    ignoreHTTPSErrors: externalBaseURL?.startsWith('https://') ?? false,
     // Instants render through Intl in the viewer's locale and zone,
     // so both are pinned to keep assertions deterministic across machines.
     locale: 'en-US',
     timezoneId: 'UTC',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  webServer: [
-    {
-      command: 'bash e2e/start-api.sh',
-      url: 'http://127.0.0.1:5080/readyz',
-      // Never reuse a running API: the journey depends on a freshly reset database.
-      reuseExistingServer: false,
-      timeout: 180_000,
-    },
-    {
-      command: 'npm run dev -- --host 127.0.0.1 --port 5173 --strictPort',
-      url: 'http://127.0.0.1:5173',
-      reuseExistingServer: false,
-      timeout: 120_000,
-    },
-  ],
+  ...(externalBaseURL ? {} : {
+    webServer: [
+      {
+        command: 'bash e2e/start-api.sh',
+        url: 'http://127.0.0.1:5080/readyz',
+        // Never reuse a running API: the journey depends on a freshly reset database.
+        reuseExistingServer: false,
+        timeout: 180_000,
+      },
+      {
+        command: 'npm run dev -- --host 127.0.0.1 --port 5173 --strictPort',
+        url: 'http://127.0.0.1:5173',
+        reuseExistingServer: false,
+        timeout: 120_000,
+      },
+    ],
+  }),
 })
