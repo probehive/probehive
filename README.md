@@ -5,30 +5,32 @@
 <h1 align="center">ProbeHive</h1>
 
 <p align="center">
-  <strong>Distributed synthetic monitoring from every network that matters.</strong>
+  <strong>Self-hosted HTTP monitoring with auditable operational evidence.</strong>
 </p>
 
 <p align="center">
-  Monitor websites, APIs, networks, jobs, and critical services from public regions and private networks with one open platform.
+  Run bounded HTTP checks, follow health and incident evidence, deliver signed Webhooks, and publish a disclosure-safe current status page.
 </p>
 
 <p align="center">
   <a href="https://github.com/probehive/probehive/actions/workflows/ci.yml"><img src="https://github.com/probehive/probehive/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-4c7bd9.svg" alt="Apache 2.0 license"></a>
-  <img src="https://img.shields.io/badge/status-pre--alpha-d89b2b.svg" alt="Project status: pre-alpha">
+  <img src="https://img.shields.io/badge/status-unreleased%20candidate-d89b2b.svg" alt="Project status: unreleased candidate">
 </p>
 
 > [!IMPORTANT]
-> ProbeHive is in active pre-alpha development and does not have a stable public release yet. The current source is intended for development and evaluation, and unreleased interfaces may change.
+> ProbeHive has no published release or supported version yet. The current source is an
+> unreleased pre-release candidate for development and evaluation; interfaces and package
+> behavior may change until the owner selects, signs, and publishes a version.
 
 ProbeHive is an open-source distributed synthetic monitoring and availability platform. The public repository is the home of the complete self-hosted product and does not require a ProbeHive Cloud account.
 
 ## Why ProbeHive
 
-- **Monitor from the networks that matter.** Combine public probe locations with private Agents deployed close to internal services and infrastructure.
+- **Monitor HTTP services from an operator-controlled location.** Run scheduled and manual checks from the embedded local worker without a hosted dependency.
 - **Keep self-hosting independent.** Operate the control plane, data, retention, authentication, and probe locations without a hosted-service dependency.
 - **Turn observations into operational truth.** Keep checks, observations, evaluated health, incidents, alerts, and status communication precise and auditable.
-- **Use one open platform.** Bring websites, APIs, networks, jobs, certificates, and critical services under one versioned monitoring model.
+- **Communicate current state deliberately.** Publish only operator-selected labels and evaluated state through a revocable opaque URL.
 
 ## What Works Today
 
@@ -46,6 +48,7 @@ The current foundation implements:
 - Fully scoped Run history and Observation query APIs with bounded keyset pagination and stable filters.
 - Auditable Monitor health evaluation with explicit failure and recovery confirmation Runs, honest single-location quorum counts, and staleness handling.
 - Administrator-only private status-page drafts with explicitly selected Monitor-backed components, operator-chosen public labels, and deterministic ordering.
+- Revocable anonymous status publication with one-time opaque URLs and a disclosure-safe current-state projection.
 - Automatic per-Monitor Incidents with open, acknowledge, and resolve lifecycle, immutable timelines, scoped keyset query APIs, and PostgreSQL-backed outbox dispatch.
 - Immutable Alert intents for Incident opening and confirmed recovery, with Monitor-scoped API and React audit history whose separate delivery evidence distinguishes no route, pending work, maintenance suppression, and attempt outcomes.
 - Administrator-only signed Webhook Integrations with one-time-disclosed secrets, operator-keyring encryption, two-phase rotation, point-in-time Alert routing, strict HTTPS delivery, bounded retries, and Viewer-safe delivery-attempt evidence.
@@ -59,9 +62,9 @@ The current foundation implements:
 - A deterministic packaged schema-upgrade exercise with persisted-evidence verification and a documented restore-based rollback boundary.
 - A documented raw-evidence retention and troubleshooting workflow with a disposable package exercise that preserves current and durable evidence while expiring old raw partitions.
 
-Operator readiness for the self-hosted HTTP dogfood milestone and bounded maintenance
-controls, including their event-time Webhook delivery effects, are implemented in the
-current source. Private status configuration is implemented; anonymous status publication and Agents remain later work.
+The current source contains the complete supported surface proposed for the first
+pre-release candidate. Release-candidate validation and owner-controlled publication
+are still pending; [CHANGELOG.md](CHANGELOG.md) records the candidate boundaries.
 
 ## Get Started
 
@@ -73,19 +76,20 @@ Useful project references:
 
 - [Self-hosted installation](docs/installation.md)
 - [Backend contract](docs/backend-contract.md)
+- [Unreleased changelog](CHANGELOG.md)
 - [Architecture baseline](docs/architecture.md)
 - [Contributing guide](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 
 ## Current Focus
 
-The current source extends the self-hosted HTTP dogfood baseline with bounded maintenance
-and private status-page configuration. Public status communication, workflow closure,
-and release validation
-remain queued.
-The project remains pre-alpha; no release claim is made.
+The candidate feature surface and operator documentation are complete. The complete
+release-candidate validation matrix remains to be run before the owner decides whether
+to sign, tag, and publish a pre-release. No release or availability claim is made.
 
-New Check Types, remote Agents, identity expansion, richer status pages, CLI, monitoring as code, Kubernetes packaging, and hosted-service implementation remain deferred until self-hosted dogfood establishes the next concrete product need.
+New Check Types, remote Agents and Probe Locations, identity expansion, richer status
+pages, CLI, monitoring as code, Kubernetes packaging, high availability, and hosted-service
+implementation are not part of this candidate.
 
 ## Architecture
 
@@ -114,7 +118,10 @@ The backend uses Go 1.26.5 and PostgreSQL. First-party web applications use Reac
 
 ## ProbeHive Cloud
 
-ProbeHive Cloud is the separately maintained official hosted service. It runs released public ProbeHive artifacts in shared multi-tenant service pools and adds proprietary account lifecycle, billing, metering, managed-location operations, abuse controls, support, and compliance services. The self-hosted product does not require the hosted service.
+ProbeHive Cloud is the name reserved for a separately maintained future official hosted
+service. No hosted service is included or made available by this repository. Any future
+service must consume released public contracts or artifacts; the self-hosted product does
+not require it.
 
 ## Contributing
 

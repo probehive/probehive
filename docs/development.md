@@ -1,6 +1,7 @@
 # Local Development
 
-This guide covers the backend and frontend development loop for the current foundation phase.
+This guide covers the backend and frontend development loop for the current unreleased
+pre-release candidate. It is not an installation or published compatibility guide.
 
 ## Prerequisites
 

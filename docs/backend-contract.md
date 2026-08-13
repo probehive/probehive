@@ -1,11 +1,11 @@
 # Backend Contract
 
-Status: working implementation specification for the unreleased initial vertical slice.
+Status: working implementation specification for the unreleased pre-release candidate.
 
-This document defines the observable backend behavior of the initial vertical
-slice. It is maintained with the v1 API, check validation, PostgreSQL adapters
-and migrations, API tests, React client, Playwright journey, and current
-architecture baseline. The web application and browser journey are contract
+This document defines the observable backend behavior of the current candidate. It is
+maintained with the v1 API, check validation, PostgreSQL adapters and migrations, API
+tests, React client, Playwright journeys, and current architecture baseline. The web
+application and browser journeys are contract
 consumers and remain synchronized with this specification.
 
 The architecture baseline remains normative. Where the current implementation

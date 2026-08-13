@@ -1,8 +1,9 @@
 # Self-Hosted Compose Installation
 
 This guide is the supported production-like installation path for the current
-pre-alpha source tree. It builds local images; ProbeHive does not yet publish
-images, releases, or upgrade guarantees.
+unreleased pre-release candidate. "Supported" here describes the candidate's tested
+package boundary, not a published release or support service. It builds local images;
+ProbeHive does not yet publish images, releases, or upgrade guarantees.
 
 ## Prerequisites
 
@@ -12,10 +13,10 @@ images, releases, or upgrade guarantees.
 - Enough local resources for one Go application, one PostgreSQL database, and
   the static React gateway.
 
-The package was exercised with Podman 5.8.4 and podman-compose 1.6.0. Its
+The package workflow was exercised with Docker Compose 5.3.1. Provider selection and
+Compose topology were also checked with Podman 5.8.4 and podman-compose 1.6.0. Its
 Compose model uses portable service, build, volume, network, health-check, and
-file-secret features; Docker Compose remains a supported target but was not
-available for local verification in this change.
+file-secret features and targets both rootless Podman and Docker Compose.
 
 ## Start a Local Evaluation Installation
 
@@ -358,8 +359,7 @@ evidence. Confirm that scheduled bounds and durable cancellation state survived
 unchanged. When the backup contains a maintenance-suppressed route, confirm its
 suppression reason and maintenance-window ID survived with zero Delivery Attempts.
 A ready API also proves that every retained encrypted Webhook secret could be opened
-by the supplied keyring during startup. If startup reports
-`initialize Webhook
+by the supplied keyring during startup. If startup reports `initialize Webhook
 secrets`, stop: the matching complete keyring has not been supplied or its
 content is invalid. Do not generate replacement wrapping keys for restored
 ciphertext.
@@ -482,10 +482,14 @@ removed when the check exits. Set `PROBEHIVE_RECOVERY_SOURCE_PORT` and
 
 - Images and releases are not published; every installation builds from a
   reviewed source revision.
+- There is no published stable API, schema, configuration, or cross-version
+  compatibility line. `/api/v1` is the current namespace, not a stable-release claim.
 - The generated certificate is not suitable for remote or unattended clients.
 - Schema migrations are forward-only. Rollback after an attempted migration
   restores the pre-upgrade backup into a clean volume and runs the prior reviewed
   source revision.
 - The package is single-node and provides no high-availability orchestration.
+- Only HTTP schema version 1 and the embedded local Probe Location are implemented;
+  remote Agents and other Check Types are not included.
 - The default loopback bind is deliberate. Remote exposure requires the
   operator-controlled TLS, origin, firewall, and ingress configuration above.

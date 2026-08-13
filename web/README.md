@@ -17,7 +17,10 @@ npm run build   # static production assets in dist/
 Production deployments serve the built static assets behind a same-origin gateway
 together with the API; there is no Node.js production runtime.
 
-Monitor detail pages expose immutable Alert intents as read-only Incident-derived audit history. The view links each intent to its source Incident and deliberately presents no sent or delivered state because external delivery is not implemented.
+Monitor detail pages expose immutable Alert intents as read-only Incident-derived audit
+history. The view links each intent to its source Incident and shows separate point-in-time
+Webhook routing and attempt evidence, including maintenance suppression; an Alert itself
+never implies that an external delivery succeeded.
 
 ## Localization
 
