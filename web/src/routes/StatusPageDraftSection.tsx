@@ -159,7 +159,7 @@ export default function StatusPageDraftSection({
     components.every((component) => component.label.trim().length > 0 && component.label.trim().length <= 100)
 
   return (
-    <section className="status-page-section" aria-labelledby="status-page-heading">
+    <section className="status-page-section" id="status-page" aria-labelledby="status-page-heading">
       <div className="section-heading">
         <div>
           <h2 id="status-page-heading">{t('statusPage.heading')}</h2>

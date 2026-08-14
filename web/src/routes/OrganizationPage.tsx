@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 
 import { ApiError, getOrganization } from '../api/organizations'
 import { useTranslation } from '../i18n/context'
@@ -32,12 +32,19 @@ export default function OrganizationPage() {
   const organization = query.data
   return (
     <section className="organization-page">
+      <p className="breadcrumb">
+        <Link to="/">{t('organizations.heading')}</Link>
+      </p>
       <header className="page-heading organization-heading">
         <div>
           <p className="eyebrow">{t('organization.eyebrow')}</p>
           <h1>{organization.displayName}</h1>
         </div>
       </header>
+      <nav className="section-nav" aria-label={t('organization.defaultProject')}>
+        <a href="#monitors">{t('monitor.heading')}</a>
+        <a href="#status-page">{t('statusPage.heading')}</a>
+      </nav>
       <dl className="organization-summary detail-grid">
         <dt>{t('organization.slug')}</dt>
         <dd>{organization.slug}</dd>

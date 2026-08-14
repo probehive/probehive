@@ -128,8 +128,16 @@ export default function MonitorsPanel({ organizationId, projectId }: MonitorsPan
         : t('monitor.setup.activate')
 
   return (
-    <section className="monitor-section">
-      <h2>{t('monitor.heading')}</h2>
+    <section className="monitor-section" id="monitors" aria-labelledby="monitors-heading">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">{t('organization.defaultProject')}</p>
+          <h2 id="monitors-heading">{t('monitor.heading')}</h2>
+        </div>
+        <span className="section-count" aria-label={t('monitor.heading')}>
+          {query.data ? query.data.length : '-'}
+        </span>
+      </div>
       {query.isPending && <p>{t('monitor.loading')}</p>}
       {query.isError && (
         <p className="error" role="alert">

@@ -37,6 +37,7 @@ export const en = {
   'login.failed': 'Signing in failed. Try again.',
 
   'organizations.heading': 'Organizations',
+  'organizations.available': 'Your organizations',
   'organizations.loading': 'Loading Organizations…',
   'organizations.empty': 'No Organizations yet.',
 

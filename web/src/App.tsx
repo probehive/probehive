@@ -27,6 +27,11 @@ export default function App() {
             <img src="/favicon.svg" alt="" aria-hidden="true" />
             <span>{t('app.title')}</span>
           </Link>
+          {session.data && (
+            <nav className="app-nav" aria-label={t('organizations.heading')}>
+              <Link to="/">{t('organizations.heading')}</Link>
+            </nav>
+          )}
           <div className="app-actions">
             <label className="app-language">
               <span>{t('app.language')}</span>

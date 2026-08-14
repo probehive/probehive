@@ -31,6 +31,7 @@ export const zhCN: Catalog = {
   'login.failed': '登录失败，请重试。',
 
   'organizations.heading': '组织列表',
+  'organizations.available': '你的组织',
   'organizations.loading': '正在加载组织…',
   'organizations.empty': '还没有任何组织。',
 
