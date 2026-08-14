@@ -18,6 +18,8 @@ RUN addgroup -S -g 65532 probehive \
     && adduser -S -D -H -u 65532 -G probehive probehive
 WORKDIR /app
 COPY --from=build --chown=65532:65532 /out/probehive /app/probehive
+COPY --chown=65532:65532 LICENSE THIRD_PARTY_NOTICES.md TRADEMARKS.md \
+    /usr/share/licenses/probehive/
 USER 65532:65532
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --retries=12 \

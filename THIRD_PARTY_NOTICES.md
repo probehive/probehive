@@ -14,6 +14,52 @@ The authoritative dependency versions are recorded in `go.mod`, `go.sum`, and `w
 | `golang.org/x/text` | `v0.40.0` | BSD-3-Clause |
 | `golang.org/x/time` | `v0.15.0` | BSD-3-Clause |
 
+## Browser Runtime Packages
+
+The following packages are compiled into the static browser application:
+
+| Package | Version | License |
+| --- | --- | --- |
+| `@tanstack/query-core` | `5.101.4` | MIT |
+| `@tanstack/react-query` | `5.101.4` | MIT |
+| `cookie-es` | `3.1.1` | MIT |
+| `react` | `19.2.8` | MIT |
+| `react-dom` | `19.2.8` | MIT |
+| `react-router` | `8.3.0` | MIT |
+| `scheduler` | `0.27.0` | MIT |
+
+Copyright notices from the exact package distributions:
+
+- Copyright (c) 2021-present Tanner Linsley (`@tanstack/query-core`, `@tanstack/react-query`)
+- Copyright (c) Meta Platforms, Inc. and affiliates (`react`, `react-dom`, `scheduler`)
+- Copyright (c) React Training LLC 2015-2019 (`react-router`)
+- Copyright (c) Remix Software Inc. 2020-2021 (`react-router`)
+- Copyright (c) Shopify Inc. 2022-2023 (`react-router`)
+- Cookie-es copyright (c) Pooya Parsa <pooya@pi0.io>
+- Cookie parsing based on <https://github.com/jshttp/cookie>
+- Copyright (c) 2012-2014 Roman Shtylman <shtylman@gmail.com> (`cookie-es`)
+- Copyright (c) 2015 Douglas Christopher Wilson <doug@somethingdoug.com> (`cookie-es`)
+- Set-Cookie parsing based on <https://github.com/nfriedly/set-cookie-parser>
+- Copyright (c) 2015 Nathan Friedly <nathan@nfriedly.com> (<http://nfriedly.com/>) (`cookie-es`)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
 ## Container Images
 
 The Compose package and its multi-stage builds use Docker Official Images pinned

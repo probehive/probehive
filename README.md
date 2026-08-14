@@ -63,8 +63,8 @@ The current foundation implements:
 - A documented raw-evidence retention and troubleshooting workflow with a disposable package exercise that preserves current and durable evidence while expiring old raw partitions.
 
 The current source contains the complete supported surface proposed for the first
-pre-release candidate. Release-candidate validation and owner-controlled publication
-are still pending; [CHANGELOG.md](CHANGELOG.md) records the candidate boundaries.
+pre-release candidate. Release-candidate validation is complete; owner-controlled
+publication remains pending. [CHANGELOG.md](CHANGELOG.md) records the candidate boundaries.
 
 ## Get Started
 
@@ -83,9 +83,9 @@ Useful project references:
 
 ## Current Focus
 
-The candidate feature surface and operator documentation are complete. The complete
-release-candidate validation matrix remains to be run before the owner decides whether
-to sign, tag, and publish a pre-release. No release or availability claim is made.
+The candidate feature surface, operator documentation, and complete release-candidate
+validation matrix are complete. The owner still controls version selection, signing,
+tagging, and publication. No release or availability claim is made.
 
 New Check Types, remote Agents and Probe Locations, identity expansion, richer status
 pages, CLI, monitoring as code, Kubernetes packaging, high availability, and hosted-service

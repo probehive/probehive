@@ -68,6 +68,18 @@ if (( ready == 0 )); then
   exit 1
 fi
 
+license_directory=/usr/share/licenses/probehive
+for service_name in api web; do
+  for legal_file in LICENSE THIRD_PARTY_NOTICES.md TRADEMARKS.md; do
+    if ! "${compose[@]}" "${compose_args[@]}" exec -T "$service_name" \
+      test -r "$license_directory/$legal_file"; then
+      printf 'The %s image does not include readable %s.\n' \
+        "$service_name" "$legal_file" >&2
+      exit 1
+    fi
+  done
+done
+
 index_html="$(curl --fail --silent --show-error \
   --noproxy '*' \
   --cacert "$PROBEHIVE_TLS_CERT_FILE" "$base_url/")"
@@ -136,4 +148,4 @@ if [[ "$api_logs" != *'ProbeHive stopped gracefully'* ]]; then
 fi
 
 failed=0
-printf 'Smoke check passed: setup, static web, HTTP Monitor result, and graceful shutdown.\n'
+printf 'Smoke check passed: licenses, setup, static web, HTTP Monitor result, and graceful shutdown.\n'
