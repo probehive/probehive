@@ -43,7 +43,7 @@ export default function LoginPage() {
   }
 
   return (
-    <section>
+    <section className="auth-page">
       <h1>{t('login.heading')}</h1>
       <form onSubmit={onSubmit} aria-label={t('login.form')}>
         <label>

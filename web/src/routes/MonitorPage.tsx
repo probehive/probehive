@@ -402,7 +402,7 @@ export default function MonitorPage() {
   }
 
   return (
-    <article>
+    <article className="monitor-page">
       <p className="breadcrumb">
         <Link to={`/organizations/${organizationId}`}>{t('monitor.detail.back')}</Link>
       </p>

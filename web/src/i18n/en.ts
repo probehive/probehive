@@ -58,6 +58,7 @@ export const en = {
   'organization.slug': 'Slug',
   'organization.identifier': 'Identifier',
   'organization.created': 'Created',
+  'organization.eyebrow': 'Organization',
   'organization.defaultProject': 'Default Project',
   'organization.name': 'Name',
 
@@ -157,6 +158,7 @@ export const en = {
   'monitor.detail.loadFailed': 'The Monitor could not be loaded.',
   'monitor.detail.back': 'Back to Organization',
   'monitor.detail.eyebrow': 'Monitor evidence',
+  'monitor.detail.settings': 'Monitor settings',
   'monitor.identifier': 'Identifier',
   'monitor.rename.heading': 'Rename Monitor',
   'monitor.rename.form': 'Rename Monitor',

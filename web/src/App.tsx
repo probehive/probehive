@@ -22,27 +22,37 @@ export default function App() {
   return (
     <>
       <header className="app-header">
-        <Link to="/" className="app-title">
-          {t('app.title')}
-        </Link>
-        <label className="app-language">
-          {t('app.language')}
-          <select value={locale} onChange={(event) => setLocale(event.target.value as typeof locale)}>
-            {locales.map((available) => (
-              <option key={available} value={available}>
-                {localeNames[available]}
-              </option>
-            ))}
-          </select>
-        </label>
-        {session.data && (
-          <span className="app-session">
-            {session.data.email}{' '}
-            <button type="button" onClick={() => signOut.mutate()} disabled={signOut.isPending}>
-              {signOut.isPending ? t('app.signingOut') : t('app.signOut')}
-            </button>
-          </span>
-        )}
+        <div className="app-header-inner">
+          <Link to="/" className="app-title">
+            <img src="/favicon.svg" alt="" aria-hidden="true" />
+            <span>{t('app.title')}</span>
+          </Link>
+          <div className="app-actions">
+            <label className="app-language">
+              <span>{t('app.language')}</span>
+              <select value={locale} onChange={(event) => setLocale(event.target.value as typeof locale)}>
+                {locales.map((available) => (
+                  <option key={available} value={available}>
+                    {localeNames[available]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {session.data && (
+              <div className="app-session">
+                <span className="app-session-email">{session.data.email}</span>
+                <button
+                  type="button"
+                  className="button-secondary button-compact"
+                  onClick={() => signOut.mutate()}
+                  disabled={signOut.isPending}
+                >
+                  {signOut.isPending ? t('app.signingOut') : t('app.signOut')}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </header>
       <main className="app-main">
         <Outlet />

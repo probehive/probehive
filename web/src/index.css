@@ -1152,3 +1152,781 @@ dd {
   }
   .public-status-indicators { align-items: flex-start; }
 }
+:root {
+  --text: #162127;
+  --text-muted: #637177;
+  --bg: #f3f6f5;
+  --surface: #ffffff;
+  --surface-subtle: #edf3f1;
+  --border: #d6e0dc;
+  --border-strong: #b9c9c3;
+  --accent: #0a6b5b;
+  --accent-strong: #075447;
+  --accent-soft: #dcefe9;
+  --warning: #a56a05;
+  --warning-soft: #fff3d9;
+  --error: #b3261e;
+  --error-soft: #fbe9e7;
+  --success: #1f7a52;
+  --success-soft: #e2f2ea;
+  --focus: #f0aa34;
+  color: var(--text);
+  background: var(--bg);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+}
+
+.app-header-inner {
+  align-items: center;
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: 80rem;
+  min-height: 4.25rem;
+  padding: 0.75rem 1.5rem;
+}
+
+.app-title {
+  align-items: center;
+  color: var(--text);
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 0.65rem;
+  font-size: 1.05rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.app-title img {
+  background: #162127;
+  border-radius: 0.45rem;
+  height: 2rem;
+  object-fit: cover;
+  width: 2rem;
+}
+
+.app-actions {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.app-language {
+  align-items: center;
+  color: var(--text-muted);
+  display: inline-flex;
+  flex-direction: row;
+  font-size: 0.78rem;
+  font-weight: 700;
+  gap: 0.5rem;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.app-language select {
+  background: var(--surface);
+  min-width: 8.5rem;
+  width: auto;
+}
+
+.app-session {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.app-session-email {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-main {
+  margin: 0 auto;
+  max-width: 80rem;
+  padding: 2.25rem 1.5rem 4rem;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5 {
+  color: var(--text);
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: 2.25rem;
+  letter-spacing: 0;
+  margin: 0 0 1.1rem;
+}
+
+h2 {
+  font-size: 1.35rem;
+  letter-spacing: 0;
+  margin: 0 0 0.85rem;
+}
+
+h3 {
+  font-size: 1.05rem;
+  margin: 0 0 0.75rem;
+}
+
+p {
+  margin: 0 0 1rem;
+}
+
+.muted,
+.form-context,
+.hint {
+  color: var(--text-muted);
+}
+
+code {
+  color: #3b4b4d;
+  font-size: 0.88em;
+  overflow-wrap: anywhere;
+}
+
+form {
+  gap: 0.5rem;
+  max-width: 32rem;
+}
+
+label {
+  gap: 0.4rem;
+}
+
+input,
+select {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 0.4rem;
+  color: var(--text);
+  min-height: 2.75rem;
+  padding: 0.6rem 0.7rem;
+  width: 100%;
+}
+
+input::placeholder {
+  color: #849196;
+}
+
+input:focus,
+select:focus,
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--focus) 45%, transparent);
+  outline-offset: 2px;
+}
+
+button {
+  align-items: center;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 0.4rem;
+  color: #ffffff;
+  font-weight: 700;
+  margin: 0;
+  min-height: 2.75rem;
+  padding: 0.6rem 1rem;
+  transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+button:hover:not(:disabled) {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.button-secondary {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.button-secondary:hover:not(:disabled) {
+  background: var(--surface-subtle);
+  border-color: var(--text-muted);
+}
+
+.button-danger {
+  background: var(--error);
+  border-color: var(--error);
+}
+
+.button-danger:hover:not(:disabled) {
+  background: #8f1e19;
+  border-color: #8f1e19;
+}
+
+.button-compact {
+  min-height: 2.25rem;
+  padding: 0.4rem 0.75rem;
+  white-space: nowrap;
+}
+
+.field-errors {
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.error,
+.success {
+  border: 1px solid;
+  border-radius: 0.4rem;
+  margin: 1rem 0 0;
+  padding: 0.75rem 0.9rem;
+}
+
+.error {
+  background: var(--error-soft);
+  border-color: #efb8b4;
+  color: #8e241e;
+}
+
+.success {
+  background: var(--success-soft);
+  border-color: #b8dec9;
+  color: #175b3d;
+}
+
+main > p:not(.breadcrumb) {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  padding: 1rem;
+}
+
+main > p[role='status']:not(.breadcrumb) {
+  border-inline-start: 4px solid var(--accent);
+}
+
+.auth-page {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  margin: 2rem auto;
+  max-width: 32rem;
+  padding: 2rem;
+}
+
+.auth-page h1 {
+  margin-bottom: 0.6rem;
+}
+
+.auth-page > p {
+  color: var(--text-muted);
+  max-width: 42rem;
+}
+
+.auth-page form {
+  margin-top: 1.5rem;
+}
+
+.page-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  margin: 0 0 0.35rem;
+  text-transform: uppercase;
+}
+
+.organization-summary {
+  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 0.35rem 1.25rem;
+  grid-template-columns: max-content minmax(0, 1fr);
+  margin: 0 0 1.5rem;
+  padding: 1rem 0;
+}
+
+.organization-summary dt,
+.organization-summary dd {
+  margin: 0;
+}
+
+.organization-summary dd {
+  overflow-wrap: anywhere;
+}
+
+.project-summary {
+  border-top: 1px solid var(--border);
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+}
+
+.organization-page > section:not(.monitor-section):not(.status-page-section) {
+  margin-bottom: 1.25rem;
+}
+
+.organization-page > section:not(.monitor-section):not(.status-page-section) form {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: minmax(0, 24rem) auto;
+  max-width: 42rem;
+}
+
+.organization-page > section:not(.monitor-section):not(.status-page-section) form button {
+  align-self: end;
+}
+
+.monitor-page {
+  max-width: 76rem;
+}
+
+.monitor-heading {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.25rem;
+  padding-bottom: 1.25rem;
+}
+
+.monitor-heading h1 {
+  margin-bottom: 0;
+}
+
+.monitor-heading > .monitor-state {
+  margin-top: 0.4rem;
+}
+
+.monitor-summary {
+  border-bottom: 0;
+  margin: 0 0 0.5rem;
+  padding: 0;
+}
+
+.monitor-summary dt,
+.detail-grid dt {
+  font-size: 0.76rem;
+  font-weight: 750;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.monitor-summary dd,
+.detail-grid dd {
+  font-size: 1rem;
+  margin-top: 0.2rem;
+}
+
+.monitor-state,
+.health-state,
+.incident-state,
+.run-outcome,
+.delivery-outcome,
+.maintenance-status,
+.public-state,
+.public-maintenance {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 0.4rem;
+  padding: 0.25rem 0.65rem;
+  white-space: nowrap;
+}
+
+.monitor-state::before,
+.health-state::before,
+.incident-state::before,
+.run-outcome::before,
+.public-state::before {
+  background: currentColor;
+  border-radius: 50%;
+  content: '';
+  flex: 0 0 auto;
+  height: 0.45rem;
+  width: 0.45rem;
+}
+
+.monitor-state[data-state='active'],
+.health-state[data-state='healthy'],
+.incident-state[data-state='resolved'],
+.run-outcome[data-outcome='passed'],
+.public-state[data-state='healthy'] {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.monitor-state[data-state='paused'],
+.monitor-state[data-state='draft'],
+.health-state[data-state='degraded'],
+.incident-state[data-state='acknowledged'],
+.run-outcome[data-outcome='inProgress'],
+.public-state[data-state='degraded'],
+.public-maintenance,
+.maintenance-status[data-status='active'] {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.monitor-state[data-state='archived'],
+.health-state[data-state='unknown'],
+.run-outcome[data-outcome='cancelled'],
+.run-outcome[data-outcome='skipped'],
+.public-state[data-state='unknown'] {
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
+.health-state[data-state='down'],
+.incident-state[data-state='open'],
+.run-outcome[data-outcome='failed'],
+.run-outcome[data-outcome='errored'],
+.run-outcome[data-outcome='timedout'],
+.run-outcome[data-outcome='leaseExpired'],
+.public-state[data-state='down'] {
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.monitor-page > .monitor-lifecycle-section,
+.monitor-page > .monitor-rename-section,
+.monitor-page > .monitor-interval-section,
+.monitor-page > .monitor-target-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  display: inline-flex;
+  flex-direction: column;
+  margin: 0.25rem 0.75rem 1rem 0;
+  min-height: 11rem;
+  padding: 1rem;
+  vertical-align: top;
+  width: calc(25% - 0.65rem);
+}
+
+.monitor-page > .monitor-target-section {
+  margin-right: 0;
+}
+
+.monitor-page > .monitor-lifecycle-section h2,
+.monitor-page > .monitor-rename-section h2,
+.monitor-page > .monitor-interval-section h2,
+.monitor-page > .monitor-target-section h2 {
+  font-size: 0.95rem;
+  margin-bottom: 0.9rem;
+}
+
+.monitor-page > .monitor-lifecycle-section form,
+.monitor-page > .monitor-rename-section form,
+.monitor-page > .monitor-interval-section form,
+.monitor-page > .monitor-target-section form {
+  margin-top: auto;
+  max-width: none;
+  width: 100%;
+}
+
+.lifecycle-actions {
+  margin-top: auto;
+}
+
+.monitor-page > .monitor-lifecycle-section + .monitor-rename-section {
+  margin-left: 0;
+}
+
+.monitor-section,
+.status-page-section,
+.health-section,
+.incidents-section,
+.incident-detail-section,
+.runs-section,
+.run-detail-section,
+.observation-section,
+.maintenance-section {
+  border-color: var(--border);
+}
+
+.table-scroll {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.monitor-table,
+.incidents-table,
+.runs-table,
+.maintenance-table,
+.delivery-attempts-table {
+  min-width: 0;
+}
+
+.monitor-table th,
+.monitor-table td,
+.incidents-table th,
+.incidents-table td,
+.runs-table th,
+.runs-table td,
+.maintenance-table th,
+.maintenance-table td,
+.delivery-attempts-table th,
+.delivery-attempts-table td {
+  border-color: var(--border);
+  padding: 0.8rem 0.85rem;
+}
+
+.monitor-table thead th,
+.incidents-table thead th,
+.runs-table thead th,
+.maintenance-table thead th,
+.delivery-attempts-table th {
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0;
+}
+
+.monitor-table tbody tr:hover,
+.incidents-table tbody tr:hover,
+.runs-table tbody tr:hover {
+  background: #f7faf9;
+}
+
+.monitor-table tbody tr:last-child th,
+.monitor-table tbody tr:last-child td,
+.incidents-table tbody tr:last-child td,
+.runs-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.monitor-link,
+.run-detail-link,
+.breadcrumb a,
+.run-detail-section > p a,
+.incident-detail-link,
+.incident-detail-section > p a {
+  color: var(--accent-strong);
+  text-decoration-color: var(--border-strong);
+}
+
+.status-page-form fieldset {
+  background: var(--surface);
+  border-color: var(--border);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.status-monitor-options label {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  font-weight: 500;
+  gap: 0.55rem;
+}
+
+.status-monitor-options input {
+  flex: 0 0 auto;
+  min-height: 1rem;
+  width: 1rem;
+}
+
+.status-component-list li {
+  border-color: var(--border);
+}
+
+.delivery-evidence-row > td {
+  background: var(--surface-subtle);
+}
+
+.public-status-page {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  margin: 2rem auto;
+  max-width: 52rem;
+  padding: 2rem;
+}
+
+.public-status-page > header {
+  border-color: var(--border);
+  margin-bottom: 0.5rem;
+}
+
+.public-status-components li {
+  border-color: var(--border);
+}
+
+.public-status-brand {
+  color: var(--accent);
+}
+
+@media (max-width: 68rem) {
+  .app-header-inner,
+  .app-main {
+    max-width: 100%;
+  }
+
+  .monitor-page > .monitor-lifecycle-section,
+  .monitor-page > .monitor-rename-section,
+  .monitor-page > .monitor-interval-section,
+  .monitor-page > .monitor-target-section {
+    width: calc(50% - 0.55rem);
+  }
+
+  .monitor-page > .monitor-rename-section,
+  .monitor-page > .monitor-target-section {
+    margin-right: 0;
+  }
+}
+
+@media (max-width: 40rem) {
+  .app-header-inner {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.7rem 1rem;
+  }
+
+  .app-actions {
+    gap: 0.5rem;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .app-language {
+    font-size: 0.75rem;
+  }
+
+  .app-language span {
+    display: none;
+  }
+
+  .app-language select {
+    min-width: 8rem;
+  }
+
+  .app-session {
+    gap: 0.5rem;
+    max-width: calc(100% - 8.5rem);
+  }
+
+  .app-session-email {
+    max-width: 11rem;
+  }
+
+  .app-main {
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  .auth-page,
+  .public-status-page {
+    border-radius: 0.5rem;
+    margin: 1rem 0;
+    padding: 1.25rem;
+  }
+
+  .page-heading {
+    gap: 0.75rem;
+  }
+
+  .organization-heading {
+    flex-wrap: wrap;
+  }
+
+  .organization-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .organization-summary dd {
+    margin-bottom: 0.55rem;
+  }
+
+  .monitor-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .monitor-page > .monitor-lifecycle-section,
+  .monitor-page > .monitor-rename-section,
+  .monitor-page > .monitor-interval-section,
+  .monitor-page > .monitor-target-section {
+    margin: 0.25rem 0 0.75rem;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .monitor-page > .monitor-lifecycle-section form,
+  .monitor-page > .monitor-rename-section form,
+  .monitor-page > .monitor-interval-section form,
+  .monitor-page > .monitor-target-section form {
+    margin-top: 0;
+  }
+
+  .monitor-table th,
+  .monitor-table td,
+  .incidents-table th,
+  .incidents-table td,
+  .runs-table th,
+  .runs-table td {
+    padding-inline: 0.45rem;
+  }
+
+  .status-page-form {
+    gap: 0.8rem;
+  }
+
+  .status-component-list {
+    padding-left: 1.25rem;
+  }
+}
+.monitor-page > .monitor-lifecycle-section .monitor-form,
+.monitor-page > .monitor-rename-section .monitor-form,
+.monitor-page > .monitor-interval-section .monitor-form,
+.monitor-page > .monitor-target-section .monitor-form {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+@media (max-width: 40rem) {
+  .app-actions {
+    width: auto;
+  }
+
+  .app-actions:has(.app-session) {
+    width: 100%;
+  }
+
+  .organization-page > section:not(.monitor-section):not(.status-page-section) form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .organization-page > section:not(.monitor-section):not(.status-page-section) form button {
+    width: 100%;
+  }
+}
+@media (max-width: 40rem) {
+  h1 {
+    font-size: 1.85rem;
+  }
+}

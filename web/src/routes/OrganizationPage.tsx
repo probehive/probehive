@@ -31,9 +31,14 @@ export default function OrganizationPage() {
 
   const organization = query.data
   return (
-    <section>
-      <h1>{organization.displayName}</h1>
-      <dl>
+    <section className="organization-page">
+      <header className="page-heading organization-heading">
+        <div>
+          <p className="eyebrow">{t('organization.eyebrow')}</p>
+          <h1>{organization.displayName}</h1>
+        </div>
+      </header>
+      <dl className="organization-summary detail-grid">
         <dt>{t('organization.slug')}</dt>
         <dd>{organization.slug}</dd>
         <dt>{t('organization.identifier')}</dt>
@@ -44,8 +49,9 @@ export default function OrganizationPage() {
         <dd>{formatDateTime(organization.createdAt)}</dd>
       </dl>
       <RenameOrganizationForm organization={organization} />
-      <h2>{t('organization.defaultProject')}</h2>
-      <dl>
+      <section className="project-summary" aria-labelledby="default-project-heading">
+        <h2 id="default-project-heading">{t('organization.defaultProject')}</h2>
+        <dl className="detail-grid">
         <dt>{t('organization.name')}</dt>
         <dd>{organization.defaultProject.name}</dd>
         <dt>{t('organization.identifier')}</dt>
@@ -53,6 +59,7 @@ export default function OrganizationPage() {
           <code>{organization.defaultProject.id}</code>
         </dd>
       </dl>
+      </section>
       <MonitorsPanel
         organizationId={organization.id}
         projectId={organization.defaultProject.id}

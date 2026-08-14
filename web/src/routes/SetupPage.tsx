@@ -52,7 +52,7 @@ export default function SetupPage() {
   }
 
   return (
-    <section>
+    <section className="auth-page">
       <h1>{t('setup.heading')}</h1>
       <p>{t('setup.intro')}</p>
       <form onSubmit={onSubmit} aria-label={t('setup.form')}>
