@@ -35,7 +35,11 @@ export default function App() {
           <div className="app-actions">
             <label className="app-language">
               <span>{t('app.language')}</span>
-              <select value={locale} onChange={(event) => setLocale(event.target.value as typeof locale)}>
+              <select
+                aria-label={t('app.language')}
+                value={locale}
+                onChange={(event) => setLocale(event.target.value as typeof locale)}
+              >
                 {locales.map((available) => (
                   <option key={available} value={available}>
                     {localeNames[available]}

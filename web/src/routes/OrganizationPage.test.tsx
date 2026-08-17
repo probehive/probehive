@@ -59,6 +59,8 @@ test('renders the organization and its default project', async () => {
   renderPage(organization.id)
 
   expect(await screen.findByRole('heading', { name: 'Acme Monitoring' })).toBeInTheDocument()
+  expect(screen.getByRole('combobox', { name: 'Language' }))
+    .toHaveAttribute('aria-label', 'Language')
   expect(screen.getByText('acme')).toBeInTheDocument()
   expect(screen.getByText('Default')).toBeInTheDocument()
   expect(await screen.findByText('No Monitors yet.')).toBeInTheDocument()
