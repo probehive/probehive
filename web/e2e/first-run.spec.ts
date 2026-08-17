@@ -388,7 +388,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await page.getByRole('button', { name: 'Sign in' }).click()
 
   // Signing in lands on the Organization list, which already holds the provisioned one.
-  await expect(page.getByRole('heading', { name: 'Organizations' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Organizations', exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'My Services' })).toBeVisible()
 
   // Provisioning an additional Organization is still reachable from that page.
