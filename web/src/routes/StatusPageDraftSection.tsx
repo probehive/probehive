@@ -83,22 +83,30 @@ export default function StatusPageDraftSection({
   })
   const publishMutation = useMutation({
     mutationFn: () => publishStatusPage(organizationId),
-    onSuccess: (publication) => {
+    onSuccess: async (publication) => {
       setPublicUrl(publication.publicUrl)
       queryClient.setQueryData<StatusPageDraftResponse | null>(draftKey, (current) => current && ({
         ...current,
         publication: { publishedAt: publication.publishedAt },
       }))
+      await queryClient.invalidateQueries({
+        queryKey: organizationOverviewQueryKey(organizationId),
+        exact: true,
+      })
     },
   })
   const revokeMutation = useMutation({
     mutationFn: () => revokeStatusPage(organizationId),
-    onSuccess: () => {
+    onSuccess: async () => {
       setPublicUrl(null)
       queryClient.setQueryData<StatusPageDraftResponse | null>(draftKey, (current) => current && ({
         ...current,
         publication: null,
       }))
+      await queryClient.invalidateQueries({
+        queryKey: organizationOverviewQueryKey(organizationId),
+        exact: true,
+      })
     },
   })
 

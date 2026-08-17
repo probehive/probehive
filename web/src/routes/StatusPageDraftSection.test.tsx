@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 
 import type { MonitorResponse } from '../api/monitors'
+import { organizationOverviewQueryKey } from '../api/overview'
 import { en } from '../i18n/en'
 import { jsonResponse, renderWithProviders } from '../test/renderWithProviders'
 import StatusPageDraftSection from './StatusPageDraftSection'
@@ -213,15 +214,28 @@ test('publishes a one-time anonymous URL and revokes it', async () => {
     if (url === monitorsURL) return jsonResponse(200, monitors)
     throw new Error(`Unexpected fetch: ${url}`)
   })
-  renderSection()
+  const { queryClient } = renderSection()
+  queryClient.setQueryData(organizationOverviewQueryKey(organizationId), {
+    organizationId,
+    statusPage: { configured: true, published: false },
+  })
 
   const form = await screen.findByRole('form', { name: en['statusPage.form'] })
   await user.click(within(form).getByRole('button', { name: en['statusPage.publication.publish'] }))
   expect(await within(form).findByRole('link', { name: publicURL })).toHaveAttribute('href', publicURL)
   expect(within(form).getByText(en['statusPage.publication.once'])).toBeInTheDocument()
+  expect(queryClient.getQueryState(organizationOverviewQueryKey(organizationId))?.isInvalidated)
+    .toBe(true)
+  queryClient.removeQueries({ queryKey: organizationOverviewQueryKey(organizationId), exact: true })
+  queryClient.setQueryData(organizationOverviewQueryKey(organizationId), {
+    organizationId,
+    statusPage: { configured: true, published: true },
+  })
 
   await user.click(within(form).getByRole('button', { name: en['statusPage.publication.revoke'] }))
   expect(await within(form).findByText(en['statusPage.publication.revoked'])).toBeInTheDocument()
+  expect(queryClient.getQueryState(organizationOverviewQueryKey(organizationId))?.isInvalidated)
+    .toBe(true)
   expect(within(form).queryByRole('link', { name: publicURL })).not.toBeInTheDocument()
   expect(within(form).getByRole('button', { name: en['statusPage.publication.publish'] })).toBeEnabled()
 })
