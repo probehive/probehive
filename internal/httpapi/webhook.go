@@ -99,7 +99,9 @@ func toWebhookIntegrationResponse(value webhook.Integration) api.WebhookIntegrat
 		ID: value.ID, OrganizationID: value.OrganizationID, Name: value.Name,
 		DestinationURL: value.DestinationURL, Enabled: value.Enabled,
 		Version: value.Version, ActiveSecretVersion: value.ActiveSecretVersion,
-		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		PendingSecretVersion:  value.PendingSecretVersion,
+		RetiringSecretVersion: value.RetiringSecretVersion,
+		CreatedAt:             value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
 

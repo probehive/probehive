@@ -65,6 +65,9 @@ func TestWebhookSigningSecretRotationAPIEnforcesOrderAndOneTimeDisclosure(t *tes
 	}
 	if preparedResponse.Integration.Version != 2 ||
 		preparedResponse.Integration.ActiveSecretVersion != 1 ||
+		preparedResponse.Integration.PendingSecretVersion == nil ||
+		*preparedResponse.Integration.PendingSecretVersion != 2 ||
+		preparedResponse.Integration.RetiringSecretVersion != nil ||
 		preparedResponse.SecretVersion != 2 ||
 		!strings.HasPrefix(preparedResponse.SigningSecret, "phwh_") ||
 		preparedResponse.SigningSecret == createdResponse.SigningSecret {
@@ -82,6 +85,14 @@ func TestWebhookSigningSecretRotationAPIEnforcesOrderAndOneTimeDisclosure(t *tes
 	if bytes.Contains(listed.Body, []byte(preparedResponse.SigningSecret)) ||
 		bytes.Contains(listed.Body, []byte("signingSecret")) {
 		t.Fatalf("list exposes prepared secret: %s", listed.Body)
+	}
+	var listedResponses []api.WebhookIntegrationResponse
+	if err := json.Unmarshal(listed.Body, &listedResponses); err != nil {
+		t.Fatal(err)
+	}
+	if len(listedResponses) != 1 || listedResponses[0].PendingSecretVersion == nil ||
+		*listedResponses[0].PendingSecretVersion != 2 {
+		t.Fatalf("listed rotation metadata = %#v", listedResponses)
 	}
 
 	stale := environment.request(
@@ -101,7 +112,10 @@ func TestWebhookSigningSecretRotationAPIEnforcesOrderAndOneTimeDisclosure(t *tes
 		t.Fatal(err)
 	}
 	if activated.StatusCode != http.StatusOK ||
-		activatedResponse.Version != 3 || activatedResponse.ActiveSecretVersion != 2 {
+		activatedResponse.Version != 3 || activatedResponse.ActiveSecretVersion != 2 ||
+		activatedResponse.PendingSecretVersion != nil ||
+		activatedResponse.RetiringSecretVersion == nil ||
+		*activatedResponse.RetiringSecretVersion != 1 {
 		t.Fatalf("activation status/response = %d/%#v", activated.StatusCode, activatedResponse)
 	}
 
@@ -123,7 +137,9 @@ func TestWebhookSigningSecretRotationAPIEnforcesOrderAndOneTimeDisclosure(t *tes
 		t.Fatal(err)
 	}
 	if retired.StatusCode != http.StatusOK ||
-		retiredResponse.Version != 4 || retiredResponse.ActiveSecretVersion != 2 {
+		retiredResponse.Version != 4 || retiredResponse.ActiveSecretVersion != 2 ||
+		retiredResponse.PendingSecretVersion != nil ||
+		retiredResponse.RetiringSecretVersion != nil {
 		t.Fatalf("retirement status/response = %d/%#v", retired.StatusCode, retiredResponse)
 	}
 	environment.webhooks.mu.Lock()

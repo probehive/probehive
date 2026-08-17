@@ -44,6 +44,7 @@ export default function OrganizationPage() {
       <nav className="section-nav" aria-label={t('organization.defaultProject')}>
         <a href="#monitors">{t('monitor.heading')}</a>
         <a href="#status-page">{t('statusPage.heading')}</a>
+        <Link to={'/organizations/' + organization.id + '/integrations'}>{t('integration.heading')}</Link>
       </nav>
       <dl className="organization-summary detail-grid">
         <dt>{t('organization.slug')}</dt>

@@ -86,7 +86,10 @@ func (store *memoryWebhookStore) ActivateSecret(
 	}
 	store.secrets[activeIndex].State = "retiring"
 	store.secrets[pendingIndex].State = "active"
+	retiringVersion := value.ActiveSecretVersion
 	value.ActiveSecretVersion = store.secrets[pendingIndex].Version
+	value.PendingSecretVersion = nil
+	value.RetiringSecretVersion = &retiringVersion
 	value.Version++
 	value.UpdatedAt = now
 	store.byOrganization[organizationID][index] = value
@@ -121,6 +124,7 @@ func (store *memoryWebhookStore) RetireSecret(
 	}
 	store.secrets[retiringIndex].State = "retired"
 	store.secrets[retiringIndex].Envelope = webhook.Envelope{}
+	value.RetiringSecretVersion = nil
 	value.Version++
 	value.UpdatedAt = now
 	store.byOrganization[organizationID][index] = value

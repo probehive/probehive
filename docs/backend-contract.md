@@ -144,7 +144,7 @@ as JSON `null` when absent.
 | `AlertDeliveryPageResponse` | `items: AlertDeliveryResponse[]`, at most five point-in-time routes |
 | `AlertDeliveryResponse` | stable delivery and Integration UUIDs; channel `webhook`; positive Integration and signing-secret versions; route timestamp; `attempts: DeliveryAttemptResponse[]` ordered by sequence and limited to five |
 | `DeliveryAttemptResponse` | positive sequence; start and nullable finish timestamps; outcome `inProgress`, `succeeded`, `failed`, or `cancelled`; nullable HTTP status and stable allowlisted failure code |
-| `WebhookIntegrationResponse` | Integration and Organization UUIDs; name; Administrator-visible HTTPS destination URL; `enabled: false`; positive Integration and active-secret versions; creation/update timestamps |
+| `WebhookIntegrationResponse` | Integration and Organization UUIDs; name; Administrator-visible HTTPS destination URL; `enabled`; positive Integration and active-secret versions; nullable pending- and retiring-secret versions; creation/update timestamps |
 | `CreateWebhookIntegrationResponse` | `integration: WebhookIntegrationResponse`; `signingSecret: string` returned exactly once |
 | `PrepareWebhookSigningSecretResponse` | `integration: WebhookIntegrationResponse`; positive `secretVersion`; `signingSecret: string` returned exactly once |
 
@@ -453,8 +453,9 @@ DNS lookup, connection, redirect, or delivery.
 Creation is transactional and always produces a disabled Integration at version 1 with
 active secret version 1. It generates 32 random bytes, exposes the complete signing key as
 `phwh_` followed by unpadded base64url, and returns that value only in the successful `201`
-response, which carries `Cache-Control: no-store`. Ordinary list responses never contain a
-signing secret, ciphertext, nonce, or
+response, which carries `Cache-Control: no-store`. Ordinary list responses expose the active
+secret version plus nullable pending and retiring version numbers so clients can recover
+rotation state after a reload. They never contain a signing secret, ciphertext, nonce, or
 wrapping-key identifier. PostgreSQL stores only the AES-256-GCM envelope; associated data
 binds the Organization id, Integration id, and secret version. A name conflict creates
 neither the Integration nor its secret.
@@ -500,7 +501,9 @@ updates `updatedAt` in the same transaction as its secret-state change. Preparat
 allowed only when the Integration has neither a pending nor a retiring secret. It creates
 the next secret version in `pending` state, leaves the current secret active, and returns
 the new encoded secret exactly once in a `Cache-Control: no-store` response. Another
-prepare before the rotation finishes returns `409 webhook.rotation.inProgress`.
+prepare before the rotation finishes returns `409 webhook.rotation.inProgress`. The
+nullable `pendingSecretVersion` and `retiringSecretVersion` metadata report the durable
+phase after a retry or reload without redisclosing secret material.
 
 Activation requires the single pending secret. It moves the former active secret to
 `retiring`, makes the pending secret `active`, records its activation time, and advances

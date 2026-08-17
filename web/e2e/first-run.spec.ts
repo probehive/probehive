@@ -258,18 +258,45 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   // real API for that durable state, then acknowledge it through the browser UI.
   const organizationAPI = `/api/v1/organizations/${createdMonitor.organizationId}`
   const monitorsAPI = `${organizationAPI}/projects/${createdMonitor.projectId}/monitors`
-  const webhook = await unsafeJSON<{
-    integration: { id: string; version: number }
-  }>(page, 'POST', `${organizationAPI}/webhook-integrations`, {
-    name: 'Maintenance receiver',
-    destinationUrl: webhookTarget,
-  })
-  await unsafeJSON(page, 'PUT',
-    `${organizationAPI}/webhook-integrations/${webhook.integration.id}/state`, {
-      enabled: true,
-      version: webhook.integration.version,
-    },
+  await page.getByRole('link', { name: 'Webhook integrations' }).click()
+  await expect(page).toHaveURL(
+    new RegExp('/organizations/' + createdMonitor.organizationId + '/integrations$'),
   )
+  await expect(page.getByRole('heading', { name: 'Integrations' })).toBeVisible()
+  await page.getByLabel('Name').fill('Maintenance receiver')
+  await page.getByLabel('Destination URL').fill(webhookTarget)
+  const webhookCreateResponse = page.waitForResponse((response) =>
+    response.request().method() === 'POST' &&
+    response.url().endsWith('/webhook-integrations') &&
+    response.status() === 201,
+  )
+  await page.getByRole('button', { name: 'Create integration' }).click()
+  const createdWebhook = await (await webhookCreateResponse).json() as {
+    integration: { id: string }
+    signingSecret: string
+  }
+  await expect(page.getByTestId('one-time-secret')).toHaveText(createdWebhook.signingSecret)
+  await expect(page).not.toHaveURL(new RegExp(createdWebhook.signingSecret))
+
+  // The signing secret is current component state only. A real reload preserves
+  // durable Integration metadata from the API but cannot redisclose the secret.
+  await page.reload()
+  await expect(page.getByText('Maintenance receiver')).toBeVisible()
+  await expect(page.getByTestId('one-time-secret')).toHaveCount(0)
+  const integrationRow = page.getByRole('row').filter({ hasText: 'Maintenance receiver' })
+  await integrationRow.getByRole('button', { name: 'Enable' }).click()
+  await expect(integrationRow.getByText(/Enable Maintenance receiver/)).toBeVisible()
+  const webhookEnableResponse = page.waitForResponse((response) =>
+    response.request().method() === 'PUT' &&
+    response.url().endsWith('/webhook-integrations/' + createdWebhook.integration.id + '/state') &&
+    response.status() === 200,
+  )
+  await integrationRow.getByRole('button', { name: 'Confirm enable' }).click()
+  await webhookEnableResponse
+  await expect(page.getByText('Maintenance receiver is enabled.')).toBeVisible()
+  await expect(integrationRow.getByText('Enabled', { exact: true })).toBeVisible()
+  await page.getByRole('link', { name: 'Back to Organization' }).click()
+
   const failingMonitor = await unsafeJSON<CreatedMonitor>(page, 'POST', monitorsAPI, {
     name: 'Unavailable Service',
     checkType: 'http',

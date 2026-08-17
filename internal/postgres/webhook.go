@@ -16,6 +16,19 @@ var _ webhook.Store = (*WebhookStore)(nil)
 
 const webhookNameUniqueIndex = "ux_webhook_integrations_organization_name"
 
+const webhookIntegrationSelect = `
+SELECT integration.id, integration.organization_id, integration.name,
+       integration.destination_url, integration.enabled, integration.version,
+       integration.active_secret_version, pending.secret_version,
+       retiring.secret_version, integration.created_at, integration.updated_at
+FROM webhook_integrations AS integration
+LEFT JOIN webhook_signing_secrets AS pending
+  ON pending.organization_id=integration.organization_id
+ AND pending.integration_id=integration.id AND pending.state='pending'
+LEFT JOIN webhook_signing_secrets AS retiring
+  ON retiring.organization_id=integration.organization_id
+ AND retiring.integration_id=integration.id AND retiring.state='retiring'`
+
 type WebhookStore struct{ pool *pgxpool.Pool }
 
 func (database *DB) Webhooks() *WebhookStore { return &WebhookStore{pool: database.pool} }
@@ -66,12 +79,9 @@ INSERT INTO webhook_signing_secrets (
 func (store *WebhookStore) List(
 	ctx context.Context, organizationID string,
 ) ([]webhook.Integration, error) {
-	rows, err := store.pool.Query(ctx, `
-SELECT id, organization_id, name, destination_url, enabled, version,
-       active_secret_version, created_at, updated_at
-FROM webhook_integrations
-WHERE organization_id = $1
-ORDER BY created_at, id`, organizationID)
+	rows, err := store.pool.Query(ctx, webhookIntegrationSelect+`
+WHERE integration.organization_id = $1
+ORDER BY integration.created_at, integration.id`, organizationID)
 	if err != nil {
 		return nil, fmt.Errorf("list Webhook Integrations: %w", err)
 	}
@@ -146,14 +156,16 @@ WHERE organization_id=$4 AND integration_id=$5 AND secret_version=$6
 
 func scanWebhookIntegration(row pgx.Row) (webhook.Integration, error) {
 	var (
-		id, organizationID, name, destinationURL string
-		enabled                                  bool
-		version, activeSecretVersion             int64
-		createdAt, updatedAt                     time.Time
+		id, organizationID, name, destinationURL    string
+		enabled                                     bool
+		version, activeSecretVersion                int64
+		createdAt, updatedAt                        time.Time
+		pendingSecretVersion, retiringSecretVersion *int64
 	)
 	if err := row.Scan(
 		&id, &organizationID, &name, &destinationURL, &enabled, &version,
-		&activeSecretVersion, &createdAt, &updatedAt,
+		&activeSecretVersion, &pendingSecretVersion, &retiringSecretVersion,
+		&createdAt, &updatedAt,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return webhook.Integration{}, err
@@ -162,7 +174,8 @@ func scanWebhookIntegration(row pgx.Row) (webhook.Integration, error) {
 	}
 	value, err := webhook.NewIntegration(
 		id, organizationID, name, destinationURL, enabled, version,
-		activeSecretVersion, createdAt.UTC(), updatedAt.UTC(),
+		activeSecretVersion, pendingSecretVersion, retiringSecretVersion,
+		createdAt.UTC(), updatedAt.UTC(),
 	)
 	if err != nil {
 		return webhook.Integration{}, fmt.Errorf("restore Webhook Integration: %w", err)

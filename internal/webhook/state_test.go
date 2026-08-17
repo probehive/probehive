@@ -106,7 +106,7 @@ func TestSetEnabledEnforcesOrganizationLimit(t *testing.T) {
 func testStateIntegration(id string, enabled bool, version int64, now time.Time) Integration {
 	value, err := NewIntegration(
 		id, "organization", id, "https://hooks.example.test/events",
-		enabled, version, 1, now, now,
+		enabled, version, 1, nil, nil, now, now,
 	)
 	if err != nil {
 		panic(err)

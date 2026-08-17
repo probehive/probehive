@@ -2001,7 +2001,7 @@
       },
       "WebhookIntegrationResponse": {
         "type": "object",
-        "required": ["id", "organizationId", "name", "destinationUrl", "enabled", "version", "activeSecretVersion", "createdAt", "updatedAt"],
+        "required": ["id", "organizationId", "name", "destinationUrl", "enabled", "version", "activeSecretVersion", "pendingSecretVersion", "retiringSecretVersion", "createdAt", "updatedAt"],
         "properties": {
           "id": { "type": "string", "format": "uuid" },
           "organizationId": { "type": "string", "format": "uuid" },
@@ -2017,6 +2017,18 @@
           "enabled": { "type": "boolean", "description": "Whether future Alert projections create a stable Webhook route for this Integration." },
           "version": { "type": "integer", "format": "int64", "minimum": 1 },
           "activeSecretVersion": { "type": "integer", "format": "int64", "minimum": 1 },
+          "pendingSecretVersion": {
+            "type": ["integer", "null"],
+            "format": "int64",
+            "minimum": 1,
+            "description": "The prepared secret version awaiting activation, or null when no prepared secret exists."
+          },
+          "retiringSecretVersion": {
+            "type": ["integer", "null"],
+            "format": "int64",
+            "minimum": 1,
+            "description": "The former active secret version awaiting retirement, or null when no retiring secret exists."
+          },
           "createdAt": { "type": "string", "format": "date-time" },
           "updatedAt": { "type": "string", "format": "date-time" }
         }

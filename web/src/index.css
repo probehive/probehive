@@ -2219,3 +2219,267 @@ button:disabled {
     padding: 0.85rem;
   }
 }
+
+.integrations-heading {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.25rem;
+  padding-bottom: 1.25rem;
+}
+
+.integrations-heading h1 {
+  margin-bottom: 0.25rem;
+}
+
+.integrations-heading .muted {
+  margin-bottom: 0;
+}
+
+.integration-layout {
+  align-items: start;
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: minmax(0, 1fr) minmax(19rem, 23rem);
+}
+
+.integration-list-section {
+  min-width: 0;
+}
+
+.integration-list-section > .section-heading {
+  margin-bottom: 1rem;
+}
+
+.integration-list-section > .section-heading h2 {
+  margin-bottom: 0;
+}
+
+.integration-table {
+  border-collapse: collapse;
+  min-width: 52rem;
+  width: 100%;
+}
+
+.integration-table th,
+.integration-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.8rem 0.85rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.integration-table thead th {
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.integration-table tbody tr:last-child th,
+.integration-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.integration-table tbody tr:hover {
+  background: #f7faf9;
+}
+
+.integration-name {
+  overflow-wrap: anywhere;
+}
+
+.integration-state {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.85rem;
+  font-weight: 700;
+  gap: 0.4rem;
+  padding: 0.25rem 0.65rem;
+  white-space: nowrap;
+}
+
+.integration-state::before {
+  background: currentColor;
+  border-radius: 50%;
+  content: '';
+  flex: 0 0 auto;
+  height: 0.45rem;
+  width: 0.45rem;
+}
+
+.integration-state[data-state='enabled'] {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.integration-state[data-state='disabled'] {
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
+.integration-rotation-state,
+.integration-secret-version {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.78rem;
+  margin-top: 0.35rem;
+}
+
+.integration-destination {
+  display: block;
+  max-width: 18rem;
+  overflow-wrap: anywhere;
+}
+
+.integration-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.integration-confirmation {
+  border-inline-start: 3px solid var(--warning);
+  margin-top: 0.75rem;
+  max-width: 24rem;
+  min-width: 15rem;
+  padding-inline-start: 0.75rem;
+}
+
+.integration-confirmation p {
+  margin: 0 0 0.65rem;
+}
+
+.integration-confirmation .error {
+  margin-bottom: 0;
+}
+
+.integration-create-panel {
+  min-width: 0;
+}
+
+.integration-create-panel > section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+}
+
+.integration-create-panel h2 {
+  font-size: 1.05rem;
+}
+
+.integration-form {
+  display: grid;
+  gap: 0.5rem;
+  max-width: none;
+}
+
+.integration-form button {
+  margin-top: 0.4rem;
+  width: 100%;
+}
+
+.one-time-secret {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-inline-start-width: 4px;
+  border-radius: 0.5rem;
+  margin: 0 0 1.5rem;
+  max-width: 54rem;
+  padding: 1rem;
+}
+
+.one-time-secret h2 {
+  margin-bottom: 0.5rem;
+}
+
+.integration-secret-value {
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  display: block;
+  margin: 0.75rem 0;
+  overflow-x: auto;
+  padding: 0.75rem;
+  user-select: all;
+  white-space: nowrap;
+}
+
+#integrations {
+  scroll-margin-top: 1.5rem;
+}
+
+@media (max-width: 64rem) {
+  .integration-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .integration-create-panel {
+    max-width: 32rem;
+  }
+}
+
+@media (max-width: 40rem) {
+  .integration-table {
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .integration-table th,
+  .integration-table td {
+    overflow-wrap: anywhere;
+    padding-inline: 0.4rem;
+  }
+
+  .integration-table th:nth-child(3),
+  .integration-table td:nth-child(3),
+  .integration-table th:nth-child(4),
+  .integration-table td:nth-child(4),
+  .integration-table th:nth-child(5),
+  .integration-table td:nth-child(5) {
+    display: none;
+  }
+
+  .integration-table th:nth-child(1),
+  .integration-table td:nth-child(1) {
+    width: 25%;
+  }
+
+  .integration-table th:nth-child(2),
+  .integration-table td:nth-child(2) {
+    width: 28%;
+  }
+
+  .integration-table th:nth-child(6),
+  .integration-table td:nth-child(6) {
+    width: 47%;
+  }
+
+  .integration-confirmation {
+    min-width: 0;
+  }
+
+  .integration-actions,
+  .integration-confirmation .form-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .integration-actions button,
+  .integration-confirmation button {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    width: 100%;
+    white-space: normal;
+  }
+
+  .one-time-secret .form-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .one-time-secret button {
+    width: 100%;
+  }
+}

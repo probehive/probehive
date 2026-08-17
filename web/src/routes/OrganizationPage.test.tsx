@@ -40,6 +40,10 @@ test('renders the organization and its default project', async () => {
   expect(screen.getByText('acme')).toBeInTheDocument()
   expect(screen.getByText('Default')).toBeInTheDocument()
   expect(await screen.findByText('No Monitors yet.')).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Webhook integrations' })).toHaveAttribute(
+    'href',
+    '/organizations/' + organization.id + '/integrations',
+  )
   expect(fetchMock).toHaveBeenCalledWith(`/api/v1/organizations/${organization.id}`)
   expect(fetchMock).toHaveBeenCalledWith(monitorURL)
 })

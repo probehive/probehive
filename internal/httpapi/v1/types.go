@@ -394,15 +394,17 @@ type ValidationError struct {
 }
 
 type WebhookIntegrationResponse struct {
-	ID                  string    `json:"id"`
-	OrganizationID      string    `json:"organizationId"`
-	Name                string    `json:"name"`
-	DestinationURL      string    `json:"destinationUrl"`
-	Enabled             bool      `json:"enabled"`
-	Version             int64     `json:"version"`
-	ActiveSecretVersion int64     `json:"activeSecretVersion"`
-	CreatedAt           time.Time `json:"createdAt"`
-	UpdatedAt           time.Time `json:"updatedAt"`
+	ID                    string    `json:"id"`
+	OrganizationID        string    `json:"organizationId"`
+	Name                  string    `json:"name"`
+	DestinationURL        string    `json:"destinationUrl"`
+	Enabled               bool      `json:"enabled"`
+	Version               int64     `json:"version"`
+	ActiveSecretVersion   int64     `json:"activeSecretVersion"`
+	PendingSecretVersion  *int64    `json:"pendingSecretVersion"`
+	RetiringSecretVersion *int64    `json:"retiringSecretVersion"`
+	CreatedAt             time.Time `json:"createdAt"`
+	UpdatedAt             time.Time `json:"updatedAt"`
 }
 
 type CreateWebhookIntegrationResponse struct {

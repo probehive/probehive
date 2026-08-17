@@ -75,6 +75,7 @@ func (service *Service) PrepareRotation(
 	updated := value
 	updated.Version++
 	updated.UpdatedAt = now
+	updated.PendingSecretVersion = &secretVersion
 	if err := service.store.PrepareSecret(ctx, updated, stored, command.ExpectedVersion); err != nil {
 		if errors.Is(err, ErrIntegrationNotFound) {
 			return RotationResult{Kind: RotationNotFound}, nil

@@ -14,11 +14,8 @@ import (
 func (store *WebhookStore) Find(
 	ctx context.Context, organizationID, integrationID string,
 ) (webhook.Integration, bool, error) {
-	value, err := scanWebhookIntegration(store.pool.QueryRow(ctx, `
-SELECT id, organization_id, name, destination_url, enabled, version,
-       active_secret_version, created_at, updated_at
-FROM webhook_integrations
-WHERE organization_id=$1 AND id=$2`, organizationID, integrationID))
+	value, err := scanWebhookIntegration(store.pool.QueryRow(ctx, webhookIntegrationSelect+`
+WHERE integration.organization_id=$1 AND integration.id=$2`, organizationID, integrationID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return webhook.Integration{}, false, nil
 	}
@@ -155,7 +152,10 @@ WHERE organization_id=$2 AND integration_id=$3
 	}
 
 	updated := current
+	retiringVersion := current.ActiveSecretVersion
 	updated.ActiveSecretVersion = pendingVersion
+	updated.PendingSecretVersion = nil
+	updated.RetiringSecretVersion = &retiringVersion
 	updated.Version++
 	updated.UpdatedAt = now.UTC()
 	if err := updateWebhookIntegrationVersion(ctx, transaction, updated); err != nil {
@@ -234,6 +234,7 @@ WHERE organization_id=$2 AND integration_id=$3 AND secret_version=$4 AND state='
 
 	updated := current
 	updated.Version++
+	updated.RetiringSecretVersion = nil
 	updated.UpdatedAt = now.UTC()
 	if err := updateWebhookIntegrationVersion(ctx, transaction, updated); err != nil {
 		return webhook.Integration{}, err
@@ -249,12 +250,9 @@ func findWebhookIntegrationForUpdate(
 	transaction pgx.Tx,
 	organizationID, integrationID string,
 ) (webhook.Integration, error) {
-	return scanWebhookIntegration(transaction.QueryRow(ctx, `
-SELECT id, organization_id, name, destination_url, enabled, version,
-       active_secret_version, created_at, updated_at
-FROM webhook_integrations
-WHERE organization_id=$1 AND id=$2
-FOR UPDATE`, organizationID, integrationID))
+	return scanWebhookIntegration(transaction.QueryRow(ctx, webhookIntegrationSelect+`
+WHERE integration.organization_id=$1 AND integration.id=$2
+FOR UPDATE OF integration`, organizationID, integrationID))
 }
 
 func updateWebhookIntegrationVersion(

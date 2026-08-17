@@ -130,6 +130,25 @@ PROBEHIVE_OUTBOUND_ALLOWED_CIDRS. Metadata endpoints remain denied. Do not use
 the smoke overlay for an operator installation; it deliberately permits private
 Compose-network ranges only so a local Monitor can reach its fixture.
 
+## Webhook Integration Management
+
+Configure `PROBEHIVE_WEBHOOK_KEYRING_FILE` before creating a Webhook Integration.
+An Organization administrator can then open the Organization and select **Webhook
+integrations**. Creation accepts the Integration name and its exact HTTPS destination,
+creates the Integration disabled, and displays its signing secret only in that successful
+result. Store the secret in the receiving system before leaving or reloading the page;
+ProbeHive cannot display it again.
+
+Enable or disable future Alert routing through the explicit confirmation shown for each
+Integration. Enabling does not backfill older Alerts, and disabling does not remove routes
+already recorded for an Alert. At most five Integrations can be enabled in one Organization.
+
+To rotate a signing secret, prepare the new secret and store it in the receiver, activate
+that prepared version, then retire the old version after its unfinished deliveries complete.
+The page retains only the pending or retiring version number across reloads, never the
+secret value. A blocked retirement leaves the old encrypted secret available for the
+deliveries that still require it.
+
 ## Public Status Page
 
 An Organization administrator can save a private status-page draft from the

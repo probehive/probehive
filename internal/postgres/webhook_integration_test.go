@@ -175,6 +175,69 @@ WHERE organization_id=$1 AND enabled`, string(organizationValue.ID)).Scan(&enabl
 	}
 }
 
+func TestWebhookRotationStateSurvivesReload(t *testing.T) {
+	database := newIntegrationDatabase(t, true)
+	organizationValue, _ := seedTenant(t, database, 1520, "webhook-rotation-tenant")
+	keyring, err := webhook.NewKeyring([]webhook.WrappingKey{{
+		ID: "test", Key: bytes.Repeat([]byte{7}, 32),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := webhook.NewService(
+		database.Webhooks(), fixedClock{value: testTime()},
+		&sequenceUUIDs{values: []string{testUUID(1521)}},
+		bytes.NewReader(sequenceBytes(128)), keyring,
+	)
+	created, err := service.Create(t.Context(), webhook.CreateCommand{
+		OrganizationID: string(organizationValue.ID),
+		Name:           "Rotating receiver", DestinationURL: "https://hooks.example.test/events",
+	})
+	if err != nil || created.Kind != webhook.CreateCreated {
+		t.Fatalf("Create() = %#v, %v", created, err)
+	}
+
+	prepared, err := service.PrepareRotation(t.Context(), webhook.RotationCommand{
+		OrganizationID: string(organizationValue.ID),
+		IntegrationID:  created.Integration.ID, ExpectedVersion: 1,
+	})
+	if err != nil || prepared.Kind != webhook.RotationPrepared {
+		t.Fatalf("PrepareRotation() = %#v, %v", prepared, err)
+	}
+	listed, err := service.List(t.Context(), string(organizationValue.ID))
+	if err != nil || len(listed) != 1 || listed[0].PendingSecretVersion == nil ||
+		*listed[0].PendingSecretVersion != 2 || listed[0].RetiringSecretVersion != nil {
+		t.Fatalf("List(after prepare) = %#v, %v", listed, err)
+	}
+
+	activated, err := service.ActivateRotation(t.Context(), webhook.RotationCommand{
+		OrganizationID: string(organizationValue.ID),
+		IntegrationID:  created.Integration.ID, ExpectedVersion: 2,
+	})
+	if err != nil || activated.Kind != webhook.RotationUpdated {
+		t.Fatalf("ActivateRotation() = %#v, %v", activated, err)
+	}
+	listed, err = service.List(t.Context(), string(organizationValue.ID))
+	if err != nil || len(listed) != 1 || listed[0].PendingSecretVersion != nil ||
+		listed[0].RetiringSecretVersion == nil ||
+		*listed[0].RetiringSecretVersion != 1 {
+		t.Fatalf("List(after activate) = %#v, %v", listed, err)
+	}
+
+	retired, err := service.RetireRotation(t.Context(), webhook.RotationCommand{
+		OrganizationID: string(organizationValue.ID),
+		IntegrationID:  created.Integration.ID, ExpectedVersion: 3,
+	})
+	if err != nil || retired.Kind != webhook.RotationUpdated {
+		t.Fatalf("RetireRotation() = %#v, %v", retired, err)
+	}
+	listed, err = service.List(t.Context(), string(organizationValue.ID))
+	if err != nil || len(listed) != 1 || listed[0].ActiveSecretVersion != 2 ||
+		listed[0].PendingSecretVersion != nil || listed[0].RetiringSecretVersion != nil {
+		t.Fatalf("List(after retire) = %#v, %v", listed, err)
+	}
+}
+
 func sequenceBytes(length int) []byte {
 	value := make([]byte, length)
 	for index := range value {

@@ -51,7 +51,7 @@ The current foundation implements:
 - Revocable anonymous status publication with one-time opaque URLs and a disclosure-safe current-state projection.
 - Automatic per-Monitor Incidents with open, acknowledge, and resolve lifecycle, immutable timelines, scoped keyset query APIs, and PostgreSQL-backed outbox dispatch.
 - Immutable Alert intents for Incident opening and confirmed recovery, with Monitor-scoped API and React audit history whose separate delivery evidence distinguishes no route, pending work, maintenance suppression, and attempt outcomes.
-- Administrator-only signed Webhook Integrations with one-time-disclosed secrets, operator-keyring encryption, two-phase rotation, point-in-time Alert routing, strict HTTPS delivery, bounded retries, and Viewer-safe delivery-attempt evidence.
+- Administrator-only browser management for signed Webhook Integrations, with one-time-disclosed secrets, operator-keyring encryption, explicit two-phase rotation, point-in-time Alert routing, strict HTTPS delivery, bounded retries, and Viewer-safe delivery-attempt evidence.
 - A React administration application in English and Simplified Chinese, rendering instants in the viewer's time zone, with Playwright browser journeys.
 - Default-Project Monitor inventory, a recoverable first-HTTP-Monitor flow, and authorized lifecycle, name, execution-interval, manual Run, and later HTTP target revision controls.
 - A Monitor Health evidence view with current and stable state, complete quorum counts, confirmation candidates, and causal Run links.

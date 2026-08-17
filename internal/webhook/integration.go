@@ -57,15 +57,17 @@ var (
 )
 
 type Integration struct {
-	ID                  string
-	OrganizationID      string
-	Name                string
-	DestinationURL      string
-	Enabled             bool
-	Version             int64
-	ActiveSecretVersion int64
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	ID                    string
+	OrganizationID        string
+	Name                  string
+	DestinationURL        string
+	Enabled               bool
+	Version               int64
+	ActiveSecretVersion   int64
+	PendingSecretVersion  *int64
+	RetiringSecretVersion *int64
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 type StoredSecret struct {
@@ -208,7 +210,8 @@ func (service *Service) Create(ctx context.Context, command CreateCommand) (Crea
 		return CreateResult{}, fmt.Errorf("generate Webhook Integration id: %w", err)
 	}
 	value, err := NewIntegration(
-		id, command.OrganizationID, name, destination, false, 1, initialSecretVersion, now, now,
+		id, command.OrganizationID, name, destination, false, 1, initialSecretVersion,
+		nil, nil, now, now,
 	)
 	if err != nil {
 		return CreateResult{}, err
@@ -257,6 +260,7 @@ func (service *Service) ListDeliveryAudit(
 func NewIntegration(
 	id, organizationID, name, destinationURL string,
 	enabled bool, version, activeSecretVersion int64,
+	pendingSecretVersion, retiringSecretVersion *int64,
 	createdAt, updatedAt time.Time,
 ) (Integration, error) {
 	if id == "" || organizationID == "" {
@@ -271,12 +275,20 @@ func NewIntegration(
 	if version < 1 || activeSecretVersion < 1 {
 		return Integration{}, errors.New("invalid Webhook Integration version")
 	}
+	if pendingSecretVersion != nil &&
+		(*pendingSecretVersion != activeSecretVersion+1 || retiringSecretVersion != nil) {
+		return Integration{}, errors.New("invalid pending Webhook signing-secret version")
+	}
+	if retiringSecretVersion != nil && *retiringSecretVersion != activeSecretVersion-1 {
+		return Integration{}, errors.New("invalid retiring Webhook signing-secret version")
+	}
 	if !isUTC(createdAt) || !isUTC(updatedAt) || updatedAt.Before(createdAt) {
 		return Integration{}, errors.New("invalid Webhook Integration timestamps")
 	}
 	return Integration{
 		ID: id, OrganizationID: organizationID, Name: name, DestinationURL: destinationURL,
 		Enabled: enabled, Version: version, ActiveSecretVersion: activeSecretVersion,
+		PendingSecretVersion: pendingSecretVersion, RetiringSecretVersion: retiringSecretVersion,
 		CreatedAt: createdAt, UpdatedAt: updatedAt,
 	}, nil
 }

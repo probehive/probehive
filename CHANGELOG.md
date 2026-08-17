@@ -17,8 +17,9 @@ announcement. The owner controls version selection, signing, tagging, and public
   Observations, health evaluation, Incidents, immutable Alerts, and evidence views.
 - Monitor-scoped one-time maintenance windows. Maintenance preserves monitoring facts and
   terminally suppresses matching event-time Webhook routes without a network attempt.
-- Signed HTTPS Webhook Integrations with encrypted one-time-disclosed secrets, bounded
-  retries, two-phase secret rotation, and redacted delivery evidence.
+- Browser-managed signed HTTPS Webhook Integrations with encrypted one-time-disclosed
+  secrets, explicit enable and disable controls, reload-visible two-phase secret rotation,
+  bounded retries, and redacted delivery evidence.
 - Private status-page configuration and revocable anonymous publication of only selected
   labels, current evaluated state, update instants, and active-maintenance presentation.
 - English and Simplified Chinese static React administration UI.
