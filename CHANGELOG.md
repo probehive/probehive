@@ -20,6 +20,8 @@ announcement. The owner controls version selection, signing, tagging, and public
 - Browser-managed signed HTTPS Webhook Integrations with encrypted one-time-disclosed
   secrets, explicit enable and disable controls, reload-visible two-phase secret rotation,
   bounded retries, and redacted delivery evidence.
+- Organization operational overview with bounded, permission-aware lifecycle, health,
+  active-Incident, Integration, and status-publication summaries.
 - Private status-page configuration and revocable anonymous publication of only selected
   labels, current evaluated state, update instants, and active-maintenance presentation.
 - English and Simplified Chinese static React administration UI.

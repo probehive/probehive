@@ -28,18 +28,19 @@ func TestOpenAPIDocumentDescribesEveryRoute(t *testing.T) {
 	}
 
 	expected := map[string][]string{
-		"/healthz":                                    {"get", "head"},
-		"/readyz":                                     {"get", "head"},
-		"/openapi/v1.json":                            {"get", "head"},
-		"/api/v1/setup/status":                        {"get"},
-		"/api/v1/setup/admin":                         {"post"},
-		"/api/v1/auth/antiforgery":                    {"get"},
-		"/api/v1/auth/login":                          {"post"},
-		"/api/v1/auth/logout":                         {"post"},
-		"/api/v1/auth/session":                        {"get"},
-		"/api/v1/organizations":                       {"get", "post"},
-		"/api/v1/organizations/{organizationId}":      {"get"},
-		"/api/v1/organizations/{organizationId}/name": {"put"},
+		"/healthz":                                        {"get", "head"},
+		"/readyz":                                         {"get", "head"},
+		"/openapi/v1.json":                                {"get", "head"},
+		"/api/v1/setup/status":                            {"get"},
+		"/api/v1/setup/admin":                             {"post"},
+		"/api/v1/auth/antiforgery":                        {"get"},
+		"/api/v1/auth/login":                              {"post"},
+		"/api/v1/auth/logout":                             {"post"},
+		"/api/v1/auth/session":                            {"get"},
+		"/api/v1/organizations":                           {"get", "post"},
+		"/api/v1/organizations/{organizationId}":          {"get"},
+		"/api/v1/organizations/{organizationId}/overview": {"get"},
+		"/api/v1/organizations/{organizationId}/name":     {"put"},
 		"/api/v1/organizations/{organizationId}/webhook-integrations":                                                                       {"get", "post"},
 		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/state":                                                 {"put"},
 		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/prepare":                               {"post"},
@@ -105,6 +106,7 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 		Maximum              int               `json:"maximum"`
 		Default              json.RawMessage   `json:"default"`
 		MinLength            int               `json:"minLength"`
+		MaxItems             int               `json:"maxItems"`
 		MaxBytes             int               `json:"x-probehive-max-bytes"`
 		LengthUnit           string            `json:"x-probehive-length-unit"`
 		UniqueNameComparison string            `json:"x-probehive-unique-name-comparison"`
@@ -158,6 +160,9 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 		"MaintenanceWindowResponse", "StatusPageDraftResponse", "StatusComponentResponse",
 		"StatusPagePublicationResponse", "PublishStatusPageResponse",
 		"PublicStatusPageResponse", "PublicStatusComponentResponse",
+		"OrganizationOverviewResponse", "OrganizationOverviewMonitorCounts",
+		"OrganizationOverviewHealthCounts", "OrganizationOverviewIncidentSummary",
+		"OrganizationOverviewActiveIncident", "OrganizationOverviewIntegrationCounts", "OrganizationOverviewStatusPageState", "OrganizationOverviewCapabilities",
 		"MonitorHealthResponse", "HealthCountsResponse", "IncidentPageResponse", "IncidentResponse", "IncidentTimelineResponse",
 		"AlertPageResponse", "AlertResponse", "AlertDeliveryPageResponse",
 		"AlertDeliveryResponse", "DeliveryAttemptResponse",
@@ -168,6 +173,9 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 		if _, found := document.Components.Schemas[name]; !found {
 			t.Errorf("OpenAPI omits %s", name)
 		}
+	}
+	if got := document.Components.Schemas["OrganizationOverviewIncidentSummary"].Properties["activePreview"].MaxItems; got != 5 {
+		t.Errorf("Organization overview active Incident preview maxItems = %d, want 5", got)
 	}
 
 	requestSchemas := []string{

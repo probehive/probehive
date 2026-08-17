@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type FormEvent } from 'react'
 
 import { ApiError } from '../api/http'
+import { organizationOverviewQueryKey } from '../api/overview'
 import { listMonitors, type MonitorResponse } from '../api/monitors'
 import {
   getStatusPageDraft,
@@ -71,9 +72,13 @@ export default function StatusPageDraftSection({
       draftQuery.data?.version ?? 0,
       components,
     ),
-    onSuccess: (draft) => {
+    onSuccess: async (draft) => {
       queryClient.setQueryData(draftKey, draft)
       setLoadedVersion(draft.version)
+      await queryClient.invalidateQueries({
+        queryKey: organizationOverviewQueryKey(organizationId),
+        exact: true,
+      })
     },
   })
   const publishMutation = useMutation({

@@ -2483,3 +2483,242 @@ button:disabled {
     width: 100%;
   }
 }
+.organization-overview {
+  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  margin-bottom: 2rem;
+  padding: 1.25rem 0 1.5rem;
+  scroll-margin-top: 1.5rem;
+}
+
+.organization-overview > .section-heading {
+  margin-bottom: 1rem;
+}
+
+.organization-overview > .section-heading h2,
+.overview-group .section-heading h3 {
+  margin-bottom: 0;
+}
+
+.overview-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(14rem, 0.8fr);
+}
+
+.overview-group {
+  min-width: 0;
+  padding: 0 1.25rem;
+}
+
+.overview-group:first-child {
+  padding-inline-start: 0;
+}
+
+.overview-group:last-child {
+  padding-inline-end: 0;
+}
+
+.overview-group + .overview-group {
+  border-inline-start: 1px solid var(--border);
+}
+
+.overview-group > .section-heading {
+  align-items: baseline;
+  margin-bottom: 0.8rem;
+}
+
+.overview-group h3 {
+  font-size: 1rem;
+}
+
+.overview-group h4 {
+  font-size: 0.8rem;
+  margin: 1.1rem 0 0.5rem;
+  text-transform: uppercase;
+}
+
+.overview-link,
+.overview-action a,
+.overview-admin-list a,
+.overview-incident-list a {
+  font-weight: 750;
+}
+
+.overview-link {
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.overview-metrics {
+  display: grid;
+  gap: 0.75rem 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.overview-metric {
+  border-top: 1px solid var(--border);
+  min-width: 0;
+  padding-top: 0.55rem;
+}
+
+.overview-metric dt {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+
+.overview-metric dd {
+  font-size: 1.35rem;
+  font-weight: 800;
+  margin: 0.15rem 0 0;
+}
+
+.overview-health-metrics .overview-metric:first-child,
+.overview-incident-metrics .overview-metric:first-child {
+  grid-column: 1 / -1;
+}
+
+.overview-note {
+  font-size: 0.86rem;
+  margin: 0.75rem 0 0;
+}
+
+.overview-incident-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.overview-incident-list li {
+  border-top: 1px solid var(--border);
+  min-width: 0;
+  padding: 0.75rem 0;
+}
+
+.overview-incident-list li:last-child {
+  padding-bottom: 0;
+}
+
+.overview-incident-list a {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.overview-incident-meta {
+  align-items: center;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  gap: 0.45rem 0.65rem;
+  margin-top: 0.4rem;
+}
+
+.overview-incident-meta .incident-state {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.45rem;
+}
+
+.overview-admin-list {
+  margin: 0;
+}
+
+.overview-admin-list > div {
+  border-top: 1px solid var(--border);
+  padding: 0.7rem 0;
+}
+
+.overview-admin-list dt,
+.overview-admin-list dd {
+  margin: 0;
+}
+
+.overview-admin-list dt {
+  font-weight: 750;
+}
+
+.overview-admin-list dd {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  margin-top: 0.25rem;
+  overflow-wrap: anywhere;
+}
+
+.overview-action {
+  border-top: 1px solid var(--border);
+  margin: 0.25rem 0 0;
+  padding-top: 0.75rem;
+}
+
+.overview-error {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.overview-error p {
+  margin: 0;
+}
+
+.organization-settings {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  scroll-margin-top: 1.5rem;
+}
+
+.organization-settings > h2 {
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 64rem) {
+  .overview-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .overview-group:nth-child(3) {
+    border-inline-start: 0;
+    border-top: 1px solid var(--border);
+    grid-column: 1 / -1;
+    margin-top: 1.25rem;
+    padding: 1.25rem 0 0;
+  }
+}
+
+@media (max-width: 46rem) {
+  .overview-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .overview-group,
+  .overview-group:first-child,
+  .overview-group:last-child {
+    padding: 0;
+  }
+
+  .overview-group + .overview-group,
+  .overview-group:nth-child(3) {
+    border-inline-start: 0;
+    border-top: 1px solid var(--border);
+    grid-column: auto;
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+  }
+}
+
+@media (max-width: 40rem) {
+  .section-nav {
+    flex-wrap: wrap;
+  }
+
+  .section-nav a {
+    flex: 1 1 calc(50% - 0.2rem);
+    overflow-wrap: anywhere;
+  }
+}

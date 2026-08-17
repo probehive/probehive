@@ -66,6 +66,14 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await expect(page.getByRole('heading', { name: 'Default Project' })).toBeVisible()
   await expect(page.getByText(administratorEmail)).toBeVisible()
 
+  const freshOverview = page.getByRole('region', { name: 'Operational overview' })
+  await expect(freshOverview.getByText(
+    'No Monitors yet. Create the first HTTP Monitor below.',
+  )).toBeVisible()
+  await expect(freshOverview.getByText('No active Incidents.')).toBeVisible()
+  await expect(freshOverview.getByText('No Webhook integrations configured')).toBeVisible()
+  await expect(freshOverview.getByText('Not configured')).toBeVisible()
+
   // The installation Organization is named Default until it is renamed.
   await page.getByRole('textbox', { name: 'Display name' }).fill('My Services')
   await page.getByRole('button', { name: 'Rename', exact: true }).click()
@@ -239,26 +247,12 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await expect(anonymousPage.getByRole('heading', { name: 'Public API' })).toBeVisible()
   await expect(anonymousPage.getByText('Operational', { exact: true })).toBeVisible()
 
-  const revocationResponse = page.waitForResponse((response) =>
-    response.request().method() === 'DELETE' &&
-    response.url().endsWith('/status-page/publication') &&
-    response.status() === 204,
-  )
-  await statusPublication.getByRole('button', { name: 'Revoke public access' }).click()
-  await revocationResponse
-  await expect(statusPublication.getByText('Anonymous access revoked.')).toBeVisible()
-
-  await anonymousPage.reload()
-  await expect(anonymousPage.getByRole('alert')).toHaveText(
-    'This status page is not available.',
-  )
-  await anonymousContext.close()
-
   // A scheduled failure plus its confirmation creates an open Incident. Poll the
   // real API for that durable state, then acknowledge it through the browser UI.
   const organizationAPI = `/api/v1/organizations/${createdMonitor.organizationId}`
   const monitorsAPI = `${organizationAPI}/projects/${createdMonitor.projectId}/monitors`
-  await page.getByRole('link', { name: 'Webhook integrations' }).click()
+  await page.getByRole('navigation', { name: 'Organization sections' })
+    .getByRole('link', { name: 'Webhook integrations' }).click()
   await expect(page).toHaveURL(
     new RegExp('/organizations/' + createdMonitor.organizationId + '/integrations$'),
   )
@@ -361,6 +355,45 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await expect(incidentDetail.locator('.incident-state')).toHaveText('Acknowledged')
   await expect(incidentDetail.locator('.incident-timeline-heading strong').last()).toHaveText('Acknowledged')
 
+  const activeIncidentPath = new URL(page.url()).pathname
+  await page.getByRole('link', { name: 'Back to Organization' }).click()
+  const populatedOverview = page.getByRole('region', { name: 'Operational overview' })
+  const monitoringOverview = populatedOverview.getByRole('region', { name: 'Monitoring' })
+  const incidentOverview = populatedOverview.getByRole('region', { name: 'Active Incidents' })
+  const administrationOverview = populatedOverview.getByRole('region', { name: 'Administration' })
+  await expect(
+    monitoringOverview.locator('.overview-metric').filter({ hasText: 'Total Monitors' }),
+  ).toContainText('2')
+  await expect(
+    monitoringOverview.locator('.overview-metric').filter({ hasText: 'Healthy' }),
+  ).toContainText('1')
+  await expect(
+    monitoringOverview.locator('.overview-metric').filter({ hasText: 'Down' }),
+  ).toContainText('1')
+  await expect(administrationOverview.getByText('1 of 1 enabled')).toBeVisible()
+  await expect(administrationOverview.getByText('Published')).toBeVisible()
+  const overviewIncidentLink = incidentOverview.getByRole('link', {
+    name: 'View Incident evidence for Unavailable Service',
+  })
+  await expect(overviewIncidentLink).toHaveAttribute('href', activeIncidentPath)
+
+  const revocationResponse = page.waitForResponse((response) =>
+    response.request().method() === 'DELETE' &&
+    response.url().endsWith('/status-page/publication') &&
+    response.status() === 204,
+  )
+  await statusPublication.getByRole('button', { name: 'Revoke public access' }).click()
+  await revocationResponse
+  await expect(statusPublication.getByText('Anonymous access revoked.')).toBeVisible()
+  await anonymousPage.reload()
+  await expect(anonymousPage.getByRole('alert')).toHaveText(
+    'This status page is not available.',
+  )
+  await anonymousContext.close()
+
+  await overviewIncidentLink.click()
+  await expect(incidentDetail.locator('.incident-state')).toHaveText('Acknowledged')
+
   // Replace the failed target through a later immutable revision, then observe
   // the scheduled and confirmation Runs resolve the acknowledged Incident.
   const target = page.getByRole('region', { name: 'Target URL' })
@@ -429,6 +462,12 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await expect(page.getByRole('heading', { name: 'Acme Monitoring' })).toBeVisible()
   await expect(page.getByText('acme', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Default Project' })).toBeVisible()
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByRole('region', { name: 'Operational overview' })).toBeVisible()
+  expect(await page.evaluate(
+    'document.documentElement.scrollWidth <= document.documentElement.clientWidth',
+  )).toBe(true)
 })
 
 test('the interface can be switched to another language', async ({ page }) => {

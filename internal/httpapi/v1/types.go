@@ -55,6 +55,65 @@ type OrganizationResponse struct {
 	DefaultProject ProjectResponse `json:"defaultProject"`
 }
 
+type OrganizationOverviewResponse struct {
+	OrganizationID string                                 `json:"organizationId"`
+	Monitors       *OrganizationOverviewMonitorCounts     `json:"monitors"`
+	Health         *OrganizationOverviewHealthCounts      `json:"health"`
+	Incidents      *OrganizationOverviewIncidentSummary   `json:"incidents"`
+	Integrations   *OrganizationOverviewIntegrationCounts `json:"integrations"`
+	StatusPage     *OrganizationOverviewStatusPageState   `json:"statusPage"`
+	Capabilities   OrganizationOverviewCapabilities       `json:"capabilities"`
+}
+
+type OrganizationOverviewMonitorCounts struct {
+	Total    int `json:"total"`
+	Draft    int `json:"draft"`
+	Active   int `json:"active"`
+	Paused   int `json:"paused"`
+	Archived int `json:"archived"`
+}
+
+type OrganizationOverviewHealthCounts struct {
+	NotEvaluated int `json:"notEvaluated"`
+	Unknown      int `json:"unknown"`
+	Healthy      int `json:"healthy"`
+	Degraded     int `json:"degraded"`
+	Down         int `json:"down"`
+}
+
+type OrganizationOverviewIncidentSummary struct {
+	Active                 int                                  `json:"active"`
+	Open                   int                                  `json:"open"`
+	Acknowledged           int                                  `json:"acknowledged"`
+	ActivePreview          []OrganizationOverviewActiveIncident `json:"activePreview"`
+	ActivePreviewTruncated bool                                 `json:"activePreviewTruncated"`
+}
+
+type OrganizationOverviewActiveIncident struct {
+	ID          string    `json:"id"`
+	ProjectID   string    `json:"projectId"`
+	MonitorID   string    `json:"monitorId"`
+	MonitorName string    `json:"monitorName"`
+	State       string    `json:"state"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+type OrganizationOverviewIntegrationCounts struct {
+	Total   int `json:"total"`
+	Enabled int `json:"enabled"`
+}
+
+type OrganizationOverviewStatusPageState struct {
+	Configured bool `json:"configured"`
+	Published  bool `json:"published"`
+}
+
+type OrganizationOverviewCapabilities struct {
+	ManageOrganization bool `json:"manageOrganization"`
+	ManageIntegrations bool `json:"manageIntegrations"`
+	ManageStatusPage   bool `json:"manageStatusPage"`
+}
+
 type MonitorResponse struct {
 	ID                   string    `json:"id"`
 	OrganizationID       string    `json:"organizationId"`

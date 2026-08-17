@@ -24,6 +24,7 @@ import (
 	"github.com/probehive/probehive/internal/maintenance"
 	"github.com/probehive/probehive/internal/monitor"
 	"github.com/probehive/probehive/internal/organization"
+	"github.com/probehive/probehive/internal/overview"
 	"github.com/probehive/probehive/internal/run"
 	"github.com/probehive/probehive/internal/statuspage"
 	"github.com/probehive/probehive/internal/user"
@@ -38,6 +39,7 @@ type testEnvironment struct {
 	sessions      *memorySessionStore
 	antiforgery   *memoryAntiforgeryStore
 	organizations *memoryOrganizationStore
+	overview      *memoryOverviewStore
 	monitors      *memoryMonitorStore
 	maintenance   *memoryMaintenanceStore
 	runs          *memoryRunStore
@@ -55,6 +57,7 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 	sessions := newMemorySessionStore()
 	antiforgery := newMemoryAntiforgeryStore()
 	organizations := newMemoryOrganizationStore()
+	overviews := newMemoryOverviewStore(organizations)
 	monitors := newMemoryMonitorStore()
 	maintenanceWindows := newMemoryMaintenanceStore(monitors)
 	runs := newMemoryRunStore(monitors)
@@ -62,6 +65,7 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 	ids := &testUUIDGenerator{}
 
 	organizationService := organization.NewService(organizations, clock, ids)
+	overviewService := overview.NewService(overviews)
 	userService := user.NewService(users, testPasswordHasher{}, clock, ids)
 	monitorService := monitor.NewService(monitors, check.NewCatalog(), clock, ids)
 	maintenanceService := maintenance.NewService(maintenanceWindows, clock, ids)
@@ -87,6 +91,7 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 	alertService := alert.NewService(alertStore, clock, ids)
 	config := Config{
 		Organizations:               organizationService,
+		Overview:                    overviewService,
 		Users:                       userService,
 		Monitors:                    monitorService,
 		Runs:                        runService,
@@ -123,6 +128,7 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 		statusPages: statusPages,
 		users:       users, sessions: sessions, antiforgery: antiforgery,
 		organizations: organizations, monitors: monitors,
+		overview:    overviews,
 		maintenance: maintenanceWindows,
 		runs:        runs, health: healthStore, incidents: incidentStore,
 		alerts:   alertStore,

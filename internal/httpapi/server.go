@@ -18,6 +18,7 @@ import (
 	"github.com/probehive/probehive/internal/maintenance"
 	"github.com/probehive/probehive/internal/monitor"
 	"github.com/probehive/probehive/internal/organization"
+	"github.com/probehive/probehive/internal/overview"
 	"github.com/probehive/probehive/internal/run"
 	"github.com/probehive/probehive/internal/statuspage"
 	"github.com/probehive/probehive/internal/user"
@@ -40,6 +41,7 @@ type ManualRunService interface {
 
 type Config struct {
 	Organizations               *organization.Service
+	Overview                    *overview.Service
 	Users                       *user.Service
 	Monitors                    *monitor.Service
 	Runs                        *run.QueryService
@@ -64,6 +66,7 @@ type Config struct {
 
 type Server struct {
 	organizations *organization.Service
+	overview      *overview.Service
 	users         *user.Service
 	monitors      *monitor.Service
 	runs          *run.QueryService
@@ -88,7 +91,7 @@ type Server struct {
 }
 
 func New(config Config) (*Server, error) {
-	if config.Organizations == nil || config.Users == nil || config.Monitors == nil || config.Runs == nil ||
+	if config.Organizations == nil || config.Overview == nil || config.Users == nil || config.Monitors == nil || config.Runs == nil ||
 		config.MonitorHealth == nil || config.Maintenance == nil || config.StatusPages == nil || config.Incidents == nil || config.Alerts == nil || config.Webhooks == nil || config.Sessions == nil || config.Antiforgery == nil || config.Clock == nil || config.Ready == nil {
 		return nil, errors.New("httpapi requires feature services, security stores, a clock, and readiness check")
 	}
@@ -117,6 +120,7 @@ func New(config Config) (*Server, error) {
 
 	server := &Server{
 		organizations: config.Organizations, users: config.Users, monitors: config.Monitors,
+		overview: config.Overview,
 		sessions: config.Sessions, antiforgery: config.Antiforgery, clock: config.Clock,
 		runs: config.Runs, manualRuns: config.ManualRuns,
 		monitorHealth: config.MonitorHealth, maintenance: config.Maintenance, statusPages: config.StatusPages,
@@ -169,6 +173,7 @@ func (server *Server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/v1/auth/session", server.session)
 	mux.HandleFunc("/api/v1/organizations", server.organizationsRoot)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}", server.organizationItem)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/overview", server.organizationOverview)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/webhook-integrations", server.webhookIntegrationsRoot)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/state", server.changeWebhookIntegrationState)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/prepare", server.prepareWebhookSigningSecret)

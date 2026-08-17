@@ -118,6 +118,14 @@ as JSON `null` when absent.
 | `UserResponse` | `id: UUID string`, `email: string`, `displayName: string`, `role: string`, `createdAt: UTC timestamp string` |
 | `ProjectResponse` | `id: UUID string`, `organizationId: UUID string`, `name: string`, `isDefault: boolean`, `createdAt: UTC timestamp string` |
 | `OrganizationResponse` | `id: UUID string`, `slug: string`, `displayName: string`, `createdAt: UTC timestamp string`, `defaultProject: ProjectResponse` |
+| `OrganizationOverviewResponse` | `organizationId: UUID string`; nullable `monitors`, `health`, `incidents`, `integrations`, and `statusPage` summaries; `capabilities: OrganizationOverviewCapabilities` |
+| `OrganizationOverviewMonitorCounts` | non-negative `total`, `draft`, `active`, `paused`, `archived` integers covering every Monitor |
+| `OrganizationOverviewHealthCounts` | non-negative `notEvaluated`, `unknown`, `healthy`, `degraded`, and `down` integers covering Active Monitors only |
+| `OrganizationOverviewIncidentSummary` | non-negative `active`, `open`, `acknowledged`; at most five `activePreview` rows; `activePreviewTruncated: boolean` |
+| `OrganizationOverviewActiveIncident` | Incident, Project, and Monitor UUIDs; `monitorName`; active `state` `open` or `acknowledged`; `updatedAt: UTC timestamp string` |
+| `OrganizationOverviewIntegrationCounts` | non-negative `total` and `enabled` integers; Administrator-only |
+| `OrganizationOverviewStatusPageState` | `configured: boolean`, `published: boolean`; Administrator-only |
+| `OrganizationOverviewCapabilities` | presentation hints `manageOrganization`, `manageIntegrations`, `manageStatusPage`; authorization remains server-side |
 | `MonitorResponse` | `id`, `organizationId`, `projectId` as UUID strings; `name`, `checkType`, `state` as strings; `intervalSeconds`, `latestRevisionNumber` as integers; `createdAt`, `updatedAt` as UTC timestamp strings |
 | `MonitorRevisionResponse` | `id`, `monitorId` as UUID strings; `revisionNumber: integer`; `checkType: string`; `checkSchemaVersion: integer`; `checkConfiguration: JSON value`; `createdAt: UTC timestamp string` |
 | `MaintenanceWindowResponse` | `id`, `organizationId`, `projectId`, `monitorId` as UUID strings; `startsAt`, `endsAt`, `createdAt` as UTC timestamp strings; `status` exactly `upcoming`, `active`, `ended`, or `cancelled`; `cancelledAt: nullable UTC timestamp string` |
@@ -192,6 +200,7 @@ antiforgery and origin rules in section 5 also apply.
 | `GET /api/v1/organizations` | Authenticated | `200 OrganizationResponse[]` of the caller's memberships in creation order, UUID as tie-breaker; `[]` when none | `401` |
 | `POST /api/v1/organizations` | Instance admin, unsafe | first create: `201 OrganizationResponse` and `Location: /api/v1/organizations/{id}`; identical replay: `200 OrganizationResponse` without creating state | `400`, `409`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}` | `organization.read` | `200 OrganizationResponse` | `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/overview` | `organization.read` plus permission-aware summaries | `200 OrganizationOverviewResponse` | `404`, `401`, `403` |
 | `PUT /api/v1/organizations/{organizationId}/name` | `organization.write`, unsafe | `200 OrganizationResponse` with the new display name and an unchanged slug | `400`, `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/webhook-integrations` | `integration.manage` | `200 WebhookIntegrationResponse[]` in creation order; never returns signing-secret material | `404`, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/webhook-integrations` | `integration.manage`, unsafe | `201 CreateWebhookIntegrationResponse`; creates a disabled Integration and returns its signing secret once | `400`, `404`, `409`, `503` without an operator keyring, `401`, `403` |
@@ -440,6 +449,24 @@ idempotency key. `PUT /api/v1/organizations/{organizationId}/name` applies the s
 Rename moves the replay boundary, which callers must expect: after a rename, provisioning
 the same slug with the pre-rename display name returns `409`, and the current display name
 is what replays with `200`.
+
+### Organization Operational Overview
+
+`GET /api/v1/organizations/{organizationId}/overview` requires `organization.read`.
+The response is produced from one PostgreSQL repeatable-read, read-only transaction; it
+does not aggregate the unbounded Monitor list or issue per-Monitor requests.
+
+Monitor lifecycle counts cover every Monitor in the Organization. Health counts cover
+Active Monitors only: an Active Monitor without a health row contributes to
+`notEvaluated`, while a stored `unknown` health state remains `unknown`. Active Incident
+counts cover the Organization, and `activePreview` contains at most five active rows
+ordered by `(updatedAt, id)` descending. `activePreviewTruncated` reports omitted rows.
+
+The monitor/health and Incident summaries are JSON `null` when the caller lacks the
+corresponding read permission. Integration counts and private status-page state are
+JSON `null` unless the caller has `integration.manage` or `statusPage.write`.
+`capabilities` contains presentation hints only and never replaces authoritative
+authorization. All returned instants are UTC.
 
 ### Signed Webhook Integrations
 
@@ -1004,6 +1031,7 @@ The current React client makes exactly these calls:
 | create Organization | antiforgery-authenticated JSON `POST /api/v1/organizations`; parse `OrganizationResponse`; `created` is true only when status is `201`, false for the `200` replay |
 | rename Organization | antiforgery-authenticated JSON `PUT /api/v1/organizations/{id}/name`; parse `OrganizationResponse` |
 | get Organization | `GET /api/v1/organizations/{encodeURIComponent(id)}`; parse `OrganizationResponse` |
+| get Organization overview | `GET /api/v1/organizations/{encodeURIComponent(id)}/overview`; parse permission-aware `OrganizationOverviewResponse` |
 | list Monitors | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors`; parse `MonitorResponse[]` |
 | create HTTP Monitor | antiforgery-authenticated JSON `POST` to the Monitor collection; parse the Draft `MonitorResponse` |
 | create HTTP revision | antiforgery-authenticated JSON `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions`; send schema version 1 and `{ url }`, then parse `MonitorRevisionResponse` |
@@ -1020,6 +1048,11 @@ The default-Project form creates a Draft, adds its first HTTP revision, and acti
 The client retains the successfully created Draft between failed steps and invalidates the
 scoped Monitor list after every attempt. A validation retry therefore continues the same
 Monitor instead of creating a duplicate.
+
+The Organization overview is independently retryable. Same-page Monitor setup and status
+draft save, publication, or revocation invalidate its scoped query. The UI distinguishes a
+fresh Organization, no Active Monitors, Active Monitors awaiting first evaluation, no
+active Incidents, nullable permission-unavailable summaries, and transport failure.
 
 ## 12. Playwright and E2E Launch Contract
 
@@ -1068,14 +1101,17 @@ Before launching the API, `web/e2e/start-api.sh` must preserve this reset contra
 
 The browser journey assumes an empty database, routes `/` to `/setup`, creates and signs
 in the first Administrator, and lands directly on the Organization that setup provisioned,
-rendering its `Default` heading and default Project. It renames that Organization and
-asserts the slug did not move. It creates and operates a passing HTTP Monitor, triggers a
-manual Run, follows the returned evidence, then schedules and cancels a one-time maintenance
-window. It then creates an enabled loopback Webhook Integration, a failing HTTP Monitor,
-and an active maintenance window. After the Incident and Alert intent appear, the journey
-asserts that delivery evidence shows the maintenance reason and exact window id without a
-Webhook call. It acknowledges the Incident, replaces the target through revision 2, and
-waits for confirmed recovery and its Alert intent. Finally, it
+rendering its `Default` heading, default Project, and fresh operational overview. It
+renames that Organization and asserts the slug did not move. It creates and operates a
+passing HTTP Monitor, triggers a manual Run, follows the returned evidence, then schedules
+and cancels a one-time maintenance window. It then publishes the configured status page,
+creates an enabled loopback Webhook Integration, a failing HTTP Monitor, and an active
+maintenance window. After the Incident and Alert intent appear, the journey asserts that
+delivery evidence shows the maintenance reason and exact window id without a Webhook call.
+It acknowledges the Incident, returns through the overview's direct Incident link, and
+asserts the populated monitoring, active-Incident, enabled-Integration, and published-status
+summaries before revocation. It replaces the target through revision 2 and waits for
+confirmed recovery and its Alert intent. Finally, it
 signs out, signs back in, lands on the Organization list containing the renamed
 Organization, creates slug `acme` with display name `Acme Monitoring`, follows the
 returned Organization, and renders its default Project. A second journey switches the

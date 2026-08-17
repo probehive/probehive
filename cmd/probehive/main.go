@@ -25,6 +25,7 @@ import (
 	"github.com/probehive/probehive/internal/maintenance"
 	"github.com/probehive/probehive/internal/monitor"
 	"github.com/probehive/probehive/internal/organization"
+	"github.com/probehive/probehive/internal/overview"
 	"github.com/probehive/probehive/internal/password"
 	"github.com/probehive/probehive/internal/postgres"
 	"github.com/probehive/probehive/internal/run"
@@ -101,6 +102,7 @@ func serve(logger *slog.Logger) error {
 	identifiers := uuidv7.New()
 	users := user.NewService(database.Users(), password.New(), systemClock, identifiers)
 	organizations := organization.NewService(database.Organizations(), systemClock, identifiers)
+	overviewService := overview.NewService(database.Overviews())
 	monitors := monitor.NewService(database.Monitors(), check.NewCatalog(), systemClock, identifiers)
 	runQueries := run.NewQueryService(database.Runs())
 	healthService := health.NewService(database.Health(), systemClock, identifiers)
@@ -128,6 +130,7 @@ func serve(logger *slog.Logger) error {
 	}
 	handler, err := httpapi.New(httpapi.Config{
 		Organizations:               organizations,
+		Overview:                    overviewService,
 		Users:                       users,
 		Monitors:                    monitors,
 		Runs:                        runQueries,

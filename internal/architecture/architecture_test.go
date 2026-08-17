@@ -21,6 +21,7 @@ import (
 // deciding what it is enforcing against.
 var standardLibraryOnlyPackages = []string{
 	"./internal/organization",
+	"./internal/overview",
 	"./internal/user",
 	"./internal/monitor",
 	"./internal/run",

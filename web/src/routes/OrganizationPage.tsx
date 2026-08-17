@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router'
 import { ApiError, getOrganization } from '../api/organizations'
 import { useTranslation } from '../i18n/context'
 import MonitorsPanel from './MonitorsPanel.tsx'
+import OrganizationOverview from './OrganizationOverview.tsx'
 import RenameOrganizationForm from './RenameOrganizationForm.tsx'
 import StatusPageDraftSection from './StatusPageDraftSection.tsx'
 
@@ -41,32 +42,42 @@ export default function OrganizationPage() {
           <h1>{organization.displayName}</h1>
         </div>
       </header>
-      <nav className="section-nav" aria-label={t('organization.defaultProject')}>
+      <nav className="section-nav" aria-label={t('organization.navigation')}>
+        <a href="#organization-overview">{t('overview.heading')}</a>
         <a href="#monitors">{t('monitor.heading')}</a>
         <a href="#status-page">{t('statusPage.heading')}</a>
         <Link to={'/organizations/' + organization.id + '/integrations'}>{t('integration.heading')}</Link>
+        <a href="#organization-settings">{t('overview.action.settings')}</a>
       </nav>
-      <dl className="organization-summary detail-grid">
-        <dt>{t('organization.slug')}</dt>
-        <dd>{organization.slug}</dd>
-        <dt>{t('organization.identifier')}</dt>
-        <dd>
-          <code>{organization.id}</code>
-        </dd>
-        <dt>{t('organization.created')}</dt>
-        <dd>{formatDateTime(organization.createdAt)}</dd>
-      </dl>
-      <RenameOrganizationForm organization={organization} />
-      <section className="project-summary" aria-labelledby="default-project-heading">
-        <h2 id="default-project-heading">{t('organization.defaultProject')}</h2>
-        <dl className="detail-grid">
-        <dt>{t('organization.name')}</dt>
-        <dd>{organization.defaultProject.name}</dd>
-        <dt>{t('organization.identifier')}</dt>
-        <dd>
-          <code>{organization.defaultProject.id}</code>
-        </dd>
-      </dl>
+      <OrganizationOverview organizationId={organization.id} />
+      <section
+        className="organization-settings"
+        id="organization-settings"
+        aria-labelledby="organization-settings-heading"
+      >
+        <h2 id="organization-settings-heading">{t('organization.settings')}</h2>
+        <dl className="organization-summary detail-grid">
+          <dt>{t('organization.slug')}</dt>
+          <dd>{organization.slug}</dd>
+          <dt>{t('organization.identifier')}</dt>
+          <dd>
+            <code>{organization.id}</code>
+          </dd>
+          <dt>{t('organization.created')}</dt>
+          <dd>{formatDateTime(organization.createdAt)}</dd>
+        </dl>
+        <RenameOrganizationForm organization={organization} />
+        <section className="project-summary" aria-labelledby="default-project-heading">
+          <h3 id="default-project-heading">{t('organization.defaultProject')}</h3>
+          <dl className="detail-grid">
+            <dt>{t('organization.name')}</dt>
+            <dd>{organization.defaultProject.name}</dd>
+            <dt>{t('organization.identifier')}</dt>
+            <dd>
+              <code>{organization.defaultProject.id}</code>
+            </dd>
+          </dl>
+        </section>
       </section>
       <MonitorsPanel
         organizationId={organization.id}

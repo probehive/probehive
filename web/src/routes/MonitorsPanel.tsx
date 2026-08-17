@@ -11,6 +11,7 @@ import {
   type MonitorResponse,
   type MonitorState,
 } from '../api/monitors'
+import { organizationOverviewQueryKey } from '../api/overview'
 import { useTranslation } from '../i18n/context'
 import { monitorsQueryKey } from './monitorQueries'
 
@@ -83,7 +84,13 @@ export default function MonitorsPanel({ organizationId, projectId }: MonitorsPan
       setSetupMonitor(null)
     },
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey }),
+        queryClient.invalidateQueries({
+          queryKey: organizationOverviewQueryKey(organizationId),
+          exact: true,
+        }),
+      ])
     },
   })
 

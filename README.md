@@ -39,6 +39,8 @@ The current foundation implements:
 - First-administrator setup that also provisions the installation's Organization and default Project, so a fresh install can hold a Monitor without any organizational setup.
 - PostgreSQL-backed browser sessions with antiforgery, origin validation, fixed expiry, and deny-by-default authorization.
 - Organization membership with permission-based authorization: a non-member cannot distinguish an Organization from one that does not exist.
+- A permission-aware Organization operational overview with bounded Monitor lifecycle,
+  Active-Monitor health, active-Incident, Integration, and status-publication summaries.
 - Monitors with immutable revisions and strict HTTP check configuration validation.
 - Monitor-scoped one-time maintenance windows with explicit UTC bounds, overlap prevention, durable cancellation, and Viewer-readable current and upcoming state.
 - Event-time maintenance semantics that preserve Runs, Observations, health, Incidents, and Alerts while terminally suppressing matching Webhook routes with explicit window attribution and no network attempt.

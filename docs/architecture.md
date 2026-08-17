@@ -1,7 +1,7 @@
 # Architecture Baseline
 
 Status: Current
-Last reviewed: 2026-08-03
+Last reviewed: 2026-08-17
 
 This is the living summary of ProbeHive's durable technical boundaries. Exact
 behavior belongs in code, tests, migrations, OpenAPI, and
@@ -32,6 +32,7 @@ The backend is a feature-oriented modular monolith:
 ```text
 cmd/probehive/       composition root
 internal/<feature>/  domain behavior and feature-owned ports
+internal/overview/   bounded Organization operational read model
 internal/postgres/   SQL adapters and migrations
 internal/httpapi/    HTTP composition, security, and versioned wire adapters
 internal/outbound/   shared outbound-access policy and validating dialer
@@ -44,6 +45,11 @@ depend on those interfaces, never the reverse. Feature packages,
 `internal/check`, and `internal/outbound` remain standard-library-only. Executable
 hosts do not import one another. The architecture test is the executable source
 of truth for import restrictions.
+
+`internal/overview` owns the bounded cross-feature Organization read model used by the
+operator workspace. PostgreSQL assembles its current Monitor, health, active-Incident,
+Integration, and private status-page facts in one consistent read transaction; HTTP
+authorization decides which nullable summaries a caller may receive.
 
 Create packages, abstractions, configuration, and extension points for current
 behavior. Prefer constants until operators need variation and prefer concrete
