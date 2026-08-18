@@ -49,9 +49,11 @@ function renderPage(organizationId: string) {
 }
 
 test('renders the organization and its default project', async () => {
+  const inventoryURL = `/api/v1/organizations/${organization.id}/projects/${organization.defaultProject.id}/monitor-inventory`
   const monitorURL = `/api/v1/organizations/${organization.id}/projects/${organization.defaultProject.id}/monitors`
   const fetchMock = mockFetchRoutes({
     [`/api/v1/organizations/${organization.id}/status-page/draft`]: () => new Response(null, { status: 204 }),
+    [inventoryURL]: () => jsonResponse(200, { items: [], page: 1, pageSize: 10, total: 0 }),
     [monitorURL]: () => jsonResponse(200, []),
     [`/api/v1/organizations/${organization.id}/overview`]: () => jsonResponse(200, overview),
     [`/api/v1/organizations/${organization.id}`]: () => jsonResponse(200, organization),
@@ -72,6 +74,7 @@ test('renders the organization and its default project', async () => {
     '/organizations/' + organization.id + '/integrations',
   )
   expect(fetchMock).toHaveBeenCalledWith(`/api/v1/organizations/${organization.id}`)
+  expect(fetchMock).toHaveBeenCalledWith(inventoryURL + '?sort=name&direction=asc&page=1&pageSize=10')
   expect(fetchMock).toHaveBeenCalledWith(monitorURL)
 })
 

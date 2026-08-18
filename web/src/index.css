@@ -2712,7 +2712,259 @@ button:disabled {
   }
 }
 
+.monitor-inventory-toolbar {
+  align-items: end;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  margin: 0 0 1rem;
+  max-width: none;
+  padding: 0.9rem;
+}
+
+.monitor-inventory-toolbar label {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.monitor-inventory-toolbar input,
+.monitor-inventory-toolbar select {
+  background: var(--bg);
+  color: var(--text);
+  min-width: 0;
+  width: 100%;
+}
+
+.monitor-inventory-toolbar .monitor-inventory-search {
+  grid-column: span 2;
+}
+
+.monitor-inventory-toolbar button {
+  align-self: end;
+  margin: 0;
+  min-height: 2.7rem;
+  width: 100%;
+}
+
+.monitor-inventory-table {
+  table-layout: auto;
+}
+
+.monitor-inventory-table th:first-child {
+  min-width: 11rem;
+}
+
+.monitor-inventory-table th:last-child,
+.monitor-inventory-table td:last-child {
+  min-width: 13rem;
+}
+
+.monitor-inventory-table small {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.72rem;
+  margin-top: 0.3rem;
+  white-space: nowrap;
+}
+
+.monitor-fact {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.75rem;
+  font-weight: 750;
+  gap: 0.4rem;
+  padding: 0.25rem 0.65rem;
+  white-space: nowrap;
+}
+
+.monitor-fact::before {
+  background: currentColor;
+  border-radius: 50%;
+  content: '';
+  flex: 0 0 auto;
+  height: 0.45rem;
+  width: 0.45rem;
+}
+
+.monitor-fact[data-state='healthy'],
+.monitor-fact[data-state='passed'] {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.monitor-fact[data-state='degraded'],
+.monitor-fact[data-state='inProgress'],
+.monitor-fact[data-state='upcoming'],
+.monitor-fact[data-state='active'] {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.monitor-fact[data-state='down'],
+.monitor-fact[data-state='failed'],
+.monitor-fact[data-state='errored'],
+.monitor-fact[data-state='timedout'] {
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.monitor-fact[data-state='notEvaluated'],
+.monitor-fact[data-state='notRun'],
+.monitor-fact[data-state='none'],
+.monitor-fact[data-state='unknown'],
+.monitor-fact[data-state='cancelled'],
+.monitor-fact[data-state='skipped'] {
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
+.monitor-inventory-actions,
+.monitor-inventory-confirmation {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.monitor-inventory-actions button,
+.monitor-inventory-confirmation button {
+  margin: 0;
+}
+
+.monitor-inventory-confirmation {
+  color: var(--text);
+  font-size: 0.78rem;
+  min-width: 0;
+}
+
+.monitor-inventory-actions .error {
+  flex-basis: 100%;
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.monitor-inventory-pagination {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.monitor-inventory-pagination button {
+  margin: 0;
+}
+
 @media (max-width: 40rem) {
+  .monitor-inventory-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0.75rem;
+  }
+
+  .monitor-inventory-toolbar .monitor-inventory-search {
+    grid-column: auto;
+  }
+
+  .monitor-inventory-table,
+  .monitor-inventory-table tbody,
+  .monitor-inventory-table tr,
+  .monitor-table.monitor-inventory-table th,
+  .monitor-table.monitor-inventory-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .monitor-inventory-table thead {
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+
+  .monitor-inventory-table tr {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding: 0.7rem;
+  }
+
+  .monitor-inventory-table tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .monitor-table.monitor-inventory-table th,
+  .monitor-table.monitor-inventory-table td {
+    border: 0;
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: minmax(6.5rem, 36%) minmax(0, 1fr);
+    padding: 0.5rem 0;
+  }
+
+  .monitor-inventory-table th::before,
+  .monitor-inventory-table td::before {
+    color: var(--text-muted);
+    content: attr(data-label);
+    font-size: 0.72rem;
+    font-weight: 750;
+    text-transform: uppercase;
+  }
+
+  .monitor-inventory-table th:first-child {
+    display: block;
+    min-width: 0;
+    padding-top: 0;
+  }
+
+  .monitor-inventory-table th:first-child::before {
+    display: none;
+  }
+
+  .monitor-inventory-table th:last-child,
+  .monitor-inventory-table td:last-child {
+    min-width: 0;
+  }
+
+  .monitor-inventory-table small {
+    white-space: normal;
+  }
+
+  .monitor-inventory-table + .monitor-inventory-pagination {
+    margin-top: 0.75rem;
+  }
+
+  .monitor-inventory-scroll {
+    background: transparent;
+    border: 0;
+    overflow: visible;
+  }
+
+  .monitor-inventory-actions,
+  .monitor-inventory-confirmation {
+    min-width: 0;
+  }
+
+  .monitor-inventory-pagination {
+    justify-content: space-between;
+  }
+
+  .monitor-inventory-pagination span {
+    flex: 1 1 100%;
+    order: -1;
+    text-align: center;
+  }
+
   .section-nav {
     flex-wrap: wrap;
   }

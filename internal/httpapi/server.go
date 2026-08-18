@@ -44,6 +44,7 @@ type Config struct {
 	Overview                    *overview.Service
 	Users                       *user.Service
 	Monitors                    *monitor.Service
+	MonitorInventory            *monitor.InventoryService
 	Runs                        *run.QueryService
 	ManualRuns                  ManualRunService
 	MonitorHealth               *health.Service
@@ -65,33 +66,34 @@ type Config struct {
 }
 
 type Server struct {
-	organizations *organization.Service
-	overview      *overview.Service
-	users         *user.Service
-	monitors      *monitor.Service
-	runs          *run.QueryService
-	manualRuns    ManualRunService
-	monitorHealth *health.Service
-	maintenance   *maintenance.Service
-	incidents     *incident.Service
-	statusPages   *statuspage.Service
-	alerts        *alert.Service
-	webhooks      *webhook.Service
-	sessions      user.SessionStore
-	antiforgery   user.AntiforgeryStore
-	clock         Clock
-	ready         func(context.Context) error
-	random        io.Reader
-	logger        *slog.Logger
-	development   bool
-	credentials   *credentialLimiter
-	publicStatus  *credentialLimiter
-	publicOrigin  string
-	mux           *http.ServeMux
+	organizations    *organization.Service
+	overview         *overview.Service
+	users            *user.Service
+	monitors         *monitor.Service
+	monitorInventory *monitor.InventoryService
+	runs             *run.QueryService
+	manualRuns       ManualRunService
+	monitorHealth    *health.Service
+	maintenance      *maintenance.Service
+	incidents        *incident.Service
+	statusPages      *statuspage.Service
+	alerts           *alert.Service
+	webhooks         *webhook.Service
+	sessions         user.SessionStore
+	antiforgery      user.AntiforgeryStore
+	clock            Clock
+	ready            func(context.Context) error
+	random           io.Reader
+	logger           *slog.Logger
+	development      bool
+	credentials      *credentialLimiter
+	publicStatus     *credentialLimiter
+	publicOrigin     string
+	mux              *http.ServeMux
 }
 
 func New(config Config) (*Server, error) {
-	if config.Organizations == nil || config.Overview == nil || config.Users == nil || config.Monitors == nil || config.Runs == nil ||
+	if config.Organizations == nil || config.Overview == nil || config.Users == nil || config.Monitors == nil || config.MonitorInventory == nil || config.Runs == nil ||
 		config.MonitorHealth == nil || config.Maintenance == nil || config.StatusPages == nil || config.Incidents == nil || config.Alerts == nil || config.Webhooks == nil || config.Sessions == nil || config.Antiforgery == nil || config.Clock == nil || config.Ready == nil {
 		return nil, errors.New("httpapi requires feature services, security stores, a clock, and readiness check")
 	}
@@ -120,8 +122,9 @@ func New(config Config) (*Server, error) {
 
 	server := &Server{
 		organizations: config.Organizations, users: config.Users, monitors: config.Monitors,
-		overview: config.Overview,
-		sessions: config.Sessions, antiforgery: config.Antiforgery, clock: config.Clock,
+		monitorInventory: config.MonitorInventory,
+		overview:         config.Overview,
+		sessions:         config.Sessions, antiforgery: config.Antiforgery, clock: config.Clock,
 		runs: config.Runs, manualRuns: config.ManualRuns,
 		monitorHealth: config.MonitorHealth, maintenance: config.Maintenance, statusPages: config.StatusPages,
 		incidents: config.Incidents, alerts: config.Alerts, webhooks: config.Webhooks,
@@ -181,6 +184,7 @@ func (server *Server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/retire", server.retireWebhookSigningSecret)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/name", server.renameOrganization)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors", server.monitorsRoot)
+	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitor-inventory", server.monitorInventoryRoot)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}", server.monitorItem)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/name", server.renameMonitor)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/state", server.changeMonitorState)

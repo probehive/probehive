@@ -50,6 +50,7 @@ func TestOpenAPIDocumentDescribesEveryRoute(t *testing.T) {
 		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/activate":                              {"post"},
 		"/api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/retire":                                {"post"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors":                                                              {"get", "post"},
+		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitor-inventory":                                                     {"get"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}":                                                  {"get"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/name":                                             {"put"},
 		"/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/state":                                            {"put"},
@@ -106,6 +107,7 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 		Maximum              int               `json:"maximum"`
 		Default              json.RawMessage   `json:"default"`
 		MinLength            int               `json:"minLength"`
+		MaxLength            int               `json:"maxLength"`
 		MaxItems             int               `json:"maxItems"`
 		MaxBytes             int               `json:"x-probehive-max-bytes"`
 		LengthUnit           string            `json:"x-probehive-length-unit"`
@@ -118,6 +120,14 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 		Properties             map[string]property `json:"properties"`
 	}
 	var document struct {
+		Paths map[string]struct {
+			Get struct {
+				Parameters []struct {
+					Name   string   `json:"name"`
+					Schema property `json:"schema"`
+				} `json:"parameters"`
+			} `json:"get"`
+		} `json:"paths"`
 		Components struct {
 			Parameters map[string]struct {
 				Required bool     `json:"required"`
@@ -163,6 +173,8 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 		"OrganizationOverviewResponse", "OrganizationOverviewMonitorCounts",
 		"OrganizationOverviewHealthCounts", "OrganizationOverviewIncidentSummary",
 		"OrganizationOverviewActiveIncident", "OrganizationOverviewIntegrationCounts", "OrganizationOverviewStatusPageState", "OrganizationOverviewCapabilities",
+		"MonitorInventoryPageResponse", "MonitorInventoryItemResponse", "MonitorInventoryHealthResponse",
+		"MonitorInventoryRunResponse", "MonitorInventoryMaintenanceResponse",
 		"MonitorHealthResponse", "HealthCountsResponse", "IncidentPageResponse", "IncidentResponse", "IncidentTimelineResponse",
 		"AlertPageResponse", "AlertResponse", "AlertDeliveryPageResponse",
 		"AlertDeliveryResponse", "DeliveryAttemptResponse",
@@ -176,6 +188,22 @@ func TestOpenAPIDocumentLocksValidationBoundaries(t *testing.T) {
 	}
 	if got := document.Components.Schemas["OrganizationOverviewIncidentSummary"].Properties["activePreview"].MaxItems; got != 5 {
 		t.Errorf("Organization overview active Incident preview maxItems = %d, want 5", got)
+	}
+	inventoryParameters := map[string]property{}
+	for _, parameter := range document.Paths["/api/v1/organizations/{organizationId}/projects/{projectId}/monitor-inventory"].Get.Parameters {
+		inventoryParameters[parameter.Name] = parameter.Schema
+	}
+	if search := inventoryParameters["search"]; search.MinLength != 1 || search.MaxLength != 100 || search.LengthUnit != "utf16-code-units" {
+		t.Errorf("Monitor inventory search schema = %#v", search)
+	}
+	if page := inventoryParameters["page"]; page.Minimum != 1 || page.Maximum != 1000 || string(page.Default) != "1" {
+		t.Errorf("Monitor inventory page schema = %#v", page)
+	}
+	if pageSize := inventoryParameters["pageSize"]; pageSize.Minimum != 1 || pageSize.Maximum != 100 || string(pageSize.Default) != "25" {
+		t.Errorf("Monitor inventory pageSize schema = %#v", pageSize)
+	}
+	if len(inventoryParameters["health"].Enum) != 5 || len(inventoryParameters["runOutcome"].Enum) != 8 || len(inventoryParameters["maintenance"].Enum) != 3 {
+		t.Errorf("Monitor inventory filter schemas = health %#v, Run %#v, maintenance %#v", inventoryParameters["health"], inventoryParameters["runOutcome"], inventoryParameters["maintenance"])
 	}
 
 	requestSchemas := []string{

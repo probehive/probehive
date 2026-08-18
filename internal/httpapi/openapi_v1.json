@@ -677,6 +677,86 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/projects/{projectId}/monitor-inventory": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/ProjectID" }
+      ],
+      "get": {
+        "tags": ["Monitors"],
+        "operationId": "listMonitorInventory",
+        "summary": "Query the Monitor inventory workbench",
+        "description": "Requires monitor.read. Returns one deterministic, bounded Project-scoped page. Lifecycle state, evaluated health, latest Run outcome, and maintenance state remain separate optional filters.",
+        "security": [{ "sessionCookie": [] }],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Optional case-insensitive substring of the Monitor name. May appear at most once.",
+            "schema": { "type": "string", "minLength": 1, "maxLength": 100, "x-probehive-length-unit": "utf16-code-units" }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "Optional Monitor lifecycle state. May appear at most once.",
+            "schema": { "type": "string", "enum": ["draft", "active", "paused", "archived"] }
+          },
+          {
+            "name": "health",
+            "in": "query",
+            "description": "Optional evaluated health state; notEvaluated means no health row exists. May appear at most once.",
+            "schema": { "type": "string", "enum": ["notEvaluated", "unknown", "healthy", "degraded", "down"] }
+          },
+          {
+            "name": "runOutcome",
+            "in": "query",
+            "description": "Optional latest Run outcome; notRun and inProgress remain distinct from terminal outcomes. May appear at most once.",
+            "schema": { "type": "string", "enum": ["notRun", "inProgress", "passed", "failed", "errored", "timedout", "cancelled", "skipped"] }
+          },
+          {
+            "name": "maintenance",
+            "in": "query",
+            "description": "Optional current or upcoming maintenance state evaluated at the server read instant. May appear at most once.",
+            "schema": { "type": "string", "enum": ["none", "upcoming", "active"] }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Stable sort field. May appear at most once.",
+            "schema": { "type": "string", "enum": ["name", "createdAt", "updatedAt"], "default": "name" }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "description": "Sort direction. May appear at most once.",
+            "schema": { "type": "string", "enum": ["asc", "desc"], "default": "asc" }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "One-based bounded page number. May appear at most once.",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1 }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "Bounded page size. May appear at most once.",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The deterministic Monitor inventory page.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MonitorInventoryPageResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}": {
       "parameters": [
         { "$ref": "#/components/parameters/OrganizationID" },
@@ -1705,6 +1785,66 @@
           "latestRevisionNumber": { "type": "integer", "minimum": 0 },
           "createdAt": { "type": "string", "format": "date-time" },
           "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "MonitorInventoryPageResponse": {
+        "type": "object",
+        "required": ["items", "page", "pageSize", "total"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MonitorInventoryItemResponse" }
+          },
+          "page": { "type": "integer", "minimum": 1, "maximum": 1000 },
+          "pageSize": { "type": "integer", "minimum": 1, "maximum": 100 },
+          "total": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "MonitorInventoryItemResponse": {
+        "type": "object",
+        "required": ["monitor", "health", "lastRun", "maintenance"],
+        "properties": {
+          "monitor": { "$ref": "#/components/schemas/MonitorResponse" },
+          "health": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/MonitorInventoryHealthResponse" },
+              { "type": "null" }
+            ]
+          },
+          "lastRun": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/MonitorInventoryRunResponse" },
+              { "type": "null" }
+            ]
+          },
+          "maintenance": { "$ref": "#/components/schemas/MonitorInventoryMaintenanceResponse" }
+        }
+      },
+      "MonitorInventoryHealthResponse": {
+        "type": "object",
+        "required": ["state", "updatedAt"],
+        "properties": {
+          "state": { "type": "string", "enum": ["unknown", "healthy", "degraded", "down"] },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "MonitorInventoryRunResponse": {
+        "type": "object",
+        "required": ["id", "outcome", "scheduledFor"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "outcome": { "type": "string", "enum": ["inProgress", "passed", "failed", "errored", "timedout", "cancelled", "skipped"] },
+          "scheduledFor": { "type": "string", "format": "date-time" }
+        }
+      },
+      "MonitorInventoryMaintenanceResponse": {
+        "type": "object",
+        "required": ["state", "windowId", "startsAt", "endsAt"],
+        "properties": {
+          "state": { "type": "string", "enum": ["none", "upcoming", "active"] },
+          "windowId": { "type": ["string", "null"], "format": "uuid" },
+          "startsAt": { "type": ["string", "null"], "format": "date-time" },
+          "endsAt": { "type": ["string", "null"], "format": "date-time" }
         }
       },
       "MaintenanceWindowResponse": {

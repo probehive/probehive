@@ -654,6 +654,36 @@ returns `409` with detail
 must GET fresh state and retry its operation. There is no ETag or client-supplied row
 version. The server must never silently reorder or renumber revisions.
 
+### Monitor inventory query
+
+`GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitor-inventory`
+requires `monitor.read` and returns a bounded Project-scoped page without changing the
+legacy Monitor collection used by status-page configuration. All query parameters are
+optional, non-empty when present, and may appear at most once. Defaults are
+`sort=name`, `direction=asc`, `page=1`, and `pageSize=25`.
+
+`search` is a trimmed 1-to-100-UTF-16-unit case-insensitive Monitor-name
+substring. `state` accepts `draft`, `active`, `paused`, or `archived`. Evaluated
+`health` accepts `notEvaluated`, `unknown`, `healthy`, `degraded`, or `down`;
+`notEvaluated` means no health row exists. Latest `runOutcome` accepts `notRun`,
+`inProgress`, `passed`, `failed`, `errored`, `timedout`, `cancelled`, or
+`skipped`. Maintenance accepts `none`, `upcoming`, or `active` as evaluated at
+the server read instant. These four dimensions are independent and are never inferred
+from one another.
+
+Sort is exactly `name`, `createdAt`, or `updatedAt` in `asc` or `desc` direction.
+Name sort uses the case-folded name; every sort uses Monitor id in the same direction as
+a stable tie-breaker. `page` is 1-1000 and `pageSize` is 1-100. Count and rows
+come from one repeatable-read snapshot. A page always returns `items` as an array
+with echoed `page` and `pageSize` plus the filtered `total`; a page beyond the final
+row is empty without changing its total.
+
+Each item keeps the complete `MonitorResponse` separate from nullable evaluated health,
+nullable latest Run evidence, and the selected current-or-next maintenance window. A
+missing health or Run is `null`; in-flight latest Runs use `inProgress`. Maintenance
+always has a state and exposes window id and bounds only for `active` or `upcoming`.
+Wrong-tenant and wrong-parent scopes retain the normal non-disclosing `404` behavior.
+
 ### Maintenance windows
 
 Maintenance windows are one-time, Monitor-scoped half-open intervals `[startsAt, endsAt)`.
@@ -1155,6 +1185,11 @@ Monitors:
 monitor.name.invalid       monitor.checkType.invalid      monitor.checkType.unsupported
 monitor.state.invalidTarget monitor.concurrentUpdate      monitor.archived.readOnly
 monitor.state.activationWithoutRevision                    monitor.state.transitionNotAllowed
+monitor.inventory.search.invalid   monitor.inventory.state.invalid
+monitor.inventory.health.invalid   monitor.inventory.runOutcome.invalid
+monitor.inventory.maintenance.invalid monitor.inventory.sort.invalid
+monitor.inventory.direction.invalid monitor.inventory.page.invalid
+monitor.inventory.pageSize.invalid
 ```
 
 Maintenance windows:

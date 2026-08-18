@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router'
 
 import { ApiError, getOrganization } from '../api/organizations'
 import { useTranslation } from '../i18n/context'
-import MonitorsPanel from './MonitorsPanel.tsx'
+import MonitorInventoryPanel from './MonitorInventoryPanel.tsx'
 import OrganizationOverview from './OrganizationOverview.tsx'
 import RenameOrganizationForm from './RenameOrganizationForm.tsx'
 import StatusPageDraftSection from './StatusPageDraftSection.tsx'
@@ -79,7 +79,7 @@ export default function OrganizationPage() {
           </dl>
         </section>
       </section>
-      <MonitorsPanel
+      <MonitorInventoryPanel
         organizationId={organization.id}
         projectId={organization.defaultProject.id}
       />

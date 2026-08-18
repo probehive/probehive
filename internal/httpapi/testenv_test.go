@@ -68,6 +68,7 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 	overviewService := overview.NewService(overviews)
 	userService := user.NewService(users, testPasswordHasher{}, clock, ids)
 	monitorService := monitor.NewService(monitors, check.NewCatalog(), clock, ids)
+	monitorInventoryService := monitor.NewInventoryService(monitors, clock)
 	maintenanceService := maintenance.NewService(maintenanceWindows, clock, ids)
 	statusPageService := statuspage.NewService(statusPages, clock, ids)
 	runService := run.NewQueryService(runs)
@@ -94,6 +95,7 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 		Overview:                    overviewService,
 		Users:                       userService,
 		Monitors:                    monitorService,
+		MonitorInventory:            monitorInventoryService,
 		Runs:                        runService,
 		MonitorHealth:               healthService,
 		Maintenance:                 maintenanceService,
@@ -633,6 +635,54 @@ func (store *memoryMonitorStore) ListMonitors(_ context.Context, organizationID,
 		return values[i].CreatedAt.Before(values[j].CreatedAt)
 	})
 	return values, nil
+}
+func (store *memoryMonitorStore) ListMonitorInventory(
+	ctx context.Context, organizationID, projectID string,
+	query monitor.InventoryQuery, _ time.Time,
+) ([]monitor.InventoryItem, int, error) {
+	values, err := store.ListMonitors(ctx, organizationID, projectID)
+	if err != nil {
+		return nil, 0, err
+	}
+	filtered := make([]monitor.Monitor, 0, len(values))
+	for _, value := range values {
+		if query.Search != "" && !strings.Contains(strings.ToLower(value.Name), strings.ToLower(query.Search)) {
+			continue
+		}
+		if query.State != "" && value.State != query.State {
+			continue
+		}
+		if query.Health != "" && query.Health != monitor.InventoryHealthNotEvaluated {
+			continue
+		}
+		if query.RunOutcome != "" && query.RunOutcome != monitor.InventoryRunNotRun {
+			continue
+		}
+		if query.Maintenance != "" && query.Maintenance != monitor.InventoryMaintenanceNone {
+			continue
+		}
+		filtered = append(filtered, value)
+	}
+	sort.Slice(filtered, func(i, j int) bool {
+		less := strings.ToLower(filtered[i].Name) < strings.ToLower(filtered[j].Name)
+		if query.Sort == monitor.InventorySortCreatedAt {
+			less = filtered[i].CreatedAt.Before(filtered[j].CreatedAt)
+		} else if query.Sort == monitor.InventorySortUpdatedAt {
+			less = filtered[i].UpdatedAt.Before(filtered[j].UpdatedAt)
+		}
+		if query.Direction == monitor.InventoryDirectionDescending {
+			return !less && filtered[i].ID != filtered[j].ID
+		}
+		return less
+	})
+	total := len(filtered)
+	start := min((query.Page-1)*query.PageSize, total)
+	end := min(start+query.PageSize, total)
+	items := make([]monitor.InventoryItem, 0, end-start)
+	for _, value := range filtered[start:end] {
+		items = append(items, monitor.InventoryItem{Monitor: value, Maintenance: monitor.InventoryMaintenance{State: monitor.InventoryMaintenanceNone}})
+	}
+	return items, total, nil
 }
 func (store *memoryMonitorStore) CreateMonitor(_ context.Context, value monitor.Monitor) error {
 	store.mu.Lock()

@@ -104,6 +104,7 @@ func serve(logger *slog.Logger) error {
 	organizations := organization.NewService(database.Organizations(), systemClock, identifiers)
 	overviewService := overview.NewService(database.Overviews())
 	monitors := monitor.NewService(database.Monitors(), check.NewCatalog(), systemClock, identifiers)
+	monitorInventory := monitor.NewInventoryService(database.MonitorInventory(), systemClock)
 	runQueries := run.NewQueryService(database.Runs())
 	healthService := health.NewService(database.Health(), systemClock, identifiers)
 	maintenanceService := maintenance.NewService(database.Maintenance(), systemClock, identifiers)
@@ -133,6 +134,7 @@ func serve(logger *slog.Logger) error {
 		Overview:                    overviewService,
 		Users:                       users,
 		Monitors:                    monitors,
+		MonitorInventory:            monitorInventory,
 		Runs:                        runQueries,
 		ManualRuns:                  manualRuns,
 		MonitorHealth:               healthService,

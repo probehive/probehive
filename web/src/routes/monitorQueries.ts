@@ -9,3 +9,10 @@ export function monitorQueryKey(
 ) {
   return [...monitorsQueryKey(organizationId, projectId), monitorId] as const
 }
+export function monitorInventoryQueryKey(
+  organizationId: string,
+  projectId: string,
+  query: object,
+) {
+  return [...monitorsQueryKey(organizationId, projectId), 'inventory', query] as const
+}

@@ -127,6 +127,38 @@ type MonitorResponse struct {
 	UpdatedAt            time.Time `json:"updatedAt"`
 }
 
+type MonitorInventoryPageResponse struct {
+	Items    []MonitorInventoryItemResponse `json:"items"`
+	Page     int                            `json:"page"`
+	PageSize int                            `json:"pageSize"`
+	Total    int                            `json:"total"`
+}
+
+type MonitorInventoryItemResponse struct {
+	Monitor     MonitorResponse                     `json:"monitor"`
+	Health      *MonitorInventoryHealthResponse     `json:"health"`
+	LastRun     *MonitorInventoryRunResponse        `json:"lastRun"`
+	Maintenance MonitorInventoryMaintenanceResponse `json:"maintenance"`
+}
+
+type MonitorInventoryHealthResponse struct {
+	State     string    `json:"state"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type MonitorInventoryRunResponse struct {
+	ID           string    `json:"id"`
+	Outcome      string    `json:"outcome"`
+	ScheduledFor time.Time `json:"scheduledFor"`
+}
+
+type MonitorInventoryMaintenanceResponse struct {
+	State    string     `json:"state"`
+	WindowID *string    `json:"windowId"`
+	StartsAt *time.Time `json:"startsAt"`
+	EndsAt   *time.Time `json:"endsAt"`
+}
+
 type MaintenanceWindowResponse struct {
 	ID             string     `json:"id"`
 	OrganizationID string     `json:"organizationId"`

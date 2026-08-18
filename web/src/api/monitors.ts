@@ -120,3 +120,57 @@ export function activateMonitor(
 ): Promise<MonitorResponse> {
   return changeMonitorState(organizationId, projectId, monitorId, 'active')
 }
+export type MonitorHealthState = 'notEvaluated' | 'unknown' | 'healthy' | 'degraded' | 'down'
+export type MonitorRunOutcome = 'notRun' | 'inProgress' | 'passed' | 'failed' | 'errored' | 'timedout' | 'cancelled' | 'skipped'
+export type MonitorMaintenanceState = 'none' | 'upcoming' | 'active'
+export type MonitorInventorySort = 'name' | 'createdAt' | 'updatedAt'
+export type MonitorInventoryDirection = 'asc' | 'desc'
+
+export interface MonitorInventoryItemResponse {
+  monitor: MonitorResponse
+  health: null | { state: Exclude<MonitorHealthState, 'notEvaluated'>; updatedAt: string }
+  lastRun: null | { id: string; outcome: Exclude<MonitorRunOutcome, 'notRun'>; scheduledFor: string }
+  maintenance: {
+    state: MonitorMaintenanceState
+    windowId: string | null
+    startsAt: string | null
+    endsAt: string | null
+  }
+}
+
+export interface MonitorInventoryPageResponse {
+  items: MonitorInventoryItemResponse[]
+  page: number
+  pageSize: number
+  total: number
+}
+
+export interface MonitorInventoryQuery {
+  search?: string
+  state?: MonitorState
+  health?: MonitorHealthState
+  runOutcome?: MonitorRunOutcome
+  maintenance?: MonitorMaintenanceState
+  sort: MonitorInventorySort
+  direction: MonitorInventoryDirection
+  page: number
+  pageSize: number
+}
+export function listMonitorInventory(
+  organizationId: string,
+  projectId: string,
+  query: MonitorInventoryQuery,
+): Promise<MonitorInventoryPageResponse> {
+  const parameters = new URLSearchParams()
+  if (query.search) parameters.set('search', query.search)
+  if (query.state) parameters.set('state', query.state)
+  if (query.health) parameters.set('health', query.health)
+  if (query.runOutcome) parameters.set('runOutcome', query.runOutcome)
+  if (query.maintenance) parameters.set('maintenance', query.maintenance)
+  parameters.set('sort', query.sort)
+  parameters.set('direction', query.direction)
+  parameters.set('page', String(query.page))
+  parameters.set('pageSize', String(query.pageSize))
+  const path = `/api/v1/organizations/${encodeURIComponent(organizationId)}/projects/${encodeURIComponent(projectId)}/monitor-inventory`
+  return getJson<MonitorInventoryPageResponse>(`${path}?${parameters.toString()}`)
+}
