@@ -77,6 +77,8 @@ test('renders an honest fresh Organization with administrator destinations', asy
   expect(within(overview).getByText('Not configured')).toBeInTheDocument()
   expect(within(overview).getByRole('link', { name: 'View Monitors' }))
     .toHaveAttribute('href', '#monitors')
+  expect(within(overview).getByRole('link', { name: 'View Incident inbox' }))
+    .toHaveAttribute('href', '/organizations/' + organizationId + '/incidents')
   expect(within(overview).getByRole('link', { name: 'Webhook integrations' }))
     .toHaveAttribute('href', '/organizations/' + organizationId + '/integrations')
   expect(within(overview).getByRole('link', { name: 'Status page' }))
@@ -153,9 +155,8 @@ test('renders populated counts and direct active Incident evidence links', async
         '/monitors/00000000-0000-7000-8000-000000000301' +
         '/incidents/00000000-0000-7000-8000-000000000101',
     )
-  expect(within(overview).getByText(
-    'More active Incidents are available from their Monitors.',
-  )).toBeInTheDocument()
+  expect(within(overview).getByRole('link', { name: 'View all active Incidents in the inbox.' }))
+    .toHaveAttribute('href', '/organizations/' + organizationId + '/incidents')
   expect(within(overview).getByText('1 of 2 enabled')).toBeInTheDocument()
   expect(within(overview).getByText('Published')).toBeInTheDocument()
 })

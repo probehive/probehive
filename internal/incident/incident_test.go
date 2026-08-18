@@ -24,6 +24,10 @@ func (store *recordingStore) ProcessHealthTransition(
 func (*recordingStore) ListIncidents(context.Context, Scope, ListQuery) ([]Incident, bool, bool, error) {
 	return nil, false, false, nil
 }
+
+func (*recordingStore) ListInbox(context.Context, string, InboxQuery, time.Time) ([]InboxItem, bool, bool, error) {
+	return nil, false, false, nil
+}
 func (*recordingStore) GetIncident(context.Context, Scope, string) (Incident, bool, error) {
 	return Incident{}, false, nil
 }

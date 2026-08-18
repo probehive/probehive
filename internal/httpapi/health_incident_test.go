@@ -10,6 +10,7 @@ import (
 	"github.com/probehive/probehive/internal/health"
 	api "github.com/probehive/probehive/internal/httpapi/v1"
 	"github.com/probehive/probehive/internal/incident"
+	"github.com/probehive/probehive/internal/maintenance"
 	"github.com/probehive/probehive/internal/organization"
 )
 
@@ -192,4 +193,114 @@ func TestIncidentCursorRoundTripsAndRejectsUnknownShape(t *testing.T) {
 	if _, err := decodeIncidentCursor(unknown); err == nil {
 		t.Fatal("Incident cursor with an unknown member was accepted")
 	}
+}
+
+func TestOrganizationIncidentInboxIsScopedAndKeepsEvidenceSeparate(t *testing.T) {
+	environment := newTestEnvironment(t, true, 0)
+	environment.bootstrapAdministrator(t)
+	organizationID, projectID, monitorID := seedRunQueryMonitor(t, environment)
+	now := environment.clock.Now()
+	environment.health.mu.Lock()
+	environment.health.snapshots = map[string]health.Snapshot{
+		organizationID + "/" + projectID + "/" + monitorID: {
+			OrganizationID: organizationID, ProjectID: projectID, MonitorID: monitorID,
+			State: health.StateDown, StableState: health.StateDown,
+			PolicyVersion: health.PolicyVersion, UpdatedAt: now.Add(-time.Minute),
+			TransitionedAt: now.Add(-time.Minute),
+		},
+	}
+	environment.health.mu.Unlock()
+	window, err := maintenance.NewWindow(
+		maintenance.ID("00000000-0000-7000-8000-000000000060"),
+		maintenance.Scope{OrganizationID: organizationID, ProjectID: projectID, MonitorID: monitorID},
+		now.Add(-time.Minute), now.Add(time.Hour), now.Add(-2*time.Minute),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := environment.maintenance.CreateWindow(t.Context(), window); err != nil {
+		t.Fatal(err)
+	}
+	openingRunID := "00000000-0000-7000-8000-000000000040"
+	first := incident.Incident{
+		ID: "00000000-0000-7000-8000-000000000030", OrganizationID: organizationID,
+		ProjectID: projectID, MonitorID: monitorID, State: incident.StateOpen, Version: 1,
+		OpenedTransitionID: "00000000-0000-7000-8000-000000000130",
+		CreatedAt:          now.Add(-time.Minute), UpdatedAt: now.Add(-time.Minute),
+		Timeline: []incident.TimelineEntry{{
+			ID: "00000000-0000-7000-8000-000000000230", IncidentVersion: 1,
+			Kind: incident.TimelineOpened, CausalRunID: openingRunID,
+			CausalRunScheduledFor: now.Add(-2 * time.Minute), OccurredAt: now.Add(-time.Minute),
+		}},
+	}
+	second := first
+	second.ID, second.State = "00000000-0000-7000-8000-000000000029", incident.StateAcknowledged
+	second.CreatedAt, second.UpdatedAt = now.Add(-2*time.Minute), now.Add(-time.Minute)
+	second.Timeline = nil
+	resolved := first
+	resolved.ID, resolved.State = "00000000-0000-7000-8000-000000000028", incident.StateResolved
+	resolved.CreatedAt, resolved.UpdatedAt = now.Add(-3*time.Minute), now.Add(-time.Minute)
+	resolved.Timeline = nil
+	environment.incidents.mu.Lock()
+	environment.incidents.incidents = map[string]incident.Incident{
+		first.ID: first, second.ID: second, resolved.ID: resolved,
+	}
+	environment.incidents.mu.Unlock()
+
+	path := "/api/v1/organizations/" + organizationID + "/incidents?state=active&pageSize=1"
+	response := environment.request(t, environment.client, http.MethodGet, path, "", "", "")
+	var page api.IncidentInboxPageResponse
+	if err := json.Unmarshal(response.Body, &page); err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK || len(page.Items) != 1 ||
+		page.Items[0].Incident.ID != first.ID || page.NextCursor == nil {
+		t.Fatalf("first inbox page = %d, %#v", response.StatusCode, page)
+	}
+	item := page.Items[0]
+	if item.Monitor.Name != "Checkout" || item.Monitor.State != "active" ||
+		item.Health == nil || item.Health.State != "down" ||
+		item.Maintenance == nil || item.Maintenance.State != "active" ||
+		item.OpeningRun == nil || item.OpeningRun.ID != openingRunID || item.OpeningRun.Available {
+		t.Fatalf("inbox operational facts = %#v", item)
+	}
+	next := environment.request(
+		t, environment.client, http.MethodGet,
+		"/api/v1/organizations/"+organizationID+"/incidents?state=active&pageSize=1&cursor="+url.QueryEscape(*page.NextCursor),
+		"", "", "",
+	)
+	var nextPage api.IncidentInboxPageResponse
+	if err := json.Unmarshal(next.Body, &nextPage); err != nil {
+		t.Fatal(err)
+	}
+	if next.StatusCode != http.StatusOK || len(nextPage.Items) != 1 ||
+		nextPage.Items[0].Incident.ID != second.ID {
+		t.Fatalf("second inbox page = %d, %#v", next.StatusCode, nextPage)
+	}
+	resolvedResponse := environment.request(
+		t, environment.client, http.MethodGet,
+		"/api/v1/organizations/"+organizationID+"/incidents?state=resolved", "", "", "",
+	)
+	var resolvedPage api.IncidentInboxPageResponse
+	if err := json.Unmarshal(resolvedResponse.Body, &resolvedPage); err != nil {
+		t.Fatal(err)
+	}
+	if resolvedResponse.StatusCode != http.StatusOK || len(resolvedPage.Items) != 1 ||
+		resolvedPage.Items[0].Incident.ID != resolved.ID {
+		t.Fatalf("resolved inbox page = %d, %#v", resolvedResponse.StatusCode, resolvedPage)
+	}
+	invalid := environment.request(
+		t, environment.client, http.MethodGet,
+		"/api/v1/organizations/"+organizationID+"/incidents?state=closed", "", "", "",
+	)
+	problem := decodeProblem(t, invalid)
+	if invalid.StatusCode != http.StatusBadRequest ||
+		problem.Errors["state"][0].Code != incidentInboxStateInvalidCode {
+		t.Fatalf("invalid inbox state = %d, %#v", invalid.StatusCode, problem)
+	}
+	hidden := environment.request(
+		t, environment.client, http.MethodGet,
+		"/api/v1/organizations/00000000-0000-7000-8000-000000000099/incidents", "", "", "",
+	)
+	assertProblem(t, hidden, http.StatusNotFound, "Not Found", "")
 }

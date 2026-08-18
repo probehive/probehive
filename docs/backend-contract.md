@@ -106,8 +106,8 @@ All response fields below are required and non-null unless explicitly marked nul
 Nullable fields are still present in the JSON object: `nextCursor`, `outcome`, `startedAt`,
 `finishedAt`, `leaseExpiresAt`, `confirmation`, `http`, `tls`, `certificateExpiresAt`,
 health evidence pointers, a health `candidate`, maintenance cancellation, Incident
-acknowledgement/resolution pointers, and acknowledgement-only timeline evidence serialize
-as JSON `null` when absent.
+acknowledgement/resolution pointers, acknowledgement-only timeline evidence, and Incident
+inbox health, maintenance, or opening-Run evidence serialize as JSON `null` when absent.
 
 | Type | Exact JSON fields |
 | --- | --- |
@@ -145,6 +145,12 @@ as JSON `null` when absent.
 | `HTTPObservationResponse` | `statusCode`, `redirectCount`, `bodyBytes` as integers; `protocol: string`; `bodyTruncated: boolean`; `tls: nullable TLSObservationResponse` |
 | `TLSObservationResponse` | `version`, `cipherSuite` as strings; `certificateExpiresAt: nullable UTC timestamp string` |
 | `IncidentPageResponse` | `items: IncidentResponse[]`; `nextCursor: nullable opaque string` |
+| `IncidentInboxPageResponse` | `items: IncidentInboxItemResponse[]`; `nextCursor: nullable opaque string` |
+| `IncidentInboxItemResponse` | `incident: IncidentInboxIncidentResponse`; Monitor UUID, name, and lifecycle; nullable current health, current-or-upcoming maintenance, and opening Run evidence |
+| `IncidentInboxIncidentResponse` | scoped UUIDs; lifecycle `state` and `version`; opening transition; nullable acknowledgement and resolution identity/timestamps; created/updated timestamps; no timeline |
+| `IncidentInboxHealthResponse` | current evaluated health `state` and `updatedAt` |
+| `IncidentInboxMaintenanceResponse` | window UUID; `state` exactly `active` or `upcoming`; start and end timestamps |
+| `IncidentInboxRunResponse` | opening Run UUID and scheduled timestamp; `available` reports whether retained raw Run evidence can still be opened |
 | `IncidentResponse` | scoped UUIDs; lifecycle `state` and `version`; opening transition; nullable acknowledgement and resolution identity/timestamps; created/updated timestamps; `timeline: IncidentTimelineResponse[]` |
 | `IncidentTimelineResponse` | timeline UUID, Incident version and kind; nullable health transition, actor, health states, policy, causal Run, slot, and counts; occurrence timestamp |
 | `AlertPageResponse` | `items: AlertResponse[]`; `nextCursor: nullable opaque string` |
@@ -201,6 +207,7 @@ antiforgery and origin rules in section 5 also apply.
 | `POST /api/v1/organizations` | Instance admin, unsafe | first create: `201 OrganizationResponse` and `Location: /api/v1/organizations/{id}`; identical replay: `200 OrganizationResponse` without creating state | `400`, `409`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}` | `organization.read` | `200 OrganizationResponse` | `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/overview` | `organization.read` plus permission-aware summaries | `200 OrganizationOverviewResponse` | `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/incidents` | `incident.read` | `200 IncidentInboxPageResponse`, newest first by `(createdAt, id)`; optional `state` filter | `400`, `404`, `401`, `403` |
 | `PUT /api/v1/organizations/{organizationId}/name` | `organization.write`, unsafe | `200 OrganizationResponse` with the new display name and an unchanged slug | `400`, `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/webhook-integrations` | `integration.manage` | `200 WebhookIntegrationResponse[]` in creation order; never returns signing-secret material | `404`, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/webhook-integrations` | `integration.manage`, unsafe | `201 CreateWebhookIntegrationResponse`; creates a disabled Integration and returns its signing secret once | `400`, `404`, `409`, `503` without an operator keyring, `401`, `403` |
@@ -1005,9 +1012,19 @@ Run identity after raw Run partitions expire.
 Incident lists are newest-first by descending `(createdAt, id)`. `pageSize` defaults to
 50 and is 1 through 100; `cursor` is optional, opaque, exclusive, and accepted exactly
 once. Both malformed values use field-level `400` validation. `nextCursor` is null on the
-final page. Every list, detail, and acknowledgement lookup carries Organization, Project,
-and Monitor scope. A resolved acknowledgement returns `409` with title
+final page. Every Monitor list, detail, and acknowledgement lookup carries Organization,
+Project, and Monitor scope. A resolved acknowledgement returns `409` with title
 `Incident acknowledgement rejected`.
+
+The Organization Incident inbox uses the same ordering, bound, cursor, and final-page rules
+across all Monitors in one authorized Organization. Its optional `state` is exactly one of
+`active`, `open`, `acknowledged`, or `resolved`; omission returns all recent
+Incidents and `active` includes open and acknowledged rows. Each item keeps Incident
+lifecycle, current Monitor lifecycle and evaluated health, current or next maintenance
+window, and opening Run evidence as separate fields. The durable opening causal pointer
+remains after raw retention; `openingRun.available` is false when the scoped Run row has
+expired, so clients must not render a dead evidence link. A non-member receives the ordinary
+non-disclosing `404`.
 
 ### Alert intents
 
@@ -1138,10 +1155,11 @@ and cancels a one-time maintenance window. It then publishes the configured stat
 creates an enabled loopback Webhook Integration, a failing HTTP Monitor, and an active
 maintenance window. After the Incident and Alert intent appear, the journey asserts that
 delivery evidence shows the maintenance reason and exact window id without a Webhook call.
-It acknowledges the Incident, returns through the overview's direct Incident link, and
-asserts the populated monitoring, active-Incident, enabled-Integration, and published-status
-summaries before revocation. It replaces the target through revision 2 and waits for
-confirmed recovery and its Alert intent. Finally, it
+It acknowledges the Incident, asserts the populated monitoring, active-Incident,
+enabled-Integration, and published-status summaries, then enters the Organization Incident
+inbox and follows its opening Run and Incident evidence links. It replaces the target
+through revision 2, waits for confirmed recovery and its Alert intent, then verifies resolved
+inbox history and the narrow-screen inbox layout. Finally, it
 signs out, signs back in, lands on the Organization list containing the renamed
 Organization, creates slug `acme` with display name `Acme Monitoring`, follows the
 returned Organization, and renders its default Project. A second journey switches the
@@ -1245,6 +1263,7 @@ Incident queries:
 
 ```text
 incident.query.pageSize.invalid  incident.query.cursor.invalid
+incident.inbox.state.invalid
 ```
 
 Alert queries:

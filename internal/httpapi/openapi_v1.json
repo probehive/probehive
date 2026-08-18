@@ -311,6 +311,41 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/incidents": {
+      "parameters": [
+        { "$ref": "#/components/parameters/OrganizationID" },
+        { "$ref": "#/components/parameters/IncidentPageSize" },
+        { "$ref": "#/components/parameters/IncidentCursor" },
+        {
+          "name": "state",
+          "in": "query",
+          "description": "Optional lifecycle filter. Omit it for all recent Incidents; active includes open and acknowledged Incidents.",
+          "schema": { "type": "string", "enum": ["active", "open", "acknowledged", "resolved"] }
+        }
+      ],
+      "get": {
+        "tags": ["Incidents"],
+        "operationId": "listOrganizationIncidents",
+        "summary": "List an Organization's Incident inbox",
+        "description": "Requires incident.read. Returns a bounded newest-first keyset page across the Organization. Incident lifecycle, current Monitor health, current or upcoming maintenance, and opening Run evidence are separate fields; a causal Run may be unavailable after retention.",
+        "security": [{ "sessionCookie": [] }],
+        "responses": {
+          "200": {
+            "description": "One bounded Organization Incident inbox page.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/IncidentInboxPageResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/status-page/draft": {
       "parameters": [{ "$ref": "#/components/parameters/OrganizationID" }],
       "get": {
@@ -2100,6 +2135,98 @@
             "items": { "$ref": "#/components/schemas/IncidentResponse" }
           },
           "nextCursor": { "type": ["string", "null"], "minLength": 1 }
+        }
+      },
+      "IncidentInboxPageResponse": {
+        "type": "object",
+        "required": ["items", "nextCursor"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/IncidentInboxItemResponse" }
+          },
+          "nextCursor": { "type": ["string", "null"], "minLength": 1 }
+        }
+      },
+      "IncidentInboxItemResponse": {
+        "type": "object",
+        "required": ["incident", "monitor", "health", "maintenance", "openingRun"],
+        "properties": {
+          "incident": { "$ref": "#/components/schemas/IncidentInboxIncidentResponse" },
+          "monitor": { "$ref": "#/components/schemas/IncidentInboxMonitorResponse" },
+          "health": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/IncidentInboxHealthResponse" },
+              { "type": "null" }
+            ]
+          },
+          "maintenance": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/IncidentInboxMaintenanceResponse" },
+              { "type": "null" }
+            ]
+          },
+          "openingRun": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/IncidentInboxRunResponse" },
+              { "type": "null" }
+            ]
+          }
+        }
+      },
+      "IncidentInboxIncidentResponse": {
+        "type": "object",
+        "required": ["id", "organizationId", "projectId", "monitorId", "state", "version", "openedTransitionId", "acknowledgedBy", "acknowledgedAt", "resolvedTransitionId", "resolvedAt", "createdAt", "updatedAt"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "organizationId": { "type": "string", "format": "uuid" },
+          "projectId": { "type": "string", "format": "uuid" },
+          "monitorId": { "type": "string", "format": "uuid" },
+          "state": { "type": "string", "enum": ["open", "acknowledged", "resolved"] },
+          "version": { "type": "integer", "format": "int64", "minimum": 1 },
+          "openedTransitionId": { "type": "string", "format": "uuid" },
+          "acknowledgedBy": { "type": ["string", "null"], "format": "uuid" },
+          "acknowledgedAt": { "type": ["string", "null"], "format": "date-time" },
+          "resolvedTransitionId": { "type": ["string", "null"], "format": "uuid" },
+          "resolvedAt": { "type": ["string", "null"], "format": "date-time" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "IncidentInboxMonitorResponse": {
+        "type": "object",
+        "required": ["id", "name", "state"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "state": { "type": "string", "enum": ["draft", "active", "paused", "archived"] }
+        }
+      },
+      "IncidentInboxHealthResponse": {
+        "type": "object",
+        "required": ["state", "updatedAt"],
+        "properties": {
+          "state": { "type": "string", "enum": ["unknown", "healthy", "degraded", "down"] },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "IncidentInboxMaintenanceResponse": {
+        "type": "object",
+        "required": ["id", "state", "startsAt", "endsAt"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "state": { "type": "string", "enum": ["active", "upcoming"] },
+          "startsAt": { "type": "string", "format": "date-time" },
+          "endsAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "IncidentInboxRunResponse": {
+        "type": "object",
+        "required": ["id", "scheduledFor", "available"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "scheduledFor": { "type": "string", "format": "date-time" },
+          "available": { "type": "boolean" }
         }
       },
       "IncidentResponse": {

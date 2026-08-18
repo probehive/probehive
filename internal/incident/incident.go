@@ -146,6 +146,7 @@ type ProcessIDs struct {
 type Store interface {
 	ProcessHealthTransition(context.Context, HealthTransitionedV1, ProcessIDs, time.Time) error
 	ListIncidents(context.Context, Scope, ListQuery) ([]Incident, bool, bool, error)
+	ListInbox(context.Context, string, InboxQuery, time.Time) ([]InboxItem, bool, bool, error)
 	GetIncident(context.Context, Scope, string) (Incident, bool, error)
 	AcknowledgeIncident(context.Context, Scope, string, string, string, time.Time) (Incident, bool, error)
 }
@@ -274,4 +275,87 @@ func isUTC(value time.Time) bool {
 	}
 	_, offset := value.Zone()
 	return offset == 0
+}
+
+type InboxState string
+
+const (
+	InboxStateActive       InboxState = "active"
+	InboxStateOpen         InboxState = "open"
+	InboxStateAcknowledged InboxState = "acknowledged"
+	InboxStateResolved     InboxState = "resolved"
+)
+
+type InboxQuery struct {
+	PageSize int
+	Cursor   *Cursor
+	State    InboxState
+}
+
+type InboxHealth struct {
+	State     string
+	UpdatedAt time.Time
+}
+
+type InboxMaintenance struct {
+	ID       string
+	State    string
+	StartsAt time.Time
+	EndsAt   time.Time
+}
+
+type InboxRun struct {
+	ID           string
+	ScheduledFor time.Time
+	Available    bool
+}
+
+type InboxItem struct {
+	Incident     Incident
+	MonitorName  string
+	MonitorState string
+	Health       *InboxHealth
+	Maintenance  *InboxMaintenance
+	OpeningRun   *InboxRun
+}
+
+type InboxPage struct {
+	Items      []InboxItem
+	NextCursor *Cursor
+}
+
+func (service *Service) ListInbox(ctx context.Context, organizationID string, query InboxQuery) (InboxPage, bool, error) {
+	if organizationID == "" {
+		return InboxPage{}, false, errors.New("an Incident inbox query requires Organization identity")
+	}
+	if query.PageSize < 1 || query.PageSize > MaxPageSize {
+		return InboxPage{}, false, errors.New("an Incident inbox page is 1 to 100 rows")
+	}
+	if query.State != "" && !validInboxState(query.State) {
+		return InboxPage{}, false, errors.New("unknown Incident inbox state filter")
+	}
+	if query.Cursor != nil {
+		if query.Cursor.ID == "" || !isUTC(query.Cursor.CreatedAt) {
+			return InboxPage{}, false, errors.New("an Incident inbox cursor requires identity and a UTC creation instant")
+		}
+	}
+	values, more, found, err := service.store.ListInbox(ctx, organizationID, query, service.clock.Now().UTC())
+	if err != nil || !found {
+		return InboxPage{}, found, err
+	}
+	page := InboxPage{Items: values}
+	if more && len(values) != 0 {
+		last := values[len(values)-1].Incident
+		page.NextCursor = &Cursor{CreatedAt: last.CreatedAt, ID: last.ID}
+	}
+	return page, true, nil
+}
+
+func validInboxState(value InboxState) bool {
+	switch value {
+	case InboxStateActive, InboxStateOpen, InboxStateAcknowledged, InboxStateResolved:
+		return true
+	default:
+		return false
+	}
 }

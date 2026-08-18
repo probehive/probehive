@@ -74,6 +74,9 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 	runService := run.NewQueryService(runs)
 	healthStore := &memoryHealthStore{monitors: monitors}
 	incidentStore := &memoryIncidentStore{monitors: monitors}
+	incidentStore.health = healthStore
+	incidentStore.maintenance = maintenanceWindows
+	incidentStore.runs = runs
 	alertStore := &memoryAlertStore{monitors: monitors}
 	webhookStore := newMemoryWebhookStore()
 	keyring, err := webhook.NewKeyring([]webhook.WrappingKey{

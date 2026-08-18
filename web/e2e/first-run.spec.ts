@@ -93,7 +93,8 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await page.getByRole('button', { name: 'Create and activate' }).click()
   const createdMonitor = await (await monitorResponse).json() as CreatedMonitor
   await expect(page.getByText('ProbeHive API is active.')).toBeVisible()
-  await expect(page.getByRole('row', { name: /ProbeHive API Active/ })).toBeVisible()
+  const createdMonitorRow = page.locator('tbody tr').filter({ hasText: 'ProbeHive API' })
+  await expect(createdMonitorRow.locator('.monitor-state')).toHaveText('Active')
 
   await page.getByRole('link', { name: 'ProbeHive API' }).click()
   const renameMonitor = page.getByRole('region', { name: 'Rename Monitor' })
@@ -142,8 +143,8 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   // The detail and inventory use distinct query keys. Returning to the
   // Organization proves successful mutations refreshed both views.
   await page.getByRole('link', { name: 'Back to Organization' }).click()
-  const inventoryRow = page.getByRole('row', { name: /ProbeHive Readiness Active/ })
-  await expect(inventoryRow).toBeVisible()
+  const inventoryRow = page.locator('tbody tr').filter({ hasText: 'ProbeHive Readiness' })
+  await expect(inventoryRow.locator('.monitor-state')).toHaveText('Active')
   await expect(inventoryRow.getByText('300 seconds')).toBeVisible()
 
   const statusDraft = page.getByRole('region', { name: 'Status page draft' })
@@ -376,6 +377,11 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
     name: 'View Incident evidence for Unavailable Service',
   })
   await expect(overviewIncidentLink).toHaveAttribute('href', activeIncidentPath)
+  const incidentInboxLink = incidentOverview.getByRole('link', { name: 'View Incident inbox' })
+  await expect(incidentInboxLink).toHaveAttribute(
+    'href',
+    '/organizations/' + createdMonitor.organizationId + '/incidents',
+  )
 
   const revocationResponse = page.waitForResponse((response) =>
     response.request().method() === 'DELETE' &&
@@ -391,7 +397,20 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   )
   await anonymousContext.close()
 
-  await overviewIncidentLink.click()
+  await incidentInboxLink.click()
+  await expect(page).toHaveURL(
+    new RegExp('/organizations/' + createdMonitor.organizationId + '/incidents$'),
+  )
+  const incidentInbox = page.getByRole('region', { name: 'Active and recent Incidents' })
+  const activeInboxRow = incidentInbox.getByRole('row').filter({ hasText: 'Unavailable Service' })
+  await expect(activeInboxRow.locator('.incident-state')).toHaveText('Acknowledged')
+  await expect(activeInboxRow.locator('.health-state')).toHaveText('Down')
+  await expect(activeInboxRow.getByText('Active window')).toBeVisible()
+  await activeInboxRow.getByRole('link', { name: 'View opening Run' }).click()
+  await expect(page.getByRole('heading', { name: 'Run evidence' })).toBeVisible()
+  await page.goBack()
+  await expect(incidentInbox).toBeVisible()
+  await activeInboxRow.getByRole('link', { name: 'View Incident evidence' }).click()
   await expect(incidentDetail.locator('.incident-state')).toHaveText('Acknowledged')
 
   // Replace the failed target through a later immutable revision, then observe
@@ -438,6 +457,24 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   const resolvedAlertRow = page.getByRole('region', { name: 'Alert intents' })
     .getByRole('row').filter({ hasText: 'Incident resolved' })
   await expect(resolvedAlertRow).toBeVisible()
+
+  await page.getByRole('link', { name: 'Back to Organization' }).click()
+  await page.getByRole('navigation', { name: 'Organization sections' })
+    .getByRole('link', { name: 'Incident inbox' }).click()
+  await page.getByRole('combobox', { name: 'Lifecycle filter' }).selectOption('resolved')
+  await expect(page).toHaveURL(/\/incidents\?state=resolved$/)
+  const resolvedInbox = page.getByRole('region', { name: 'Active and recent Incidents' })
+  const resolvedInboxRow = resolvedInbox.getByRole('row').filter({ hasText: 'Unavailable Service' })
+  await expect(resolvedInboxRow.locator('.incident-state')).toHaveText('Resolved')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(resolvedInboxRow).toBeVisible()
+  expect(await page.evaluate(
+    'document.documentElement.scrollWidth <= document.documentElement.clientWidth',
+  )).toBe(true)
+  expect(await resolvedInbox.locator('.incident-inbox-scroll').evaluate(
+    (element) => element.scrollWidth <= element.clientWidth,
+  )).toBe(true)
+  await page.setViewportSize({ width: 1280, height: 720 })
 
   // Sign out to exercise the login journey with the created credentials.
   await page.getByRole('button', { name: 'Sign out' }).click()

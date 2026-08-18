@@ -45,6 +45,7 @@ export default function OrganizationPage() {
       <nav className="section-nav" aria-label={t('organization.navigation')}>
         <a href="#organization-overview">{t('overview.heading')}</a>
         <a href="#monitors">{t('monitor.heading')}</a>
+        <Link to={'/organizations/' + organization.id + '/incidents'}>{t('incident.inbox.navigation')}</Link>
         <a href="#status-page">{t('statusPage.heading')}</a>
         <Link to={'/organizations/' + organization.id + '/integrations'}>{t('integration.heading')}</Link>
         <a href="#organization-settings">{t('overview.action.settings')}</a>

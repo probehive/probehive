@@ -516,3 +516,56 @@ type ProblemDetails struct {
 	Detail string                       `json:"detail,omitempty"`
 	Errors map[string][]ValidationError `json:"errors,omitempty"`
 }
+
+type IncidentInboxPageResponse struct {
+	Items      []IncidentInboxItemResponse `json:"items"`
+	NextCursor *string                     `json:"nextCursor"`
+}
+
+type IncidentInboxItemResponse struct {
+	Incident    IncidentInboxIncidentResponse     `json:"incident"`
+	Monitor     IncidentInboxMonitorResponse      `json:"monitor"`
+	Health      *IncidentInboxHealthResponse      `json:"health"`
+	Maintenance *IncidentInboxMaintenanceResponse `json:"maintenance"`
+	OpeningRun  *IncidentInboxRunResponse         `json:"openingRun"`
+}
+
+type IncidentInboxIncidentResponse struct {
+	ID                   string     `json:"id"`
+	OrganizationID       string     `json:"organizationId"`
+	ProjectID            string     `json:"projectId"`
+	MonitorID            string     `json:"monitorId"`
+	State                string     `json:"state"`
+	Version              int64      `json:"version"`
+	OpenedTransitionID   string     `json:"openedTransitionId"`
+	AcknowledgedBy       *string    `json:"acknowledgedBy"`
+	AcknowledgedAt       *time.Time `json:"acknowledgedAt"`
+	ResolvedTransitionID *string    `json:"resolvedTransitionId"`
+	ResolvedAt           *time.Time `json:"resolvedAt"`
+	CreatedAt            time.Time  `json:"createdAt"`
+	UpdatedAt            time.Time  `json:"updatedAt"`
+}
+
+type IncidentInboxMonitorResponse struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	State string `json:"state"`
+}
+
+type IncidentInboxHealthResponse struct {
+	State     string    `json:"state"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type IncidentInboxMaintenanceResponse struct {
+	ID       string    `json:"id"`
+	State    string    `json:"state"`
+	StartsAt time.Time `json:"startsAt"`
+	EndsAt   time.Time `json:"endsAt"`
+}
+
+type IncidentInboxRunResponse struct {
+	ID           string    `json:"id"`
+	ScheduledFor time.Time `json:"scheduledFor"`
+	Available    bool      `json:"available"`
+}

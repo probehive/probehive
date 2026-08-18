@@ -9,6 +9,7 @@ import { TranslationProvider } from './i18n/useTranslation.tsx'
 import IntegrationsPage from './routes/IntegrationsPage.tsx'
 import LoginPage from './routes/LoginPage.tsx'
 import MonitorPage from './routes/MonitorPage.tsx'
+import OrganizationIncidentsPage from './routes/OrganizationIncidentsPage.tsx'
 import OrganizationPage from './routes/OrganizationPage.tsx'
 import OrganizationsPage from './routes/OrganizationsPage.tsx'
 import PublicStatusPage from './routes/PublicStatusPage.tsx'
@@ -36,6 +37,7 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <OrganizationsPage /> },
           { path: 'organizations/:organizationId', element: <OrganizationPage /> },
+          { path: 'organizations/:organizationId/incidents', element: <OrganizationIncidentsPage /> },
           { path: 'organizations/:organizationId/integrations', element: <IntegrationsPage /> },
           {
             path: 'organizations/:organizationId/projects/:projectId/monitors/:monitorId',

@@ -96,3 +96,62 @@ export async function acknowledgeIncident(
   )
   return (await response.json()) as IncidentResponse
 }
+
+export type IncidentInboxState = 'active' | IncidentState
+
+export interface IncidentInboxIncidentResponse {
+  id: string
+  organizationId: string
+  projectId: string
+  monitorId: string
+  state: IncidentState
+  version: number
+  openedTransitionId: string
+  acknowledgedBy: string | null
+  acknowledgedAt: string | null
+  resolvedTransitionId: string | null
+  resolvedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface IncidentInboxItemResponse {
+  incident: IncidentInboxIncidentResponse
+  monitor: {
+    id: string
+    name: string
+    state: 'draft' | 'active' | 'paused' | 'archived'
+  }
+  health: null | {
+    state: HealthState
+    updatedAt: string
+  }
+  maintenance: null | {
+    id: string
+    state: 'active' | 'upcoming'
+    startsAt: string
+    endsAt: string
+  }
+  openingRun: null | {
+    id: string
+    scheduledFor: string
+    available: boolean
+  }
+}
+
+export interface IncidentInboxPageResponse {
+  items: IncidentInboxItemResponse[]
+  nextCursor: string | null
+}
+
+export function listOrganizationIncidents(
+  organizationId: string,
+  state?: IncidentInboxState,
+  cursor?: string,
+): Promise<IncidentInboxPageResponse> {
+  const query = new URLSearchParams({ pageSize: '20' })
+  if (state !== undefined) query.set('state', state)
+  if (cursor !== undefined) query.set('cursor', cursor)
+  const path = '/api/v1/organizations/' + encodeURIComponent(organizationId) + '/incidents'
+  return getJson<IncidentInboxPageResponse>(path + '?' + query.toString())
+}

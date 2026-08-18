@@ -2862,6 +2862,104 @@ button:disabled {
   margin: 0;
 }
 
+.organization-incidents-page {
+  max-width: 84rem;
+}
+
+.incident-inbox {
+  border-top: 1px solid var(--border);
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+}
+
+.incident-inbox > .section-heading {
+  align-items: end;
+}
+
+.incident-inbox-filter {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  min-width: 12rem;
+}
+
+.incident-inbox-filter span {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.incident-inbox-scroll {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.incident-inbox-table {
+  border-collapse: collapse;
+  min-width: 72rem;
+  width: 100%;
+}
+
+.incident-inbox-table th,
+.incident-inbox-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.8rem 0.85rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.incident-inbox-table thead th {
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.incident-inbox-table tbody th {
+  font-weight: 500;
+}
+
+.incident-inbox-table tbody tr:last-child th,
+.incident-inbox-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.incident-inbox-table small {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.76rem;
+  margin-top: 0.35rem;
+}
+
+.maintenance-state {
+  font-weight: 700;
+}
+
+.maintenance-state[data-state='active'] {
+  color: var(--warning);
+}
+
+.maintenance-state[data-state='upcoming'] {
+  color: var(--accent-strong);
+}
+
+.incident-inbox-load {
+  margin-top: 1rem;
+}
+
+.incident-inbox-page-error {
+  margin-top: 1rem;
+}
+
+.incident-inbox-empty p {
+  margin-top: 0;
+}
+
 @media (max-width: 40rem) {
   .monitor-inventory-toolbar {
     grid-template-columns: minmax(0, 1fr);
@@ -2972,5 +3070,78 @@ button:disabled {
   .section-nav a {
     flex: 1 1 calc(50% - 0.2rem);
     overflow-wrap: anywhere;
+  }
+
+  .incident-inbox > .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .incident-inbox-filter {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .incident-inbox-table,
+  .incident-inbox-table tbody,
+  .incident-inbox-table tr,
+  .incident-inbox-table th,
+  .incident-inbox-table td {
+    display: block;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .incident-inbox-table thead {
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+
+  .incident-inbox-table tr {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding: 0.7rem;
+  }
+
+  .incident-inbox-table tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .incident-inbox-table th,
+  .incident-inbox-table td {
+    border: 0;
+    display: grid;
+    gap: 0.35rem 0.75rem;
+    grid-template-columns: minmax(7rem, 38%) minmax(0, 1fr);
+    overflow-wrap: anywhere;
+    padding: 0.5rem 0;
+  }
+
+  .incident-inbox-table th::before,
+  .incident-inbox-table td::before {
+    color: var(--text-muted);
+    content: attr(data-label);
+    font-size: 0.72rem;
+    font-weight: 750;
+    text-transform: uppercase;
+  }
+
+  .incident-inbox-table th > small,
+  .incident-inbox-table td > small {
+    grid-column: 2;
+    margin-top: 0;
+  }
+
+  .incident-inbox-scroll {
+    background: transparent;
+    border: 0;
+    overflow: visible;
   }
 }

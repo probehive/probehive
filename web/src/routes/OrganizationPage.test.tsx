@@ -69,6 +69,11 @@ test('renders the organization and its default project', async () => {
   expect(screen.getByRole('region', { name: 'Operational overview' })).toBeInTheDocument()
   expect(screen.getByRole('region', { name: 'Organization settings' })).toBeInTheDocument()
   expect(within(screen.getByRole('navigation', { name: 'Organization sections' }))
+    .getByRole('link', { name: 'Incident inbox' })).toHaveAttribute(
+    'href',
+    '/organizations/' + organization.id + '/incidents',
+  )
+  expect(within(screen.getByRole('navigation', { name: 'Organization sections' }))
     .getByRole('link', { name: 'Webhook integrations' })).toHaveAttribute(
     'href',
     '/organizations/' + organization.id + '/integrations',

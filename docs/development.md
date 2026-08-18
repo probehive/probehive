@@ -240,7 +240,9 @@ Playwright runs the browser journeys against the real Go API and a dedicated
 `probehive_e2e` database. The first-run journey creates, exercises, fails, and
 recovers HTTP Monitors through a later target revision. It also creates and enables
 the bounded Webhook route through the Integrations UI, verifies that the one-time
-signing secret disappears on reload, and follows delivery evidence. A second journey switches
+signing secret disappears on reload, follows delivery evidence, and exercises the
+Organization Incident inbox across active evidence, causal navigation, resolved history,
+and a narrow viewport. A second journey switches
 the interface to `zh-CN` and confirms the preference survives a reload. It requires
 the development PostgreSQL service, Go, and Playwright Chromium:
 

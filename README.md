@@ -57,6 +57,7 @@ The current foundation implements:
 - A React administration application in English and Simplified Chinese, rendering instants in the viewer's time zone, with Playwright browser journeys.
 - A Default-Project Monitor inventory workbench with literal search, explicit lifecycle, evaluated-health, latest-Run, and maintenance filters, stable sorting and pagination, quick actions, and a recoverable first-HTTP-Monitor flow.
 - A Monitor Health evidence view with current and stable state, complete quorum counts, confirmation candidates, and causal Run links.
+- An Organization Incident inbox with lifecycle filters, cursor pagination, current Monitor health, maintenance context, retained causal evidence, and direct Monitor navigation.
 - A Monitor-scoped Incident view with cursor history, lifecycle state, an immutable timeline, complete quorum counts, causal Run links, and authorized acknowledgement.
 - A Monitor-scoped Run evidence screen with 30-day keyset history, deep-linked Run detail, and bounded HTTP Observation detail.
 - A production-like rootless Compose package with pinned images, a non-root TLS gateway, external secret files, persistent PostgreSQL data, health checks, graceful shutdown, and a disposable first-result smoke check.

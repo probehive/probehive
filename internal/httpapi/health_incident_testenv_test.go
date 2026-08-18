@@ -8,7 +8,9 @@ import (
 
 	"github.com/probehive/probehive/internal/health"
 	"github.com/probehive/probehive/internal/incident"
+	"github.com/probehive/probehive/internal/maintenance"
 	"github.com/probehive/probehive/internal/monitor"
+	"github.com/probehive/probehive/internal/run"
 )
 
 type memoryHealthStore struct {
@@ -59,9 +61,12 @@ func (store *memoryHealthStore) GetHealth(
 }
 
 type memoryIncidentStore struct {
-	mu        sync.Mutex
-	monitors  *memoryMonitorStore
-	incidents map[string]incident.Incident
+	mu          sync.Mutex
+	monitors    *memoryMonitorStore
+	incidents   map[string]incident.Incident
+	health      *memoryHealthStore
+	maintenance *memoryMaintenanceStore
+	runs        *memoryRunStore
 }
 
 func (store *memoryIncidentStore) ProcessHealthTransition(
@@ -151,4 +156,114 @@ func (store *memoryIncidentStore) AcknowledgeIncident(
 	}
 	store.mu.Unlock()
 	return store.GetIncident(ctx, scope, id)
+}
+
+func (store *memoryIncidentStore) ListInbox(
+	ctx context.Context, organizationID string, query incident.InboxQuery, now time.Time,
+) ([]incident.InboxItem, bool, bool, error) {
+	store.mu.Lock()
+	values := make([]incident.Incident, 0)
+	for _, value := range store.incidents {
+		if value.OrganizationID != organizationID {
+			continue
+		}
+		if query.State == incident.InboxStateActive &&
+			value.State == incident.StateResolved {
+			continue
+		}
+		if query.State != "" && query.State != incident.InboxStateActive &&
+			string(value.State) != string(query.State) {
+			continue
+		}
+		values = append(values, value)
+	}
+	store.mu.Unlock()
+	sort.Slice(values, func(i, j int) bool {
+		if values[i].CreatedAt.Equal(values[j].CreatedAt) {
+			return values[i].ID > values[j].ID
+		}
+		return values[i].CreatedAt.After(values[j].CreatedAt)
+	})
+	if query.Cursor != nil {
+		filtered := values[:0]
+		for _, value := range values {
+			if value.CreatedAt.Before(query.Cursor.CreatedAt) ||
+				(value.CreatedAt.Equal(query.Cursor.CreatedAt) && value.ID < query.Cursor.ID) {
+				filtered = append(filtered, value)
+			}
+		}
+		values = filtered
+	}
+	items := make([]incident.InboxItem, 0, len(values))
+	for _, value := range values {
+		monitorValue, found, err := store.monitors.FindMonitor(ctx, monitor.Scope{
+			OrganizationID: value.OrganizationID, ProjectID: value.ProjectID,
+			MonitorID: monitor.ID(value.MonitorID),
+		})
+		if err != nil {
+			return nil, false, false, err
+		}
+		if !found {
+			continue
+		}
+		item := incident.InboxItem{
+			Incident: value, MonitorName: monitorValue.Name, MonitorState: string(monitorValue.State),
+		}
+		if store.health != nil {
+			snapshot, healthFound, err := store.health.GetHealth(ctx, health.Scope{
+				OrganizationID: value.OrganizationID, ProjectID: value.ProjectID,
+				MonitorID: string(value.MonitorID),
+			})
+			if err != nil {
+				return nil, false, false, err
+			}
+			if healthFound {
+				item.Health = &incident.InboxHealth{State: string(snapshot.State), UpdatedAt: snapshot.UpdatedAt}
+			}
+		}
+		if store.maintenance != nil {
+			windows, _, err := store.maintenance.ListWindows(ctx, maintenance.Scope{
+				OrganizationID: value.OrganizationID, ProjectID: value.ProjectID,
+				MonitorID: string(value.MonitorID),
+			}, now)
+			if err != nil {
+				return nil, false, false, err
+			}
+			for _, window := range windows {
+				status := window.Status(now)
+				if status == maintenance.StatusActive || status == maintenance.StatusUpcoming {
+					item.Maintenance = &incident.InboxMaintenance{
+						ID: string(window.ID), State: string(status),
+						StartsAt: window.StartsAt, EndsAt: window.EndsAt,
+					}
+					break
+				}
+			}
+		}
+		for _, entry := range value.Timeline {
+			if entry.Kind != incident.TimelineOpened || entry.CausalRunID == "" {
+				continue
+			}
+			available := true
+			if store.runs != nil {
+				_, available, err = store.runs.FindScopedRun(ctx, run.Scope{
+					OrganizationID: value.OrganizationID, ProjectID: value.ProjectID,
+					MonitorID: string(value.MonitorID),
+				}, run.ID(entry.CausalRunID))
+				if err != nil {
+					return nil, false, false, err
+				}
+			}
+			item.OpeningRun = &incident.InboxRun{
+				ID: entry.CausalRunID, ScheduledFor: entry.CausalRunScheduledFor, Available: available,
+			}
+			break
+		}
+		items = append(items, item)
+	}
+	more := len(items) > query.PageSize
+	if more {
+		items = items[:query.PageSize]
+	}
+	return items, more, true, nil
 }

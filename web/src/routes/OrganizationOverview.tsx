@@ -109,6 +109,9 @@ export default function OrganizationOverview({ organizationId }: { organizationI
           <section className="overview-group" aria-labelledby="overview-incidents-heading">
             <div className="section-heading">
               <h3 id="overview-incidents-heading">{t('overview.incidents.heading')}</h3>
+              <Link to={'/organizations/' + organizationId + '/incidents'} className="overview-link">
+                {t('overview.action.incidents')}
+              </Link>
             </div>
             {query.data.incidents === null ? (
               <p className="muted">{t('overview.incidents.unavailable')}</p>
@@ -145,7 +148,11 @@ export default function OrganizationOverview({ organizationId }: { organizationI
                       ))}
                     </ol>
                     {query.data.incidents.activePreviewTruncated && (
-                      <p className="muted overview-note">{t('overview.incidents.more')}</p>
+                      <p className="overview-note">
+                        <Link to={'/organizations/' + organizationId + '/incidents'}>
+                          {t('overview.incidents.more')}
+                        </Link>
+                      </p>
                     )}
                   </>
                 )}

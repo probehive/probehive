@@ -307,3 +307,130 @@ func toIncidentResponse(value incident.Incident) api.IncidentResponse {
 		CreatedAt:            value.CreatedAt, UpdatedAt: value.UpdatedAt, Timeline: timeline,
 	}
 }
+
+const incidentInboxStateInvalidCode = "incident.inbox.state.invalid"
+
+var incidentInboxQueryMessages = map[string]string{
+	incidentInboxStateInvalidCode: "state must be one of active, open, acknowledged, or resolved.",
+}
+
+func (server *Server) organizationIncidents(w http.ResponseWriter, r *http.Request) {
+	organizationID, ok := canonicalUUID(r.PathValue("organizationId"))
+	if !ok {
+		writeStatusProblem(w, http.StatusNotFound)
+		return
+	}
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w, http.MethodGet)
+		return
+	}
+	if _, ok := server.requireOrganizationPermission(
+		w, r, organizationID, organization.PermissionIncidentRead,
+	); !ok {
+		return
+	}
+	query, failures := parseIncidentInboxQuery(r.URL.Query())
+	if len(failures) != 0 {
+		writeValidationProblem(w, failures)
+		return
+	}
+	page, found, err := server.incidents.ListInbox(r.Context(), organizationID, query)
+	if err != nil {
+		server.internalError(w, r, "list Organization Incidents", err)
+		return
+	}
+	if !found {
+		writeStatusProblem(w, http.StatusNotFound)
+		return
+	}
+	items := make([]api.IncidentInboxItemResponse, len(page.Items))
+	for index, value := range page.Items {
+		items[index] = toIncidentInboxItemResponse(value)
+	}
+	var nextCursor *string
+	if page.NextCursor != nil {
+		encoded, encodeErr := encodeIncidentCursor(*page.NextCursor)
+		if encodeErr != nil {
+			server.internalError(w, r, "encode Incident inbox cursor", encodeErr)
+			return
+		}
+		nextCursor = &encoded
+	}
+	writeJSON(w, http.StatusOK, api.IncidentInboxPageResponse{Items: items, NextCursor: nextCursor})
+}
+
+func parseIncidentInboxQuery(values url.Values) (incident.InboxQuery, [][3]string) {
+	query := incident.InboxQuery{PageSize: 50}
+	var failures [][3]string
+	if value, present, valid := oneQueryValue(values, "pageSize"); present {
+		if !valid {
+			failures = append(failures, incidentQueryFailure(incidentPageSizeInvalidCode, "pageSize"))
+		} else if parsed, err := strconv.Atoi(value); err != nil || parsed < 1 || parsed > incident.MaxPageSize {
+			failures = append(failures, incidentQueryFailure(incidentPageSizeInvalidCode, "pageSize"))
+		} else {
+			query.PageSize = parsed
+		}
+	}
+	if value, present, valid := oneQueryValue(values, "state"); present {
+		if !valid || !incidentInboxStateValid(value) {
+			failures = append(failures, [3]string{incidentInboxStateInvalidCode, "state", incidentInboxQueryMessages[incidentInboxStateInvalidCode]})
+		} else {
+			query.State = incident.InboxState(value)
+		}
+	}
+	if value, present, valid := oneQueryValue(values, "cursor"); present {
+		if !valid {
+			failures = append(failures, incidentQueryFailure(incidentCursorInvalidCode, "cursor"))
+		} else if parsed, err := decodeIncidentCursor(value); err != nil {
+			failures = append(failures, incidentQueryFailure(incidentCursorInvalidCode, "cursor"))
+		} else {
+			query.Cursor = &parsed
+		}
+	}
+	return query, failures
+}
+
+func incidentInboxStateValid(value string) bool {
+	switch incident.InboxState(value) {
+	case incident.InboxStateActive, incident.InboxStateOpen,
+		incident.InboxStateAcknowledged, incident.InboxStateResolved:
+		return true
+	default:
+		return false
+	}
+}
+
+func toIncidentInboxItemResponse(value incident.InboxItem) api.IncidentInboxItemResponse {
+	response := api.IncidentInboxItemResponse{
+		Incident: api.IncidentInboxIncidentResponse{
+			ID: value.Incident.ID, OrganizationID: value.Incident.OrganizationID,
+			ProjectID: value.Incident.ProjectID, MonitorID: value.Incident.MonitorID,
+			State: string(value.Incident.State), Version: value.Incident.Version,
+			OpenedTransitionID:   value.Incident.OpenedTransitionID,
+			AcknowledgedBy:       optionalString(value.Incident.AcknowledgedBy),
+			AcknowledgedAt:       optionalInstant(value.Incident.AcknowledgedAt),
+			ResolvedTransitionID: optionalString(value.Incident.ResolvedTransitionID),
+			ResolvedAt:           optionalInstant(value.Incident.ResolvedAt),
+			CreatedAt:            value.Incident.CreatedAt, UpdatedAt: value.Incident.UpdatedAt,
+		},
+		Monitor: api.IncidentInboxMonitorResponse{
+			ID: value.Incident.MonitorID, Name: value.MonitorName, State: value.MonitorState,
+		},
+	}
+	if value.Health != nil {
+		response.Health = &api.IncidentInboxHealthResponse{State: value.Health.State, UpdatedAt: value.Health.UpdatedAt}
+	}
+	if value.Maintenance != nil {
+		response.Maintenance = &api.IncidentInboxMaintenanceResponse{
+			ID: value.Maintenance.ID, State: value.Maintenance.State,
+			StartsAt: value.Maintenance.StartsAt, EndsAt: value.Maintenance.EndsAt,
+		}
+	}
+	if value.OpeningRun != nil {
+		response.OpeningRun = &api.IncidentInboxRunResponse{
+			ID: value.OpeningRun.ID, ScheduledFor: value.OpeningRun.ScheduledFor,
+			Available: value.OpeningRun.Available,
+		}
+	}
+	return response
+}

@@ -479,3 +479,153 @@ func scanIncident(row rowScanner) (incident.Incident, bool, error) {
 	value.CreatedAt, value.UpdatedAt = value.CreatedAt.UTC(), value.UpdatedAt.UTC()
 	return value, true, nil
 }
+
+func (store *IncidentStore) ListInbox(
+	ctx context.Context, organizationID string, query incident.InboxQuery, now time.Time,
+) ([]incident.InboxItem, bool, bool, error) {
+	if query.PageSize < 1 || query.PageSize > incident.MaxPageSize {
+		return nil, false, false, fmt.Errorf("an Incident inbox page is 1 to %d rows", incident.MaxPageSize)
+	}
+	var organizationExists bool
+	if err := store.pool.QueryRow(ctx, `
+SELECT EXISTS (SELECT 1 FROM organizations WHERE id=$1)`, organizationID).Scan(&organizationExists); err != nil {
+		return nil, false, false, fmt.Errorf("check Incident inbox Organization scope: %w", err)
+	}
+	if !organizationExists {
+		return nil, false, false, nil
+	}
+	var cursorTime *time.Time
+	var cursorID *string
+	if query.Cursor != nil {
+		createdAt := query.Cursor.CreatedAt.UTC()
+		cursorTime, cursorID = &createdAt, &query.Cursor.ID
+	}
+	rows, err := store.pool.Query(ctx, `
+SELECT i.id, i.organization_id, i.project_id, i.monitor_id, i.state, i.version,
+       i.opened_transition_id, i.acknowledged_by, i.acknowledged_at,
+       i.resolved_transition_id, i.resolved_at, i.created_at, i.updated_at,
+       m.name, m.state,
+       health.state, health.updated_at,
+       maintenance.id, maintenance.state, maintenance.starts_at, maintenance.ends_at,
+       opening.causal_run_id, opening.causal_run_scheduled_for,
+       (runs.id IS NOT NULL)
+FROM incidents AS i
+JOIN monitors AS m
+  ON m.id = i.monitor_id AND m.organization_id = i.organization_id
+LEFT JOIN monitor_health AS health
+  ON health.monitor_id = i.monitor_id AND health.organization_id = i.organization_id
+LEFT JOIN LATERAL (
+    SELECT timeline.causal_run_id, timeline.causal_run_scheduled_for
+    FROM incident_timeline_entries AS timeline
+    WHERE timeline.organization_id = i.organization_id
+      AND timeline.incident_id = i.id
+      AND timeline.kind = 'opened'
+    ORDER BY timeline.incident_version
+    LIMIT 1
+) AS opening ON true
+LEFT JOIN runs
+  ON runs.id = opening.causal_run_id
+ AND runs.scheduled_for = opening.causal_run_scheduled_for
+ AND runs.organization_id = i.organization_id
+ AND runs.monitor_id = i.monitor_id
+LEFT JOIN LATERAL (
+    SELECT mw.id,
+           CASE WHEN mw.starts_at <= $3 THEN 'active' ELSE 'upcoming' END AS state,
+           mw.starts_at, mw.ends_at
+    FROM maintenance_windows AS mw
+    WHERE mw.organization_id = i.organization_id
+      AND mw.monitor_id = i.monitor_id
+      AND mw.cancelled_at IS NULL
+      AND mw.ends_at > $3
+    ORDER BY CASE WHEN mw.starts_at <= $3 THEN 0 ELSE 1 END,
+             mw.starts_at, mw.id
+    LIMIT 1
+) AS maintenance ON true
+WHERE i.organization_id = $1
+  AND (
+      $2 = ''
+      OR ($2 = 'active' AND i.state <> 'resolved')
+      OR i.state = $2
+  )
+  AND (
+      $4::timestamptz IS NULL
+      OR (i.created_at, i.id) < ($4::timestamptz, $5::uuid)
+  )
+ORDER BY i.created_at DESC, i.id DESC
+LIMIT $6`,
+		organizationID, string(query.State), now.UTC(), cursorTime, cursorID, query.PageSize+1,
+	)
+	if err != nil {
+		return nil, false, false, fmt.Errorf("list Incident inbox: %w", err)
+	}
+	defer rows.Close()
+	values := make([]incident.InboxItem, 0, query.PageSize+1)
+	for rows.Next() {
+		value, err := scanIncidentInboxItem(rows)
+		if err != nil {
+			return nil, false, false, err
+		}
+		values = append(values, value)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, false, fmt.Errorf("list Incident inbox: %w", err)
+	}
+	more := len(values) > query.PageSize
+	if more {
+		values = values[:query.PageSize]
+	}
+	return values, more, true, nil
+}
+
+func scanIncidentInboxItem(row rowScanner) (incident.InboxItem, error) {
+	var (
+		value                                  incident.InboxItem
+		state                                  string
+		acknowledgedBy, resolvedTransitionID   *string
+		acknowledgedAt, resolvedAt             *time.Time
+		healthState                            *string
+		healthUpdatedAt                        *time.Time
+		maintenanceID, maintenanceState        *string
+		maintenanceStartsAt, maintenanceEndsAt *time.Time
+		openingRunID                           *string
+		openingRunScheduledFor                 *time.Time
+		runAvailable                           bool
+	)
+	if err := row.Scan(
+		&value.Incident.ID, &value.Incident.OrganizationID, &value.Incident.ProjectID,
+		&value.Incident.MonitorID, &state, &value.Incident.Version,
+		&value.Incident.OpenedTransitionID, &acknowledgedBy, &acknowledgedAt,
+		&resolvedTransitionID, &resolvedAt, &value.Incident.CreatedAt, &value.Incident.UpdatedAt,
+		&value.MonitorName, &value.MonitorState,
+		&healthState, &healthUpdatedAt,
+		&maintenanceID, &maintenanceState, &maintenanceStartsAt, &maintenanceEndsAt,
+		&openingRunID, &openingRunScheduledFor, &runAvailable,
+	); err != nil {
+		return incident.InboxItem{}, fmt.Errorf("scan Incident inbox item: %w", err)
+	}
+	value.Incident.State = incident.State(state)
+	value.Incident.AcknowledgedBy = textValue(acknowledgedBy)
+	value.Incident.ResolvedTransitionID = textValue(resolvedTransitionID)
+	if acknowledgedAt != nil {
+		value.Incident.AcknowledgedAt = acknowledgedAt.UTC()
+	}
+	if resolvedAt != nil {
+		value.Incident.ResolvedAt = resolvedAt.UTC()
+	}
+	value.Incident.CreatedAt, value.Incident.UpdatedAt = value.Incident.CreatedAt.UTC(), value.Incident.UpdatedAt.UTC()
+	if healthState != nil && healthUpdatedAt != nil {
+		value.Health = &incident.InboxHealth{State: *healthState, UpdatedAt: healthUpdatedAt.UTC()}
+	}
+	if maintenanceID != nil && maintenanceState != nil && maintenanceStartsAt != nil && maintenanceEndsAt != nil {
+		value.Maintenance = &incident.InboxMaintenance{
+			ID: *maintenanceID, State: *maintenanceState,
+			StartsAt: maintenanceStartsAt.UTC(), EndsAt: maintenanceEndsAt.UTC(),
+		}
+	}
+	if openingRunID != nil && openingRunScheduledFor != nil {
+		value.OpeningRun = &incident.InboxRun{
+			ID: *openingRunID, ScheduledFor: openingRunScheduledFor.UTC(), Available: runAvailable,
+		}
+	}
+	return value, nil
+}
