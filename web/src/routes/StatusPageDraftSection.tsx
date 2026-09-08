@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 
 import { ApiError } from '../api/http'
 import { organizationOverviewQueryKey } from '../api/overview'
@@ -52,18 +52,11 @@ export default function StatusPageDraftSection({
   const [loadedVersion, setLoadedVersion] = useState<number | null>(null)
   const [publicUrl, setPublicUrl] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (!draftQuery.isSuccess) {
-      return
-    }
-    const draft = draftQuery.data
-    if (loadedVersion === (draft?.version ?? 0)) {
-      return
-    }
-    setTitle(draft?.title ?? '')
-    setComponents(initialComponents(draft))
-    setLoadedVersion(draft?.version ?? 0)
-  }, [draftQuery.data, draftQuery.isSuccess, loadedVersion])
+  if (draftQuery.isSuccess && loadedVersion !== (draftQuery.data?.version ?? 0)) {
+    setTitle(draftQuery.data?.title ?? '')
+    setComponents(initialComponents(draftQuery.data))
+    setLoadedVersion(draftQuery.data?.version ?? 0)
+  }
 
   const mutation = useMutation<StatusPageDraftResponse, unknown>({
     mutationFn: () => replaceStatusPageDraft(

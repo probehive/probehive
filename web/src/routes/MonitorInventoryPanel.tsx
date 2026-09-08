@@ -53,13 +53,17 @@ export default function MonitorInventoryPanel({ organizationId, projectId }: Mon
   const { t, formatDateTime, translateError, translateProblem } = useTranslation()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [searchInput, setSearchInput] = useState(searchParams.get('monitorSearch') ?? '')
+  const monitorSearch = searchParams.get('monitorSearch') ?? ''
+  const [searchInput, setSearchInput] = useState(monitorSearch)
+  const [syncedMonitorSearch, setSyncedMonitorSearch] = useState(monitorSearch)
+  if (monitorSearch !== syncedMonitorSearch) {
+    setSyncedMonitorSearch(monitorSearch)
+    setSearchInput(monitorSearch)
+  }
   const [name, setName] = useState('')
   const [url, setURL] = useState('')
   const [intervalSeconds, setIntervalSeconds] = useState('60')
   const [setupMonitor, setSetupMonitor] = useState<MonitorResponse | null>(null)
-
-  useEffect(() => setSearchInput(searchParams.get('monitorSearch') ?? ''), [searchParams])
 
   const inventoryQuery: MonitorInventoryQuery = {
     search: searchParams.get('monitorSearch') || undefined,
