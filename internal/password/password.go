@@ -188,7 +188,11 @@ func parseCostParameters(encoded string) (uint32, uint32, uint8, error) {
 		if _, duplicate := values[pair[0]]; duplicate || pair[1] == "" || pair[1][0] == '+' || pair[1][0] == '-' {
 			return 0, 0, 0, errors.New("invalid Argon2id PHC cost parameter")
 		}
-		value, err := strconv.ParseUint(pair[1], 10, 32)
+		bitSize := 32
+		if pair[0] == "p" {
+			bitSize = 8
+		}
+		value, err := strconv.ParseUint(pair[1], 10, bitSize)
 		if err != nil {
 			return 0, 0, 0, errors.New("invalid Argon2id PHC cost parameter")
 		}
@@ -200,8 +204,8 @@ func parseCostParameters(encoded string) (uint32, uint32, uint8, error) {
 	if _, ok := values["t"]; !ok {
 		return 0, 0, 0, errors.New("missing Argon2id time cost")
 	}
-	if _, ok := values["p"]; !ok || values["p"] > 255 {
-		return 0, 0, 0, errors.New("missing or invalid Argon2id parallelism")
+	if _, ok := values["p"]; !ok {
+		return 0, 0, 0, errors.New("missing Argon2id parallelism")
 	}
 	return uint32(values["m"]), uint32(values["t"]), uint8(values["p"]), nil
 }

@@ -94,6 +94,7 @@ func TestParserRejectsMalformedAndResourceAmplifyingPHCBeforeDerivation(t *testi
 		valid("m=65536,t=11,p=1", validSalt, validKey),
 		valid("m=65536,t=3,p=0", validSalt, validKey),
 		valid("m=65536,t=3,p=5", validSalt, validKey),
+		valid("m=65536,t=3,p=256", validSalt, validKey),
 		valid("m=65536,t=3,p=1", "%%%", validKey),
 		valid("m=65536,t=3,p=1", base64.RawStdEncoding.EncodeToString(make([]byte, 7)), validKey),
 		valid("m=65536,t=3,p=1", validSalt, base64.RawStdEncoding.EncodeToString(make([]byte, 15))),
