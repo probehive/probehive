@@ -10,8 +10,12 @@ import IntegrationsPage from './routes/IntegrationsPage.tsx'
 import LoginPage from './routes/LoginPage.tsx'
 import MonitorPage from './routes/MonitorPage.tsx'
 import OrganizationIncidentsPage from './routes/OrganizationIncidentsPage.tsx'
-import OrganizationPage from './routes/OrganizationPage.tsx'
+import OrganizationLayout from './routes/OrganizationLayout.tsx'
+import OrganizationMonitorsPage from './routes/OrganizationMonitorsPage.tsx'
+import OrganizationOverviewPage from './routes/OrganizationOverviewPage.tsx'
 import OrganizationsPage from './routes/OrganizationsPage.tsx'
+import OrganizationSettingsPage from './routes/OrganizationSettingsPage.tsx'
+import OrganizationStatusPage from './routes/OrganizationStatusPage.tsx'
 import PublicStatusPage from './routes/PublicStatusPage.tsx'
 import SetupPage from './routes/SetupPage.tsx'
 import './index.css'
@@ -36,9 +40,18 @@ const router = createBrowserRouter([
         element: <RequireAuth />,
         children: [
           { index: true, element: <OrganizationsPage /> },
-          { path: 'organizations/:organizationId', element: <OrganizationPage /> },
-          { path: 'organizations/:organizationId/incidents', element: <OrganizationIncidentsPage /> },
-          { path: 'organizations/:organizationId/integrations', element: <IntegrationsPage /> },
+          {
+            path: 'organizations/:organizationId',
+            element: <OrganizationLayout />,
+            children: [
+              { index: true, element: <OrganizationOverviewPage /> },
+              { path: 'monitors', element: <OrganizationMonitorsPage /> },
+              { path: 'incidents', element: <OrganizationIncidentsPage /> },
+              { path: 'integrations', element: <IntegrationsPage /> },
+              { path: 'status', element: <OrganizationStatusPage /> },
+              { path: 'settings', element: <OrganizationSettingsPage /> },
+            ],
+          },
           {
             path: 'organizations/:organizationId/projects/:projectId/monitors/:monitorId',
             element: <MonitorPage />,

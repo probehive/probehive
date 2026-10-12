@@ -56,6 +56,12 @@ export const zhCN: Catalog = {
   'organization.defaultProject': '默认项目',
   'organization.name': '名称',
   'organization.navigation': '组织各部分',
+  'organization.tab.overview': '概览',
+  'organization.tab.monitors': '监控',
+  'organization.tab.incidents': '事件',
+  'organization.tab.integrations': '集成',
+  'organization.tab.status': '状态',
+  'organization.tab.settings': '设置',
   'organization.settings': '组织设置',
 
   'overview.heading': '运行概览',

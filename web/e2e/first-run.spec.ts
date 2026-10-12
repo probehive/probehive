@@ -63,7 +63,6 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   // so the journey lands on it instead of a create-an-Organization step.
   await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/)
   await expect(page.getByRole('heading', { name: 'Default', exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Default Project' })).toBeVisible()
   await expect(page.getByText(administratorEmail)).toBeVisible()
 
   const freshOverview = page.getByRole('region', { name: 'Operational overview' })
@@ -74,6 +73,11 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await expect(freshOverview.getByText('No Webhook integrations configured')).toBeVisible()
   await expect(freshOverview.getByText('Not configured')).toBeVisible()
 
+  // Consolidated settings hold the Organization identity and rename workflow.
+  const workspaceNavigation = page.getByRole('navigation', { name: 'Organization sections' })
+  await workspaceNavigation.getByRole('link', { name: 'Settings' }).click()
+  await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+\/settings$/)
+  await expect(page.getByRole('heading', { name: 'Default Project' })).toBeVisible()
   // The installation Organization is named Default until it is renamed.
   await page.getByRole('textbox', { name: 'Display name' }).fill('My Services')
   await page.getByRole('button', { name: 'Rename', exact: true }).click()
@@ -83,6 +87,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await expect(page.getByText('default', { exact: true })).toBeVisible()
 
   // The default Project can immediately hold a fully configured HTTP Monitor.
+  await workspaceNavigation.getByRole('link', { name: 'Monitors' }).click()
   await page.getByLabel('Monitor name').fill('ProbeHive API')
   await page.getByLabel('Target URL').fill(passingMonitorTarget)
   const monitorResponse = page.waitForResponse((response) =>
@@ -143,10 +148,14 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   // The detail and inventory use distinct query keys. Returning to the
   // Organization proves successful mutations refreshed both views.
   await page.getByRole('link', { name: 'Back to Organization' }).click()
+  await page.getByRole('navigation', { name: 'Organization sections' })
+    .getByRole('link', { name: 'Monitors' }).click()
   const inventoryRow = page.locator('tbody tr').filter({ hasText: 'ProbeHive Readiness' })
   await expect(inventoryRow.locator('.monitor-state')).toHaveText('Active')
   await expect(inventoryRow.getByText('300 seconds')).toBeVisible()
 
+  await page.getByRole('navigation', { name: 'Organization sections' })
+    .getByRole('link', { name: 'Status' }).click()
   const statusDraft = page.getByRole('region', { name: 'Status page draft' })
   await statusDraft.getByLabel('Page title').fill('My Services Status')
   await statusDraft.getByRole('checkbox', { name: 'ProbeHive Readiness' }).check()
@@ -176,6 +185,8 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
 
   // Trigger a completed manual Run through the operator UI and follow its direct
   // navigation into the existing Run -> Observation evidence path.
+  await page.getByRole('navigation', { name: 'Organization sections' })
+    .getByRole('link', { name: 'Monitors' }).click()
   await page.getByRole('link', { name: 'ProbeHive Readiness' }).click()
   await expect(page.getByRole('heading', { name: 'Runs' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Health' })).toBeVisible()
@@ -225,6 +236,8 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   // Publish through the operator UI, then use a cookie-free browser context to
   // follow the one-time URL and read only its current public projection.
   await page.getByRole('link', { name: 'Back to Organization' }).click()
+  await page.getByRole('navigation', { name: 'Organization sections' })
+    .getByRole('link', { name: 'Status' }).click()
   const statusPublication = page.getByRole('region', { name: 'Status page draft' })
   const publicationResponse = page.waitForResponse((response) =>
     response.request().method() === 'POST' &&
@@ -253,7 +266,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   const organizationAPI = `/api/v1/organizations/${createdMonitor.organizationId}`
   const monitorsAPI = `${organizationAPI}/projects/${createdMonitor.projectId}/monitors`
   await page.getByRole('navigation', { name: 'Organization sections' })
-    .getByRole('link', { name: 'Webhook integrations' }).click()
+    .getByRole('link', { name: 'Integrations' }).click()
   await expect(page).toHaveURL(
     new RegExp('/organizations/' + createdMonitor.organizationId + '/integrations$'),
   )
@@ -290,7 +303,8 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await webhookEnableResponse
   await expect(page.getByText('Maintenance receiver is enabled.')).toBeVisible()
   await expect(integrationRow.getByText('Enabled', { exact: true })).toBeVisible()
-  await page.getByRole('link', { name: 'Back to Organization' }).click()
+  await page.getByRole('navigation', { name: 'Organization sections' })
+    .getByRole('link', { name: 'Overview' }).click()
 
   const failingMonitor = await unsafeJSON<CreatedMonitor>(page, 'POST', monitorsAPI, {
     name: 'Unavailable Service',
@@ -339,6 +353,8 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
     return body.items.length
   }, failingMonitor), { timeout: 60_000 }).toBe(1)
 
+  await page.getByRole('navigation', { name: 'Organization sections' })
+    .getByRole('link', { name: 'Monitors' }).click()
   await page.getByRole('link', { name: 'Unavailable Service' }).click()
   const alertIntents = page.getByRole('region', { name: 'Alert intents' })
   const openedAlertRow = alertIntents.getByRole('row').filter({ hasText: 'Incident opened' })
@@ -388,6 +404,8 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
     response.url().endsWith('/status-page/publication') &&
     response.status() === 204,
   )
+  await page.getByRole('navigation', { name: 'Organization sections' })
+    .getByRole('link', { name: 'Status' }).click()
   await statusPublication.getByRole('button', { name: 'Revoke public access' }).click()
   await revocationResponse
   await expect(statusPublication.getByText('Anonymous access revoked.')).toBeVisible()
@@ -397,7 +415,8 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   )
   await anonymousContext.close()
 
-  await incidentInboxLink.click()
+  await page.getByRole('navigation', { name: 'Organization sections' })
+    .getByRole('link', { name: 'Incidents' }).click()
   await expect(page).toHaveURL(
     new RegExp('/organizations/' + createdMonitor.organizationId + '/incidents$'),
   )
@@ -460,7 +479,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
 
   await page.getByRole('link', { name: 'Back to Organization' }).click()
   await page.getByRole('navigation', { name: 'Organization sections' })
-    .getByRole('link', { name: 'Incident inbox' }).click()
+    .getByRole('link', { name: 'Incidents' }).click()
   await page.getByRole('combobox', { name: 'Lifecycle filter' }).selectOption('resolved')
   await expect(page).toHaveURL(/\/incidents\?state=resolved$/)
   const resolvedInbox = page.getByRole('region', { name: 'Active and recent Incidents' })
@@ -497,9 +516,14 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await page.getByRole('link', { name: 'View Acme Monitoring' }).click()
   await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/)
   await expect(page.getByRole('heading', { name: 'Acme Monitoring' })).toBeVisible()
+  await page.getByRole('navigation', { name: 'Organization sections' })
+    .getByRole('link', { name: 'Settings' }).click()
+  await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+\/settings$/)
   await expect(page.getByText('acme', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Default Project' })).toBeVisible()
 
+  await page.getByRole('navigation', { name: 'Organization sections' })
+    .getByRole('link', { name: 'Overview' }).click()
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(page.getByRole('region', { name: 'Operational overview' })).toBeVisible()
   expect(await page.evaluate(

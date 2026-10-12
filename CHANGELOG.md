@@ -22,6 +22,9 @@ announcement. The owner controls version selection, signing, tagging, and public
   bounded retries, and redacted delivery evidence.
 - Organization operational overview with bounded, permission-aware lifecycle, health,
   active-Incident, Integration, and status-publication summaries.
+- One consolidated Organization workspace with keyboard-accessible tab navigation and a
+  stable URL per section: operational overview, Monitor inventory, Incident inbox,
+  Webhook integrations, status-page configuration, and Organization settings.
 - Private status-page configuration and revocable anonymous publication of only selected
   labels, current evaluated state, update instants, and active-maintenance presentation.
 - English and Simplified Chinese static React administration UI.

@@ -76,15 +76,15 @@ test('renders an honest fresh Organization with administrator destinations', asy
   expect(within(overview).getByText('No Webhook integrations configured')).toBeInTheDocument()
   expect(within(overview).getByText('Not configured')).toBeInTheDocument()
   expect(within(overview).getByRole('link', { name: 'View Monitors' }))
-    .toHaveAttribute('href', '#monitors')
+    .toHaveAttribute('href', '/organizations/' + organizationId + '/monitors')
   expect(within(overview).getByRole('link', { name: 'View Incident inbox' }))
     .toHaveAttribute('href', '/organizations/' + organizationId + '/incidents')
   expect(within(overview).getByRole('link', { name: 'Webhook integrations' }))
     .toHaveAttribute('href', '/organizations/' + organizationId + '/integrations')
   expect(within(overview).getByRole('link', { name: 'Status page' }))
-    .toHaveAttribute('href', '#status-page')
+    .toHaveAttribute('href', '/organizations/' + organizationId + '/status')
   expect(within(overview).getByRole('link', { name: 'Organization settings' }))
-    .toHaveAttribute('href', '#organization-settings')
+    .toHaveAttribute('href', '/organizations/' + organizationId + '/settings')
 })
 
 test('distinguishes inactive Monitors from unevaluated Active Monitors', async () => {

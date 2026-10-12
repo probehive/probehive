@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router'
+import { useOutletContext, useParams } from 'react-router'
 
-import { ApiError, getOrganization } from '../api/organizations'
+import { ApiError } from '../api/organizations'
 import {
   activateWebhookSigningSecret,
   createWebhookIntegration,
@@ -16,6 +16,7 @@ import {
 } from '../api/webhooks'
 import { useTranslation } from '../i18n/context'
 import type { MessageKey } from '../i18n/en'
+import type { OrganizationContext } from './OrganizationLayout.tsx'
 
 type IntegrationActionKind = 'enable' | 'disable' | 'prepare' | 'activate' | 'retire'
 const confirmationMessageKeys: Record<IntegrationActionKind, MessageKey> = {
@@ -87,14 +88,10 @@ function isAction(
 
 export default function IntegrationsPage() {
   const { organizationId } = useParams<'organizationId'>()
+  const { organization } = useOutletContext<OrganizationContext>()
   const { t, formatDateTime, translateError, translateProblem } = useTranslation()
   const queryClient = useQueryClient()
   const integrationKey = webhookIntegrationsQueryKey(organizationId ?? '')
-  const organizationQuery = useQuery({
-    queryKey: ['organizations', organizationId],
-    queryFn: () => getOrganization(organizationId ?? ''),
-    enabled: organizationId !== undefined,
-  })
   const integrationsQuery = useQuery({
     queryKey: integrationKey,
     queryFn: () => listWebhookIntegrations(organizationId ?? ''),
@@ -281,19 +278,7 @@ export default function IntegrationsPage() {
   if (organizationId === undefined) {
     return <p className="error" role="alert">{t('organization.notFound')}</p>
   }
-  if (organizationQuery.isPending) {
-    return <p role="status">{t('integration.loading')}</p>
-  }
-  if (organizationQuery.isError) {
-    const notFound = organizationQuery.error instanceof ApiError && organizationQuery.error.status === 404
-    return (
-      <p className="error" role="alert">
-        {notFound ? t('organization.notFound') : t('organization.loadFailed')}
-      </p>
-    )
-  }
 
-  const organization = organizationQuery.data
   const integrationsForbidden = integrationsQuery.error instanceof ApiError &&
     integrationsQuery.error.status === 403
   const integrationsNotFound = integrationsQuery.error instanceof ApiError &&
@@ -301,21 +286,6 @@ export default function IntegrationsPage() {
 
   return (
     <section className="integrations-page">
-      <p className="breadcrumb">
-        <Link to={'/organizations/' + organization.id}>{t('integration.back')}</Link>
-      </p>
-      <header className="page-heading integrations-heading">
-        <div>
-          <p className="eyebrow">{t('integration.eyebrow')}</p>
-          <h1>{organization.displayName}</h1>
-          <p className="muted">{t('integration.heading')}</p>
-        </div>
-      </header>
-      <nav className="section-nav" aria-label={t('organization.defaultProject')}>
-        <Link to={'/organizations/' + organization.id}>{t('integration.organization')}</Link>
-        <a href="#integrations">{t('integration.heading')}</a>
-      </nav>
-
       {integrationsQuery.isPending && <p role="status">{t('integration.loading')}</p>}
       {integrationsQuery.isError && (
         <div className="error" role="alert">

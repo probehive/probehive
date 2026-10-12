@@ -141,6 +141,12 @@ export const en = {
   'organization.defaultProject': 'Default Project',
   'organization.name': 'Name',
   'organization.navigation': 'Organization sections',
+  'organization.tab.overview': 'Overview',
+  'organization.tab.monitors': 'Monitors',
+  'organization.tab.incidents': 'Incidents',
+  'organization.tab.integrations': 'Integrations',
+  'organization.tab.status': 'Status',
+  'organization.tab.settings': 'Settings',
   'organization.settings': 'Organization settings',
 
   'overview.heading': 'Operational overview',

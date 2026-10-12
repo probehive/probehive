@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router'
 
 import { ApiError } from '../api/http'
@@ -8,7 +8,6 @@ import {
   type IncidentInboxState,
   type IncidentState,
 } from '../api/incidents'
-import { getOrganization } from '../api/organizations'
 import { useTranslation } from '../i18n/context'
 import type { MessageKey } from '../i18n/en'
 
@@ -175,11 +174,6 @@ export default function OrganizationIncidentsPage() {
   const { t } = useTranslation()
   const filter = validFilter(searchParams.get('state'))
   const apiState = filter === 'all' ? undefined : filter
-  const organizationQuery = useQuery({
-    queryKey: ['organizations', organizationId],
-    queryFn: () => getOrganization(organizationId ?? ''),
-    enabled: organizationId !== undefined,
-  })
   const inboxQuery = useInfiniteQuery({
     queryKey: ['organization-incidents', organizationId, apiState ?? 'all'],
     queryFn: ({ pageParam }) => listOrganizationIncidents(
@@ -200,31 +194,8 @@ export default function OrganizationIncidentsPage() {
     setSearchParams(next)
   }
 
-  if (organizationQuery.isPending) return <p>{t('organization.loading')}</p>
-  if (organizationQuery.isError) {
-    const notFound = organizationQuery.error instanceof ApiError &&
-      organizationQuery.error.status === 404
-    return (
-      <p className="error" role="alert">
-        {notFound ? t('organization.notFound') : t('organization.loadFailed')}
-      </p>
-    )
-  }
-
   return (
     <section className="organization-incidents-page">
-      <p className="breadcrumb">
-        <Link to={'/organizations/' + organizationQuery.data.id}>
-          {organizationQuery.data.displayName}
-        </Link>
-      </p>
-      <header className="page-heading">
-        <div>
-          <p className="eyebrow">{t('organization.eyebrow')}</p>
-          <h1>{t('incident.inbox.heading')}</h1>
-          <p className="page-intro">{organizationQuery.data.displayName}</p>
-        </div>
-      </header>
       <section className="incident-inbox" aria-labelledby="incident-inbox-heading">
         <div className="section-heading">
           <div>

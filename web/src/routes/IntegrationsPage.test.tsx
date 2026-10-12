@@ -5,8 +5,9 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { setAntiforgeryForTests } from '../api/http'
 import type { OrganizationResponse } from '../api/organizations'
 import type { WebhookIntegrationResponse } from '../api/webhooks'
-import { jsonResponse, renderWithProviders } from '../test/renderWithProviders.tsx'
+import { jsonResponse, renderRoutes } from '../test/renderWithProviders.tsx'
 import IntegrationsPage from './IntegrationsPage.tsx'
+import OrganizationLayout from './OrganizationLayout.tsx'
 
 const organization: OrganizationResponse = {
   id: '019f8f3d-5bb0-76fc-8fcf-02811ef6b2ee',
@@ -47,12 +48,13 @@ function generatedSigningSecret(): string {
 }
 
 function renderPage(locale = 'en') {
-  return renderWithProviders(
-    <IntegrationsPage />,
-    'organizations/:organizationId/integrations',
-    '/organizations/' + organization.id + '/integrations',
-    { locale },
-  )
+  return renderRoutes([
+    {
+      path: 'organizations/:organizationId',
+      element: <OrganizationLayout />,
+      children: [{ path: 'integrations', element: <IntegrationsPage /> }],
+    },
+  ], '/organizations/' + organization.id + '/integrations', { locale })
 }
 
 interface MockOptions {
@@ -165,10 +167,11 @@ test('renders the empty state and creation form on the Organization route', asyn
   expect(await screen.findByRole('heading', { name: 'Acme Monitoring' })).toBeInTheDocument()
   expect(await screen.findByText('No Webhook integrations yet.')).toBeInTheDocument()
   expect(screen.getByRole('form', { name: 'Create Webhook integration' })).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: 'Back to Organization' })).toHaveAttribute(
-    'href',
-    '/organizations/' + organization.id,
-  )
+  const navigation = screen.getByRole('navigation', { name: 'Organization sections' })
+  expect(navigation.querySelector('a[aria-current="page"]')).toHaveTextContent('Integrations')
+  expect(
+    screen.getByRole('link', { name: 'Overview' }),
+  ).toHaveAttribute('href', '/organizations/' + organization.id)
 })
 
 test('renders a stable administrator-only permission state', async () => {

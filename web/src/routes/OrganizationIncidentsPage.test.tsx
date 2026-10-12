@@ -120,7 +120,7 @@ test('renders active Organization Incident facts and retained unavailable Run ev
 
   const inbox = await screen.findByRole('region', { name: 'Active and recent Incidents' })
   expect(within(inbox).getByRole('combobox', { name: 'Lifecycle filter' })).toHaveValue('active')
-  expect(within(inbox).getByRole('link', { name: 'Checkout API' })).toHaveAttribute(
+  expect(await within(inbox).findByRole('link', { name: 'Checkout API' })).toHaveAttribute(
     'href',
     '/organizations/' + organization.id +
       '/projects/' + organization.defaultProject.id +
@@ -244,9 +244,10 @@ test('renders the Organization inbox in Simplified Chinese', async () => {
 
   renderInbox('', 'zh-CN')
 
-  expect(await screen.findByRole('heading', { name: '事件收件箱' })).toBeInTheDocument()
+  expect(await screen.findByRole('region', { name: '活动事件与近期事件' })).toBeInTheDocument()
   expect(screen.getByRole('combobox', { name: '生命周期筛选' })).toHaveValue('active')
   const inbox = screen.getByRole('region', { name: '活动事件与近期事件' })
+  await within(inbox).findByText('结算 API')
   expect(inbox.querySelector('.incident-state[data-state="acknowledged"]')).toHaveTextContent('已确认')
   expect(inbox.querySelector('.health-state[data-state="healthy"]')).toHaveTextContent('健康')
   expect(screen.getByText('没有当前或即将开始的维护窗口')).toBeInTheDocument()

@@ -60,6 +60,7 @@ The current foundation implements:
 - An Organization Incident inbox with lifecycle filters, cursor pagination, current Monitor health, maintenance context, retained causal evidence, and direct Monitor navigation.
 - A Monitor-scoped Incident view with cursor history, lifecycle state, an immutable timeline, complete quorum counts, causal Run links, and authorized acknowledgement.
 - A Monitor-scoped Run evidence screen with 30-day keyset history, deep-linked Run detail, and bounded HTTP Observation detail.
+- One consolidated Organization workspace with keyboard-accessible tab navigation and a stable URL per section: operational overview, Monitor inventory, Incident inbox, Webhook integrations, status-page configuration, and Organization settings.
 - A production-like rootless Compose package with pinned images, a non-root TLS gateway, external secret files, persistent PostgreSQL data, health checks, graceful shutdown, and a disposable first-result smoke check.
 - A documented logical PostgreSQL backup and clean-restore procedure with deterministic Organization, maintenance, monitoring, Incident, Alert, and encrypted Webhook recovery verification.
 - A deterministic packaged schema-upgrade exercise with persisted-evidence verification and a documented restore-based rollback boundary.

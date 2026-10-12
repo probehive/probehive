@@ -62,7 +62,7 @@ export default function OrganizationOverview({ organizationId }: { organizationI
           <section className="overview-group" aria-labelledby="overview-monitoring-heading">
             <div className="section-heading">
               <h3 id="overview-monitoring-heading">{t('overview.monitoring.heading')}</h3>
-              <a href="#monitors" className="overview-link">{t('overview.action.monitors')}</a>
+              <Link to={'/organizations/' + organizationId + '/monitors'} className="overview-link">{t('overview.action.monitors')}</Link>
             </div>
             {query.data.monitors === null ? (
               <p className="muted">{t('overview.monitoring.unavailable')}</p>
@@ -193,7 +193,7 @@ export default function OrganizationOverview({ organizationId }: { organizationI
                   <div>
                     <dt>
                       {query.data.capabilities.manageStatusPage ? (
-                        <a href="#status-page">{t('overview.statusPage.label')}</a>
+                        <Link to={'/organizations/' + organizationId + '/status'}>{t('overview.statusPage.label')}</Link>
                       ) : (
                         t('overview.statusPage.label')
                       )}
@@ -211,7 +211,7 @@ export default function OrganizationOverview({ organizationId }: { organizationI
             )}
             {query.data.capabilities.manageOrganization && (
               <p className="overview-action">
-                <a href="#organization-settings">{t('overview.action.settings')}</a>
+                <Link to={'/organizations/' + organizationId + '/settings'}>{t('overview.action.settings')}</Link>
               </p>
             )}
           </section>

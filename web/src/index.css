@@ -2162,6 +2162,12 @@ button:disabled {
   scroll-margin-top: 1.5rem;
 }
 
+.section-nav a.active,
+.section-nav a[aria-current='page'] {
+  background: var(--surface);
+  color: var(--accent-strong);
+}
+
 @media (max-width: 56rem) {
   .organizations-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -2667,10 +2673,7 @@ button:disabled {
 }
 
 .organization-settings {
-  border-bottom: 1px solid var(--border);
   margin-bottom: 2rem;
-  padding-bottom: 1.5rem;
-  scroll-margin-top: 1.5rem;
 }
 
 .organization-settings > h2 {
