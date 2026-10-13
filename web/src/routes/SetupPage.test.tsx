@@ -43,10 +43,12 @@ function renderPage() {
   )
 }
 
-async function submit() {
+async function submit(displayName?: string) {
   const user = userEvent.setup()
   await user.type(screen.getByLabelText('Email'), 'admin@example.test')
-  await user.type(screen.getByLabelText('Display name'), 'First Administrator')
+  if (displayName !== undefined) {
+    await user.type(screen.getByLabelText('Display name (optional)'), displayName)
+  }
   await user.type(screen.getByLabelText('Password'), 'a-long-admin-password')
   await user.click(screen.getByRole('button', { name: 'Create administrator' }))
 }
@@ -61,6 +63,29 @@ test('creates the first administrator and lands on its provisioned Organization'
       userId: administrator.id,
       email: administrator.email,
       displayName: administrator.displayName,
+      role: administrator.role,
+    }),
+  })
+  renderPage()
+
+  await submit('First Administrator')
+
+  expect(await screen.findByText('Organization page')).toBeInTheDocument()
+})
+
+test('submits without a display name so the backend defaults it to the email', async () => {
+  mockFetchRoutes({
+    '/api/v1/setup/status': () => jsonResponse(200, { setupComplete: false }),
+    '/api/v1/setup/admin': () => jsonResponse(201, {
+      user: { ...administrator, displayName: administrator.email },
+      organization,
+    }),
+    '/api/v1/auth/antiforgery': () =>
+      jsonResponse(200, { headerName: 'X-ProbeHive-Antiforgery', requestToken: 'fresh-token' }),
+    '/api/v1/auth/session': () => jsonResponse(200, {
+      userId: administrator.id,
+      email: administrator.email,
+      displayName: administrator.email,
       role: administrator.role,
     }),
   })

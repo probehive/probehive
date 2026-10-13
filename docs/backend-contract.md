@@ -166,7 +166,7 @@ Request shapes are:
 
 | Type | Exact JSON fields |
 | --- | --- |
-| `CreateFirstAdministratorRequest` | `email`, `displayName`, `password` (nullable strings at decoding boundary; required by validation) |
+| `CreateFirstAdministratorRequest` | `email`, `displayName`, `password` (nullable strings at decoding boundary; `email` and `password` required by validation, `displayName` optional and defaults to the email address when omitted) |
 | `LoginRequest` | `email`, `password` (nullable strings at decoding boundary) |
 | `CreateOrganizationRequest` | `slug`, `displayName` (nullable strings at decoding boundary; required by validation) |
 | `CreateWebhookIntegrationRequest` | `name`, `destinationUrl` (nullable strings at decoding boundary; required by validation) |
@@ -410,14 +410,15 @@ First-administrator validation is:
 - `email`: trim, invariant-lowercase, length 1-254, exactly one `@` with non-empty
   sides, and no Unicode whitespace or control character. Failure key `email`, message
   `An email address contains one '@' with non-empty sides, no whitespace, and at most 254 characters.`
-- `displayName`: trim Unicode surrounding whitespace, then 1-100 UTF-16 code units.
-  Failure key `displayName`, message
-  `A display name is 1 to 100 characters after trimming.`
+- `displayName`: optional. When it is empty after trimming and the email is valid, it
+  defaults to the normalized email address; otherwise trim Unicode surrounding
+  whitespace, then 1-100 UTF-16 code units. Failure key `displayName`, message
+  `A display name is optional and defaults to the email address when omitted; otherwise it is 1 to 100 characters after trimming.`
 - `password`: 12-128 UTF-16 code units with no trimming or normalization. Failure key
   `password`, message `A password is 12 to 128 characters.`
 
-A successful user has role `Administrator`, the normalized email, trimmed display
-name, and one UTC creation instant. Once a user exists, setup returns `409` with title
+A successful user has role `Administrator`, the normalized email, the provided trimmed
+display name or its email default, and one UTC creation instant. Once a user exists, setup returns `409` with title
 `Setup already completed` and detail
 `The instance already has at least one user; sign in instead.`
 

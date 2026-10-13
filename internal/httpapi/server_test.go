@@ -195,6 +195,27 @@ func TestMalformedUUIDAndValidationProblemDetails(t *testing.T) {
 	}
 }
 
+func TestSetupOmittedDisplayNameDefaultsToEmail(t *testing.T) {
+	environment := newTestEnvironment(t, true, 0)
+	token, _ := environment.getAntiforgery(t)
+
+	setup := environment.request(
+		t, environment.client, http.MethodPost, "/api/v1/setup/admin",
+		`{"email":"admin@example.test","password":"password-123"}`,
+		environment.server.URL, token.RequestToken,
+	)
+	if setup.StatusCode != http.StatusCreated {
+		t.Fatalf("setup status = %d, body %s", setup.StatusCode, setup.Body)
+	}
+	var body api.SetupResponse
+	if err := json.Unmarshal(setup.Body, &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.User.Email != "admin@example.test" || body.User.DisplayName != "admin@example.test" {
+		t.Fatalf("setup user = %#v, want the email as the defaulted display name", body.User)
+	}
+}
+
 func TestTopLevelJSONNullIsRejected(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	token, _ := environment.getAntiforgery(t)

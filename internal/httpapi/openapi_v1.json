@@ -2385,10 +2385,13 @@
         "type": "object",
         "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown.",
         "x-probehive-property-name-comparison": "ascii-case-insensitive",
-        "required": ["email", "displayName", "password"],
+        "required": ["email", "password"],
         "properties": {
           "email": { "type": ["string", "null"] },
-          "displayName": { "type": ["string", "null"] },
+          "displayName": {
+            "type": ["string", "null"],
+            "description": "Optional. An omitted or blank display name defaults to the normalized email address."
+          },
           "password": { "type": ["string", "null"] }
         }
       },

@@ -19,7 +19,7 @@ export const en = {
     'Create the first administrator account for this installation. Its Organization is created at the same time, so you can add a Monitor immediately.',
   'setup.form': 'Create first administrator',
   'setup.email': 'Email',
-  'setup.displayName': 'Display name',
+  'setup.displayName': 'Display name (optional)',
   'setup.password': 'Password',
   'setup.submit': 'Create administrator',
   'setup.submitting': 'Creating…',

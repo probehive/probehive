@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -124,8 +125,14 @@ func (service *Service) CreateFirstAdministrator(ctx context.Context, command Cr
 	if !validEmail {
 		failures = append(failures, ValidationFailure{Code: EmailInvalidCode, Field: "email", Message: EmailValidationMessage})
 	}
-	displayName, validDisplayName := NormalizeDisplayName(command.DisplayName)
-	if !validDisplayName {
+	// An omitted display name defaults to the normalized login email, so first-run
+	// setup needs only an email and a password. A valid email can still exceed the
+	// 100-unit display-name ceiling, in which case the operator supplies one.
+	displayName := strings.TrimSpace(command.DisplayName)
+	if displayName == "" && validEmail {
+		displayName = email
+	}
+	if _, validDisplayName := NormalizeDisplayName(displayName); !validDisplayName {
 		failures = append(failures, ValidationFailure{Code: DisplayNameInvalidCode, Field: "displayName", Message: DisplayNameValidationMessage})
 	}
 	if !ValidPassword(command.Password) {

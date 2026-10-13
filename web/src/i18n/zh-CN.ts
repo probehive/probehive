@@ -13,7 +13,7 @@ export const zhCN: Catalog = {
   'setup.intro': '为本次安装创建第一个管理员账户。系统会同时创建它的组织，你可以立即添加监控。',
   'setup.form': '创建第一个管理员',
   'setup.email': '邮箱',
-  'setup.displayName': '显示名称',
+  'setup.displayName': '显示名称（可选）',
   'setup.password': '密码',
   'setup.submit': '创建管理员',
   'setup.submitting': '正在创建…',

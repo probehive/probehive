@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -132,6 +133,45 @@ func TestCreateFirstAdministratorNormalizesAndUsesOneUTCInstant(t *testing.T) {
 	}
 	if store.contextValue != "kept" {
 		t.Fatal("context was not propagated")
+	}
+}
+
+func TestCreateFirstAdministratorDefaultsOmittedDisplayNameToEmail(t *testing.T) {
+	t.Parallel()
+	store := &fakeStore{}
+	hasher := &fakePasswordHasher{hashResult: "argon-hash"}
+	service := NewService(store, hasher, fixedClock{time.Now()}, &fixedUUID{value: "user-id"})
+	result, err := service.CreateFirstAdministrator(context.Background(), CreateFirstAdministratorCommand{
+		Email: " ADMIN@Example.Test ", DisplayName: "   ", Password: "password-123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Kind != CreateFirstAdministratorCreated || result.User.DisplayName != "admin@example.test" {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+	if len(store.created) != 1 || store.created[0].DisplayName != "admin@example.test" {
+		t.Fatalf("persisted users = %#v", store.created)
+	}
+}
+
+func TestCreateFirstAdministratorRejectsEmailDefaultBeyondDisplayNameCeiling(t *testing.T) {
+	t.Parallel()
+	service := NewService(&fakeStore{}, &fakePasswordHasher{}, fixedClock{time.Now()}, &fixedUUID{})
+	// A valid email may run to 254 units, past the 100-unit display-name ceiling;
+	// defaulting it would break the invariant, so setup demands an explicit value.
+	longEmail := strings.Repeat("a", 101) + "@example.test"
+	result, err := service.CreateFirstAdministrator(context.Background(), CreateFirstAdministratorCommand{
+		Email: longEmail, DisplayName: "  ", Password: "password-123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []ValidationFailure{
+		{Code: DisplayNameInvalidCode, Field: "displayName", Message: DisplayNameValidationMessage},
+	}
+	if result.Kind != CreateFirstAdministratorInvalid || !reflect.DeepEqual(result.Failures, want) {
+		t.Fatalf("result = %#v, want failures %#v", result, want)
 	}
 }
 

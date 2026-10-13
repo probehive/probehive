@@ -28,7 +28,7 @@ const (
 // Current English text for the codes above. Not contract; clients translate the code.
 const (
 	EmailValidationMessage       = "An email address contains one '@' with non-empty sides, no whitespace, and at most 254 characters."
-	DisplayNameValidationMessage = "A display name is 1 to 100 characters after trimming."
+	DisplayNameValidationMessage = "A display name is optional and defaults to the email address when omitted; otherwise it is 1 to 100 characters after trimming."
 	PasswordValidationMessage    = "A password is 12 to 128 characters."
 	SetupAlreadyCompletedTitle   = "Setup already completed"
 	SetupAlreadyCompletedDetail  = "The instance already has at least one user; sign in instead."
