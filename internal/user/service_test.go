@@ -60,6 +60,7 @@ type fakeStore struct {
 	updatedID    ID
 	updatedHash  string
 	findCalls    int
+	listed       []User
 	contextValue any
 }
 
@@ -76,8 +77,22 @@ func (store *fakeStore) FindByEmail(ctx context.Context, _ string) (User, bool, 
 	store.findCalls++
 	return store.account, store.found, nil
 }
+func (store *fakeStore) List(ctx context.Context) ([]User, error) {
+	store.contextValue = ctx.Value(contextKey{})
+	return store.listed, nil
+}
 func (store *fakeStore) CreateFirstAdministrator(ctx context.Context, value User) error {
 	store.contextValue = ctx.Value(contextKey{})
+	store.created = append(store.created, value)
+	return store.createErr
+}
+func (store *fakeStore) Create(ctx context.Context, value User) error {
+	store.contextValue = ctx.Value(contextKey{})
+	for _, existing := range store.created {
+		if existing.Email == value.Email {
+			return ErrDuplicateEmail
+		}
+	}
 	store.created = append(store.created, value)
 	return store.createErr
 }
@@ -188,6 +203,66 @@ func TestCreateFirstAdministratorMapsConcurrentSetupLoser(t *testing.T) {
 	}
 	if result.Kind != CreateFirstAdministratorAlreadyCompleted || result.User != (User{}) {
 		t.Fatalf("unexpected setup result: %#v", result)
+	}
+}
+
+func TestCreateUserValidatesAndCreatesAdministrator(t *testing.T) {
+	t.Parallel()
+	store := &fakeStore{}
+	service := NewService(store, &fakePasswordHasher{hashResult: "hash"}, fixedClock{time.Now()}, &fixedUUID{value: "user-id"})
+	result, err := service.CreateUser(context.Background(), CreateUserCommand{
+		Email: " TEAMMATE@Example.Test ", DisplayName: "", Password: "password-123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Kind != CreateUserCreated || result.User.Email != "teammate@example.test" ||
+		result.User.DisplayName != "teammate@example.test" || result.User.Role != AdministratorRole {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+	if len(store.created) != 1 {
+		t.Fatalf("persisted users = %#v", store.created)
+	}
+}
+
+func TestCreateUserReportsFieldFailuresWithoutHashing(t *testing.T) {
+	t.Parallel()
+	store := &fakeStore{}
+	hasher := &fakePasswordHasher{}
+	service := NewService(store, hasher, fixedClock{time.Now()}, &fixedUUID{})
+	result, err := service.CreateUser(context.Background(), CreateUserCommand{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []ValidationFailure{
+		{Code: EmailInvalidCode, Field: "email", Message: EmailValidationMessage},
+		{Code: DisplayNameInvalidCode, Field: "displayName", Message: DisplayNameValidationMessage},
+		{Code: PasswordLengthCode, Field: "password", Message: PasswordValidationMessage},
+	}
+	if result.Kind != CreateUserInvalid || !reflect.DeepEqual(result.Failures, want) {
+		t.Fatalf("result = %#v, want failures %#v", result, want)
+	}
+	if len(store.created) != 0 || len(hasher.hashCalls) != 0 {
+		t.Fatal("validation failure touched dependencies")
+	}
+}
+
+func TestCreateUserMapsDuplicateEmail(t *testing.T) {
+	t.Parallel()
+	existing, err := NewUser("user-id", "teammate@example.test", "Teammate", AdministratorRole, "hash", time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &fakeStore{created: []User{existing}}
+	service := NewService(store, &fakePasswordHasher{hashResult: "hash"}, fixedClock{time.Now()}, &fixedUUID{value: "second"})
+	result, err := service.CreateUser(context.Background(), CreateUserCommand{
+		Email: "TEAMMATE@example.test", Password: "password-123",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Kind != CreateUserDuplicateEmail || len(store.created) != 1 {
+		t.Fatalf("unexpected result: %#v", result)
 	}
 }
 

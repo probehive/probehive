@@ -9,7 +9,6 @@ import OrganizationsPage from './OrganizationsPage.tsx'
 
 const organization: OrganizationResponse = {
   id: '019f8f3d-5bb0-76fc-8fcf-02811ef6b2ee',
-  slug: 'acme',
   displayName: 'Acme Monitoring',
   createdAt: '2026-07-23T12:00:00+00:00',
   defaultProject: {
@@ -29,9 +28,8 @@ function renderPage() {
   renderWithProviders(<OrganizationsPage />, '', '/')
 }
 
-async function submit(slug: string, displayName: string) {
+async function submit(displayName: string) {
   const user = userEvent.setup()
-  await user.type(screen.getByLabelText('Slug'), slug)
   await user.type(screen.getByLabelText('Display name'), displayName)
   await user.click(screen.getByRole('button', { name: 'Create' }))
 }
@@ -58,11 +56,10 @@ test('renders the provisioning form for additional Organizations', async () => {
   renderPage()
 
   expect(await screen.findByRole('form', { name: 'Create organization' })).toBeInTheDocument()
-  expect(screen.getByLabelText('Slug')).toBeInTheDocument()
   expect(screen.getByLabelText('Display name')).toBeInTheDocument()
 })
 
-test('shows a success message with a link after creating', async () => {
+test('shows a success message after creating', async () => {
   const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input: RequestInfo | URL, init) => {
     if (init?.method === 'POST') {
       return Promise.resolve(jsonResponse(201, organization))
@@ -80,13 +77,9 @@ test('shows a success message with a link after creating', async () => {
   })
   renderPage()
 
-  await submit('acme', 'Acme Monitoring')
+  await submit('Acme Monitoring')
 
   expect(await screen.findByText('Organization created.')).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: 'View Acme Monitoring' })).toHaveAttribute(
-    'href',
-    `/organizations/${organization.id}`,
-  )
   expect(fetchMock).toHaveBeenCalledWith(
     '/api/v1/organizations',
     expect.objectContaining({ method: 'POST' }),
@@ -102,7 +95,6 @@ test('localizes field-level failures from their code, not the server sentence', 
             status: 400,
             errors: {
               // A deliberately different sentence: the catalog entry must win.
-              slug: [{ code: 'organization.slug.invalid', message: 'server wording that must not appear' }],
               displayName: [
                 {
                   code: 'organization.displayName.invalid',
@@ -116,10 +108,9 @@ test('localizes field-level failures from their code, not the server sentence', 
   )
   renderPage()
 
-  await submit('x', ' ')
+  await submit(' ')
 
-  expect(await screen.findByText(en['error.organization.slug.invalid'])).toBeInTheDocument()
-  expect(screen.getByText(en['error.organization.displayName.invalid'])).toBeInTheDocument()
+  expect(await screen.findByText(en['error.organization.displayName.invalid'])).toBeInTheDocument()
   expect(screen.queryByText('server wording that must not appear')).not.toBeInTheDocument()
 })
 
@@ -131,7 +122,9 @@ test('falls back to the server message for a code the catalog does not know', as
             title: 'One or more validation errors occurred.',
             status: 400,
             errors: {
-              slug: [{ code: 'organization.slug.inventedByANewerServer', message: 'A newer rule failed.' }],
+              displayName: [
+                { code: 'organization.displayName.inventedByANewerServer', message: 'A newer rule failed.' },
+              ],
             },
           })
         : jsonResponse(200, []),
@@ -139,22 +132,7 @@ test('falls back to the server message for a code the catalog does not know', as
   )
   renderPage()
 
-  await submit('x', 'Acme')
+  await submit('Acme')
 
   expect(await screen.findByText('A newer rule failed.')).toBeInTheDocument()
-})
-
-test('shows a conflict message when the slug is taken', async () => {
-  vi.spyOn(globalThis, 'fetch').mockImplementation((_input: RequestInfo | URL, init) =>
-    Promise.resolve(
-      init?.method === 'POST'
-        ? jsonResponse(409, { title: 'Organization slug already in use', status: 409 })
-        : jsonResponse(200, []),
-    ),
-  )
-  renderPage()
-
-  await submit('acme', 'Another Company')
-
-  expect(await screen.findByText(/already in use/)).toBeInTheDocument()
 })

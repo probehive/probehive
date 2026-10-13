@@ -44,7 +44,7 @@ func TestAnonymousSetupSessionAntiforgeryLogoutFlow(t *testing.T) {
 
 	oldToken := environment.request(
 		t, environment.client, http.MethodPost, "/api/v1/organizations",
-		`{"slug":"acme","displayName":"Acme"}`, environment.server.URL,
+		`{"displayName":"Acme"}`, environment.server.URL,
 		anonymousToken.RequestToken,
 	)
 	assertProblem(t, oldToken, http.StatusBadRequest, antiforgeryInvalidTitle, antiforgeryInvalidDetail)
@@ -96,13 +96,13 @@ func TestSecurityFilterOrderingAndAntiforgeryFailures(t *testing.T) {
 	unauthenticated := &http.Client{Jar: jar}
 	withoutSession := environment.request(
 		t, unauthenticated, http.MethodPost, "/api/v1/organizations",
-		`{"slug":"acme","displayName":"Acme"}`, "", "",
+		`{"displayName":"Acme"}`, "", "",
 	)
 	assertProblem(t, withoutSession, http.StatusUnauthorized, "Unauthorized", "")
 
 	badOrigin := environment.request(
 		t, environment.client, http.MethodPost, "/api/v1/organizations",
-		`{"slug":"acme","displayName":"Acme"}`, "https://attacker.invalid", "",
+		`{"displayName":"Acme"}`, "https://attacker.invalid", "",
 	)
 	assertProblem(
 		t, badOrigin, http.StatusForbidden, originRejectedTitle,
@@ -111,20 +111,20 @@ func TestSecurityFilterOrderingAndAntiforgeryFailures(t *testing.T) {
 
 	missingToken := environment.request(
 		t, environment.client, http.MethodPost, "/api/v1/organizations",
-		`{"slug":"acme","displayName":"Acme"}`, environment.server.URL, "",
+		`{"displayName":"Acme"}`, environment.server.URL, "",
 	)
 	assertProblem(t, missingToken, http.StatusBadRequest, antiforgeryInvalidTitle, antiforgeryInvalidDetail)
 
 	wrongToken := environment.request(
 		t, environment.client, http.MethodPost, "/api/v1/organizations",
-		`{"slug":"acme","displayName":"Acme"}`, environment.server.URL,
+		`{"displayName":"Acme"}`, environment.server.URL,
 		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
 	)
 	assertProblem(t, wrongToken, http.StatusBadRequest, antiforgeryInvalidTitle, antiforgeryInvalidDetail)
 
 	valid := environment.request(
 		t, environment.client, http.MethodPost, "/api/v1/organizations",
-		`{"slug":"acme","displayName":"Acme"}`, environment.server.URL, validToken,
+		`{"displayName":"Acme"}`, environment.server.URL, validToken,
 	)
 	if valid.StatusCode != http.StatusCreated || valid.Header.Get("Location") == "" {
 		t.Fatalf("valid protected request = %d, body %s", valid.StatusCode, valid.Body)
@@ -310,7 +310,7 @@ func TestConfiguredPublicOriginControlsUnsafeRequests(t *testing.T) {
 	refreshed, _ := environment.getAntiforgery(t)
 	internalOrigin := environment.request(
 		t, environment.client, http.MethodPost, "/api/v1/organizations",
-		`{"slug":"acme","displayName":"Acme"}`, environment.server.URL,
+		`{"displayName":"Acme"}`, environment.server.URL,
 		refreshed.RequestToken,
 	)
 	assertProblem(
@@ -320,7 +320,7 @@ func TestConfiguredPublicOriginControlsUnsafeRequests(t *testing.T) {
 
 	publicOriginResponse := environment.request(
 		t, environment.client, http.MethodPost, "/api/v1/organizations",
-		`{"slug":"acme","displayName":"Acme"}`, publicOrigin,
+		`{"displayName":"Acme"}`, publicOrigin,
 		refreshed.RequestToken,
 	)
 	if publicOriginResponse.StatusCode != http.StatusCreated {

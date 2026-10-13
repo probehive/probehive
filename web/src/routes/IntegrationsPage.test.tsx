@@ -11,7 +11,6 @@ import OrganizationLayout from './OrganizationLayout.tsx'
 
 const organization: OrganizationResponse = {
   id: '019f8f3d-5bb0-76fc-8fcf-02811ef6b2ee',
-  slug: 'acme',
   displayName: 'Acme Monitoring',
   createdAt: '2026-07-23T12:00:00+00:00',
   defaultProject: {

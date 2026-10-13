@@ -14,8 +14,8 @@ import (
 
 func TestOrganizationOverviewIsTenantScopedAndBounded(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	firstOrganization, firstProject := seedTenant(t, database, 3100, "overview-one")
-	secondOrganization, secondProject := seedTenant(t, database, 3200, "overview-two")
+	firstOrganization, firstProject := seedTenant(t, database, 3100)
+	secondOrganization, secondProject := seedTenant(t, database, 3200)
 	base := testTime()
 
 	firstMonitors := make([]monitor.Monitor, 6)

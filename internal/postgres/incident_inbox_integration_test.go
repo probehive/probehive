@@ -9,8 +9,8 @@ import (
 
 func TestIncidentInboxIsTenantScopedFilteredAndKeysetPaginated(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 4300, "incident-inbox-one")
-	otherOrganization, otherProject := seedTenant(t, database, 4400, "incident-inbox-two")
+	organizationValue, project := seedTenant(t, database, 4300)
+	otherOrganization, otherProject := seedTenant(t, database, 4400)
 	base := testTime()
 	monitorValue := seedMonitor(t, database, 4310, organizationValue, project, base)
 	acknowledgedMonitor := seedMonitor(t, database, 4311, organizationValue, project, base)

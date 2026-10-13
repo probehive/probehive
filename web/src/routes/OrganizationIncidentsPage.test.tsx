@@ -10,7 +10,6 @@ import OrganizationIncidentsPage from './OrganizationIncidentsPage.tsx'
 
 const organization: OrganizationResponse = {
   id: '00000000-0000-7000-8000-000000000001',
-  slug: 'acme',
   displayName: 'Acme Monitoring',
   createdAt: '2026-08-18T00:00:00Z',
   defaultProject: {

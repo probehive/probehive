@@ -9,7 +9,6 @@ import RenameOrganizationForm from './RenameOrganizationForm.tsx'
 
 const organization: OrganizationResponse = {
   id: '019f8f3d-5bb0-76fc-8fcf-02811ef6b2ee',
-  slug: 'default',
   displayName: 'Default',
   createdAt: '2026-07-27T12:00:00+00:00',
   defaultProject: {

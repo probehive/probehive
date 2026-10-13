@@ -15,8 +15,6 @@ export default function OrganizationSettingsPage() {
     >
       <h2 id="organization-settings-heading">{t('organization.settings')}</h2>
       <dl className="organization-summary detail-grid">
-        <dt>{t('organization.slug')}</dt>
-        <dd>{organization.slug}</dd>
         <dt>{t('organization.identifier')}</dt>
         <dd>
           <code>{organization.id}</code>

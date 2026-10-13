@@ -19,7 +19,6 @@ afterEach(() => {
 
 const organization = {
   id: '019f8f3d-5bb0-76fc-8fcf-02811ef6b2ee',
-  slug: 'default',
   displayName: 'Default',
   createdAt: '2026-07-24T12:00:00+00:00',
   defaultProject: {

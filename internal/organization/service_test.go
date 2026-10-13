@@ -31,8 +31,6 @@ func (generator *sequenceUUIDs) NewUUIDv7(at time.Time) (string, error) {
 type fakeStore struct {
 	byID               Organization
 	byIDFound          bool
-	bySlug             Organization
-	bySlugFound        bool
 	defaultProject     Project
 	defaultFound       bool
 	listed             []Details
@@ -43,11 +41,12 @@ type fakeStore struct {
 	membership         Membership
 	membershipFound    bool
 	createdMemberships []Membership
+	addedMemberships   []Membership
 	createErr          error
-	winnerAfterCreate  bool
-	findBySlugErr      error
+	userIDs            []string
+	userIDErr          error
+	organizationIDs    []ID
 	created            []Details
-	findBySlugCalls    int
 	defaultCalls       int
 	lastContextValue   any
 }
@@ -55,14 +54,6 @@ type fakeStore struct {
 func (store *fakeStore) FindByID(ctx context.Context, _ ID) (Organization, bool, error) {
 	store.lastContextValue = ctx.Value(contextKey{})
 	return store.byID, store.byIDFound, nil
-}
-func (store *fakeStore) FindBySlug(ctx context.Context, _ string) (Organization, bool, error) {
-	store.lastContextValue = ctx.Value(contextKey{})
-	store.findBySlugCalls++
-	if store.findBySlugErr != nil {
-		return Organization{}, false, store.findBySlugErr
-	}
-	return store.bySlug, store.bySlugFound, nil
 }
 func (store *fakeStore) FindDefaultProject(ctx context.Context, _ ID) (Project, bool, error) {
 	store.lastContextValue = ctx.Value(contextKey{})
@@ -85,47 +76,61 @@ func (store *fakeStore) FindMembership(ctx context.Context, _ ID, _ string) (Mem
 	store.lastContextValue = ctx.Value(contextKey{})
 	return store.membership, store.membershipFound, nil
 }
-func (store *fakeStore) Create(ctx context.Context, organization Organization, project Project, membership Membership) error {
+func (store *fakeStore) ListIDs(ctx context.Context) ([]ID, error) {
+	store.lastContextValue = ctx.Value(contextKey{})
+	return store.organizationIDs, nil
+}
+func (store *fakeStore) ListUserIDs(ctx context.Context) ([]string, error) {
+	store.lastContextValue = ctx.Value(contextKey{})
+	return store.userIDs, store.userIDErr
+}
+func (store *fakeStore) Create(ctx context.Context, organization Organization, project Project, memberships []Membership) error {
 	store.lastContextValue = ctx.Value(contextKey{})
 	store.created = append(store.created, Details{Organization: organization, DefaultProject: project})
-	store.createdMemberships = append(store.createdMemberships, membership)
-	if store.winnerAfterCreate {
-		store.bySlugFound = true
-	}
+	store.createdMemberships = append(store.createdMemberships, memberships...)
 	return store.createErr
+}
+func (store *fakeStore) CreateMemberships(ctx context.Context, memberships []Membership) error {
+	store.lastContextValue = ctx.Value(contextKey{})
+	store.addedMemberships = append(store.addedMemberships, memberships...)
+	return nil
 }
 
 type contextKey struct{}
 
-func TestProvisionRejectsAllFieldsBeforeIO(t *testing.T) {
+func TestProvisionRejectsInvalidFieldsAndMissingCreatorBeforeIO(t *testing.T) {
 	t.Parallel()
 	store := &fakeStore{}
 	generator := &sequenceUUIDs{values: []string{"org", "project"}}
 	service := NewService(store, fixedClock{time.Now()}, generator)
-	result, err := service.Provision(context.Background(), ProvisionCommand{Slug: "A-", DisplayName: "  "})
+	result, err := service.Provision(context.Background(), ProvisionCommand{DisplayName: "  "})
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := []ValidationFailure{
-		{Code: SlugInvalidCode, Field: "slug", Message: SlugValidationMessage},
 		{Code: DisplayNameInvalidCode, Field: "displayName", Message: DisplayNameValidationMessage},
 	}
 	if result.Kind != ProvisionInvalid || !reflect.DeepEqual(result.Failures, want) {
 		t.Fatalf("result = %#v, want failures %#v", result, want)
 	}
-	if store.findBySlugCalls != 0 || len(store.created) != 0 || len(generator.times) != 0 {
+	if len(store.created) != 0 || len(generator.times) != 0 {
 		t.Fatal("validation failure touched dependencies")
+	}
+
+	_, err = service.Provision(context.Background(), ProvisionCommand{DisplayName: "Acme"})
+	if err == nil {
+		t.Fatal("provisioning without a creator should fail")
 	}
 }
 
-func TestProvisionCreatesOrganizationAndDefaultProjectAtOneUTCInstant(t *testing.T) {
+func TestProvisionCreatesOrganizationProjectAndTeamMembershipsAtOneUTCInstant(t *testing.T) {
 	t.Parallel()
 	local := time.Date(2026, 7, 24, 9, 0, 0, 0, time.FixedZone("CST", 8*3600))
-	store := &fakeStore{}
+	store := &fakeStore{userIDs: []string{"creator", "teammate"}}
 	generator := &sequenceUUIDs{values: []string{"org-id", "project-id"}}
 	service := NewService(store, fixedClock{local}, generator)
 	ctx := context.WithValue(context.Background(), contextKey{}, "kept")
-	result, err := service.Provision(ctx, ProvisionCommand{Slug: "acme", DisplayName: "  Acme  ", CreatorUserID: "creator"})
+	result, err := service.Provision(ctx, ProvisionCommand{DisplayName: "  Acme  ", CreatorUserID: "creator"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,79 +149,31 @@ func TestProvisionCreatesOrganizationAndDefaultProjectAtOneUTCInstant(t *testing
 	if store.lastContextValue != "kept" {
 		t.Fatal("context value was not propagated")
 	}
+	if len(store.createdMemberships) != 2 {
+		t.Fatalf("memberships = %#v, want one per user", store.createdMemberships)
+	}
+	for _, membership := range store.createdMemberships {
+		if membership.OrganizationID != "org-id" || membership.Role != RoleAdministrator || membership.CreatedAt != wantTime {
+			t.Fatalf("membership = %#v, want an Administrator of the new Organization", membership)
+		}
+	}
 }
 
-func TestProvisionReplaysIdenticalExistingOrganizationWithoutWrites(t *testing.T) {
+func TestAddMemberToAllOrganizationsGrantsAdministratorEverywhere(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
-	existing, _ := NewOrganization("org", "acme", "Acme", now)
-	project, _ := NewDefaultProject("project", existing.ID, now)
-	store := &fakeStore{bySlug: existing, bySlugFound: true, defaultProject: project, defaultFound: true}
-	generator := &sequenceUUIDs{values: []string{"unused"}}
-	result, err := NewService(store, fixedClock{now}, generator).Provision(context.Background(), ProvisionCommand{Slug: "acme", DisplayName: " Acme "})
+	store := &fakeStore{organizationIDs: []ID{"org-a", "org-b"}}
+	err := NewService(store, fixedClock{now}, &sequenceUUIDs{}).AddMemberToAllOrganizations(context.Background(), "new-user")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Kind != ProvisionReplayed || result.Details != (Details{Organization: existing, DefaultProject: project}) {
-		t.Fatalf("unexpected replay: %#v", result)
+	if len(store.addedMemberships) != 2 {
+		t.Fatalf("memberships = %#v, want one per Organization", store.addedMemberships)
 	}
-	if len(store.created) != 0 || len(generator.times) != 0 {
-		t.Fatal("replay created state")
-	}
-}
-
-func TestProvisionReportsDifferentDisplayNameConflictWithoutDefaultProjectLookup(t *testing.T) {
-	t.Parallel()
-	now := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
-	existing, _ := NewOrganization("org", "acme", "First", now)
-	store := &fakeStore{bySlug: existing, bySlugFound: true}
-	result, err := NewService(store, fixedClock{now}, &sequenceUUIDs{}).Provision(context.Background(), ProvisionCommand{Slug: "acme", DisplayName: "Second"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Kind != ProvisionSlugConflict || result.Detail != SlugConflictDetail("acme") {
-		t.Fatalf("unexpected conflict: %#v", result)
-	}
-	if store.defaultCalls != 0 {
-		t.Fatal("conflict read the default Project")
-	}
-}
-
-func TestProvisionRereadsUniquenessRaceWinner(t *testing.T) {
-	t.Parallel()
-	now := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
-	winner, _ := NewOrganization("winner", "acme", "Acme", now)
-	project, _ := NewDefaultProject("project", winner.ID, now)
-	store := &fakeStore{bySlug: winner, defaultProject: project, defaultFound: true, createErr: ErrDuplicateSlug, winnerAfterCreate: true}
-	generator := &sequenceUUIDs{values: []string{"loser", "loser-project"}}
-	result, err := NewService(store, fixedClock{now}, generator).Provision(context.Background(), ProvisionCommand{Slug: "acme", DisplayName: "Acme", CreatorUserID: "creator"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Kind != ProvisionReplayed || result.Details.Organization.ID != "winner" || store.findBySlugCalls != 2 {
-		t.Fatalf("unexpected race replay: %#v, calls %d", result, store.findBySlugCalls)
-	}
-}
-
-func TestProvisionRaceWithoutReadableWinnerFails(t *testing.T) {
-	t.Parallel()
-	now := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
-	store := &fakeStore{createErr: ErrDuplicateSlug}
-	generator := &sequenceUUIDs{values: []string{"loser", "loser-project"}}
-	_, err := NewService(store, fixedClock{now}, generator).Provision(context.Background(), ProvisionCommand{Slug: "acme", DisplayName: "Acme", CreatorUserID: "creator"})
-	if err == nil {
-		t.Fatal("expected an invariant error")
-	}
-}
-
-func TestProvisionMissingDefaultProjectFailsInvariant(t *testing.T) {
-	t.Parallel()
-	now := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
-	existing, _ := NewOrganization("org", "acme", "Acme", now)
-	store := &fakeStore{bySlug: existing, bySlugFound: true}
-	_, err := NewService(store, fixedClock{now}, &sequenceUUIDs{}).Provision(context.Background(), ProvisionCommand{Slug: "acme", DisplayName: "Acme", CreatorUserID: "creator"})
-	if !errors.Is(err, ErrDefaultProjectMissing) {
-		t.Fatalf("error = %v, want ErrDefaultProjectMissing", err)
+	for _, membership := range store.addedMemberships {
+		if membership.UserID != "new-user" || membership.Role != RoleAdministrator || membership.CreatedAt != now {
+			t.Fatalf("membership = %#v, want the user as Administrator everywhere", membership)
+		}
 	}
 }
 
@@ -227,14 +184,14 @@ func TestGetDistinguishesNotFoundAndBrokenInvariant(t *testing.T) {
 	if _, found, err := service.Get(context.Background(), "missing"); err != nil || found {
 		t.Fatalf("missing Get = found %v, error %v", found, err)
 	}
-	existing, _ := NewOrganization("org", "acme", "Acme", now)
+	existing, _ := NewOrganization("org", "Acme", now)
 	service = NewService(&fakeStore{byID: existing, byIDFound: true}, fixedClock{now}, &sequenceUUIDs{})
 	if _, _, err := service.Get(context.Background(), existing.ID); !errors.Is(err, ErrDefaultProjectMissing) {
 		t.Fatalf("error = %v, want ErrDefaultProjectMissing", err)
 	}
 }
 
-func TestRenameValidatesBeforeTouchingTheStoreAndNeverChangesTheSlug(t *testing.T) {
+func TestRenameValidatesBeforeTouchingTheStore(t *testing.T) {
 	t.Parallel()
 	store := &fakeStore{}
 	service := NewService(store, fixedClock{time.Now()}, &sequenceUUIDs{})
@@ -259,7 +216,7 @@ func TestRenameValidatesBeforeTouchingTheStoreAndNeverChangesTheSlug(t *testing.
 	}
 
 	now := time.Date(2026, 7, 27, 0, 0, 0, 0, time.UTC)
-	existing, _ := NewOrganization("org", "acme", "Renamed", now)
+	existing, _ := NewOrganization("org", "Renamed", now)
 	project, _ := NewDefaultProject("project", existing.ID, now)
 	store = &fakeStore{
 		renameFound: true, byID: existing, byIDFound: true,
@@ -270,11 +227,10 @@ func TestRenameValidatesBeforeTouchingTheStoreAndNeverChangesTheSlug(t *testing.
 	if err != nil || renamed.Kind != RenameRenamed {
 		t.Fatalf("rename = %#v, error %v", renamed, err)
 	}
-	// The trimmed name reaches the store and the slug is not among the arguments.
 	if !reflect.DeepEqual(store.renamedTo, []string{"Renamed"}) {
 		t.Fatalf("store received %#v, want the trimmed display name only", store.renamedTo)
 	}
-	if renamed.Details.Organization.Slug != "acme" {
-		t.Fatalf("slug = %q, want it unchanged", renamed.Details.Organization.Slug)
+	if renamed.Details.Organization.ID != "org" {
+		t.Fatalf("rename changed the id: %#v", renamed.Details.Organization)
 	}
 }

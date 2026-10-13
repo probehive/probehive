@@ -14,7 +14,6 @@ import OrganizationStatusPage from './OrganizationStatusPage.tsx'
 
 const organization: OrganizationResponse = {
   id: '019f8f3d-5bb0-76fc-8fcf-02811ef6b2ee',
-  slug: 'acme',
   displayName: 'Acme Monitoring',
   createdAt: '2026-07-23T12:00:00+00:00',
   defaultProject: {
@@ -151,7 +150,6 @@ test('renders consolidated organization settings on the settings route', async (
   renderWorkspace(`/organizations/${organization.id}/settings`)
 
   expect(await screen.findByRole('region', { name: 'Organization settings' })).toBeInTheDocument()
-  expect(screen.getByText('acme')).toBeInTheDocument()
   expect(screen.getByText('Default')).toBeInTheDocument()
   expect(within(workspaceNavigation()).getByRole('link', { name: 'Settings' }))
     .toHaveAttribute('aria-current', 'page')

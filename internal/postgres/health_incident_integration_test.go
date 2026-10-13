@@ -17,7 +17,7 @@ import (
 
 func TestHealthConfirmationAndIncidentLifecycle(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 1200, "health-incident-tenant")
+	organizationValue, project := seedTenant(t, database, 1200)
 	monitorValue := seedMonitor(t, database, 1205, organizationValue, project, testTime())
 	monitorValue = appendTestRevision(
 		t, database, monitorValue, 1, "{\"url\":\"https://health.example.test\"}")

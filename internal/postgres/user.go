@@ -18,7 +18,10 @@ var (
 	_ user.AntiforgeryStore = (*AntiforgeryStore)(nil)
 )
 
-const firstAdministratorLockKey int64 = 7355608013
+const (
+	firstAdministratorLockKey int64 = 7355608013
+	userEmailUniqueIndex            = "ux_users_email"
+)
 
 // UserStore persists local users.
 type UserStore struct {
@@ -53,6 +56,48 @@ func (store *UserStore) FindByEmail(ctx context.Context, email string) (user.Use
 SELECT id, email, display_name, role, password_hash, created_at
 FROM users
 WHERE email = $1`, email))
+}
+
+// List returns every local user in creation order.
+func (store *UserStore) List(ctx context.Context) ([]user.User, error) {
+	rows, err := store.pool.Query(ctx, `
+SELECT id, email, display_name, role, password_hash, created_at
+FROM users
+ORDER BY created_at, id`)
+	if err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	defer rows.Close()
+	values := make([]user.User, 0)
+	for rows.Next() {
+		account, found, err := scanUser(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan user list row: %w", err)
+		}
+		if !found {
+			return nil, errors.New("user list row vanished during scan")
+		}
+		values = append(values, account)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	return values, nil
+}
+
+// Create inserts an additional local user, reporting a lost email uniqueness race.
+func (store *UserStore) Create(ctx context.Context, account user.User) error {
+	_, err := store.pool.Exec(ctx, `
+INSERT INTO users (id, email, display_name, role, password_hash, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)`, string(account.ID), account.Email, account.DisplayName,
+		account.Role, account.PasswordHash, account.CreatedAt.UTC())
+	if err != nil {
+		if isConstraintViolation(err, uniqueViolation, userEmailUniqueIndex) {
+			return user.ErrDuplicateEmail
+		}
+		return fmt.Errorf("insert user: %w", err)
+	}
+	return nil
 }
 
 // CreateFirstAdministrator serializes bootstrap and inserts exactly one user.

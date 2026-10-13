@@ -20,7 +20,6 @@ type UUIDGenerator interface {
 // Store is the persistence port owned by the Organization feature.
 type Store interface {
 	FindByID(context.Context, ID) (Organization, bool, error)
-	FindBySlug(context.Context, string) (Organization, bool, error)
 	FindDefaultProject(context.Context, ID) (Project, bool, error)
 	FindProject(context.Context, ID, ProjectID) (Project, bool, error)
 	// ListForMember returns the Organizations a user belongs to, with their default
@@ -29,27 +28,33 @@ type Store interface {
 	FindMembership(context.Context, ID, string) (Membership, bool, error)
 	// UpdateDisplayName renames one Organization and reports whether it existed.
 	UpdateDisplayName(context.Context, ID, string) (bool, error)
-	// Create inserts the Organization, its default Project, and the creator's
-	// membership in one transaction, returning ErrDuplicateSlug on a uniqueness race.
-	Create(context.Context, Organization, Project, Membership) error
+	// ListIDs returns every Organization id in creation order.
+	ListIDs(context.Context) ([]ID, error)
+	// ListUserIDs returns every local user id in creation order. An instance is one
+	// team, so provisioning and user creation both rely on it to keep memberships
+	// complete.
+	ListUserIDs(context.Context) ([]string, error)
+	// Create inserts the Organization, its default Project, and the initial
+	// memberships in one transaction, so no path can produce an Organization
+	// without a member.
+	Create(context.Context, Organization, Project, []Membership) error
+	// CreateMemberships inserts memberships that do not exist yet.
+	CreateMemberships(context.Context, []Membership) error
 }
 
-// ProvisionKind identifies an idempotent Organization provisioning result.
+// ProvisionKind identifies an Organization provisioning result.
 type ProvisionKind uint8
 
 const (
 	ProvisionInvalid ProvisionKind = iota + 1
 	ProvisionCreated
-	ProvisionReplayed
-	ProvisionSlugConflict
 )
 
 // ProvisionCommand requests an Organization and its default Project.
 type ProvisionCommand struct {
-	Slug        string
 	DisplayName string
-	// CreatorUserID becomes the Organization's first Administrator in the same
-	// transaction, so no path can produce an Organization without a member.
+	// CreatorUserID guarantees the creating Administrator is a member even if the
+	// user listing races a concurrent user creation.
 	CreatorUserID string
 }
 
@@ -58,8 +63,6 @@ type ProvisionResult struct {
 	Kind     ProvisionKind
 	Details  Details
 	Failures []ValidationFailure
-	Code     string
-	Detail   string
 }
 
 // Service owns Organization use cases.
@@ -77,27 +80,18 @@ func NewService(store Store, clock Clock, uuids UUIDGenerator) *Service {
 	return &Service{store: store, clock: clock, uuids: uuids}
 }
 
-// Provision validates and idempotently creates an Organization with its default Project.
+// Provision validates and creates an Organization with its default Project. An
+// instance is one team: every current user becomes an Administrator of the new
+// Organization inside the creation transaction, so teammates share it immediately.
 func (service *Service) Provision(ctx context.Context, command ProvisionCommand) (ProvisionResult, error) {
-	var failures []ValidationFailure
-	slug, validSlug := ValidateSlug(command.Slug)
-	if !validSlug {
-		failures = append(failures, ValidationFailure{Code: SlugInvalidCode, Field: "slug", Message: SlugValidationMessage})
-	}
 	displayName, validDisplayName := NormalizeDisplayName(command.DisplayName)
 	if !validDisplayName {
-		failures = append(failures, ValidationFailure{Code: DisplayNameInvalidCode, Field: "displayName", Message: DisplayNameValidationMessage})
+		return ProvisionResult{Kind: ProvisionInvalid, Failures: []ValidationFailure{
+			{Code: DisplayNameInvalidCode, Field: "displayName", Message: DisplayNameValidationMessage},
+		}}, nil
 	}
-	if len(failures) != 0 {
-		return ProvisionResult{Kind: ProvisionInvalid, Failures: failures}, nil
-	}
-
-	existing, found, err := service.store.FindBySlug(ctx, slug)
-	if err != nil {
-		return ProvisionResult{}, err
-	}
-	if found {
-		return service.replayOrConflict(ctx, existing, displayName)
+	if command.CreatorUserID == "" {
+		return ProvisionResult{}, errors.New("provisioning requires the creating user")
 	}
 
 	now := service.clock.Now().UTC()
@@ -109,7 +103,7 @@ func (service *Service) Provision(ctx context.Context, command ProvisionCommand)
 	if err != nil {
 		return ProvisionResult{}, fmt.Errorf("generate default Project id: %w", err)
 	}
-	created, err := NewOrganization(ID(organizationID), slug, displayName, now)
+	created, err := NewOrganization(ID(organizationID), displayName, now)
 	if err != nil {
 		return ProvisionResult{}, err
 	}
@@ -117,46 +111,76 @@ func (service *Service) Provision(ctx context.Context, command ProvisionCommand)
 	if err != nil {
 		return ProvisionResult{}, err
 	}
-	membership, err := NewMembership(created.ID, command.CreatorUserID, RoleAdministrator, now)
+	memberships, err := service.membershipsForNewOrganization(ctx, created.ID, command.CreatorUserID, now)
 	if err != nil {
 		return ProvisionResult{}, err
 	}
-	if err = service.store.Create(ctx, created, project, membership); err != nil {
-		if !errors.Is(err, ErrDuplicateSlug) {
-			return ProvisionResult{}, err
-		}
-		winner, winnerFound, findErr := service.store.FindBySlug(ctx, slug)
-		if findErr != nil {
-			return ProvisionResult{}, findErr
-		}
-		if !winnerFound {
-			return ProvisionResult{}, fmt.Errorf("slug %q reported a uniqueness violation but no winner is readable", slug)
-		}
-		return service.replayOrConflict(ctx, winner, displayName)
+	if err = service.store.Create(ctx, created, project, memberships); err != nil {
+		return ProvisionResult{}, err
 	}
 	return ProvisionResult{Kind: ProvisionCreated, Details: Details{Organization: created, DefaultProject: project}}, nil
 }
 
-func (service *Service) replayOrConflict(ctx context.Context, existing Organization, displayName string) (ProvisionResult, error) {
-	if existing.DisplayName != displayName {
-		return ProvisionResult{Kind: ProvisionSlugConflict, Code: SlugConflictCode, Detail: SlugConflictDetail(existing.Slug)}, nil
-	}
-	project, found, err := service.store.FindDefaultProject(ctx, existing.ID)
+func (service *Service) membershipsForNewOrganization(
+	ctx context.Context, organizationID ID, creatorUserID string, now time.Time,
+) ([]Membership, error) {
+	userIDs, err := service.store.ListUserIDs(ctx)
 	if err != nil {
-		return ProvisionResult{}, err
+		return nil, fmt.Errorf("list users for provisioning: %w", err)
 	}
-	if !found {
-		return ProvisionResult{}, fmt.Errorf("%w: %s", ErrDefaultProjectMissing, existing.ID)
+	seen := make(map[string]struct{}, len(userIDs)+1)
+	candidates := make([]string, 0, len(userIDs)+1)
+	for _, userID := range append(userIDs, creatorUserID) {
+		if userID == "" {
+			continue
+		}
+		if _, duplicate := seen[userID]; duplicate {
+			continue
+		}
+		seen[userID] = struct{}{}
+		candidates = append(candidates, userID)
 	}
-	return ProvisionResult{Kind: ProvisionReplayed, Details: Details{Organization: existing, DefaultProject: project}}, nil
+	memberships := make([]Membership, 0, len(candidates))
+	for _, userID := range candidates {
+		membership, err := NewMembership(organizationID, userID, RoleAdministrator, now)
+		if err != nil {
+			return nil, err
+		}
+		memberships = append(memberships, membership)
+	}
+	return memberships, nil
+}
+
+// AddMemberToAllOrganizations makes one user an Administrator of every existing
+// Organization. User creation calls it so a new teammate immediately shares the
+// instance; inserts that already exist are ignored, so the operation is safely
+// repeatable.
+func (service *Service) AddMemberToAllOrganizations(ctx context.Context, userID string) error {
+	if userID == "" {
+		return errors.New("adding a member requires the user")
+	}
+	now := service.clock.Now().UTC()
+	organizationIDs, err := service.store.ListIDs(ctx)
+	if err != nil {
+		return fmt.Errorf("list Organizations for membership: %w", err)
+	}
+	memberships := make([]Membership, 0, len(organizationIDs))
+	for _, organizationID := range organizationIDs {
+		membership, err := NewMembership(organizationID, userID, RoleAdministrator, now)
+		if err != nil {
+			return err
+		}
+		memberships = append(memberships, membership)
+	}
+	return service.store.CreateMemberships(ctx, memberships)
 }
 
 // ProvisionBootstrap creates the Organization that first-administrator setup gives a new
-// installation. It is the same idempotent use case as every other creation path
-// with the reserved bootstrap slug and display name, so setup adds no second creation path.
+// installation. It is the same use case as every other creation path with the reserved
+// bootstrap display name, so setup adds no second creation path.
 func (service *Service) ProvisionBootstrap(ctx context.Context, creatorUserID string) (ProvisionResult, error) {
 	return service.Provision(ctx, ProvisionCommand{
-		Slug: BootstrapSlug, DisplayName: BootstrapDisplayName, CreatorUserID: creatorUserID,
+		DisplayName: BootstrapDisplayName, CreatorUserID: creatorUserID,
 	})
 }
 
@@ -215,9 +239,9 @@ type RenameResult struct {
 	Failures []ValidationFailure
 }
 
-// Rename changes only an Organization's display name. The slug is immutable because it
-// is the idempotency key for provisioning, and the rename is last-write-wins
-// because a display name has no dependent state that a lost update could corrupt.
+// Rename changes only an Organization's display name; the id is the only stable
+// identifier and never changes. The rename is last-write-wins because a display
+// name has no dependent state that a lost update could corrupt.
 func (service *Service) Rename(ctx context.Context, id ID, requestedName string) (RenameResult, error) {
 	displayName, valid := NormalizeDisplayName(requestedName)
 	if !valid {

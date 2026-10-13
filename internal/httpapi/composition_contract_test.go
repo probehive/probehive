@@ -158,33 +158,23 @@ func TestOriginNullIsRejectedAndMissingOriginSucceeds(t *testing.T) {
 	}
 }
 
-func TestOrganizationReplayAndGetExactWireShape(t *testing.T) {
+func TestOrganizationCreateAndGetExactWireShape(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	token := environment.bootstrapAdministrator(t)
 	// Setup consumes 0001 for the administrator and 0002/0003 for the bootstrap
 	// Organization and its default Project, so this one starts at 0004.
 	const organizationID = "00000000-0000-7000-8000-000000000004"
 	const projectID = "00000000-0000-7000-8000-000000000005"
-	const organizationBody = `{"slug":"acme","displayName":"Acme"}`
-	wantBody := `{"id":"` + organizationID + `","slug":"acme","displayName":"Acme","createdAt":"2026-07-24T00:00:00Z","defaultProject":{"id":"` +
+	wantBody := `{"id":"` + organizationID + `","displayName":"Acme","createdAt":"2026-07-24T00:00:00Z","defaultProject":{"id":"` +
 		projectID + `","organizationId":"` + organizationID + `","name":"Default","isDefault":true,"createdAt":"2026-07-24T00:00:00Z"}}` + "\n"
 
 	created := environment.request(
 		t, environment.client, http.MethodPost, "/api/v1/organizations",
-		organizationBody, environment.server.URL, token,
+		`{"displayName":"Acme"}`, environment.server.URL, token,
 	)
 	assertExactJSON(t, created, http.StatusCreated, wantBody)
 	if location := created.Header.Get("Location"); location != "/api/v1/organizations/"+organizationID {
 		t.Fatalf("created Location = %q", location)
-	}
-
-	replayed := environment.request(
-		t, environment.client, http.MethodPost, "/api/v1/organizations",
-		organizationBody, environment.server.URL, token,
-	)
-	assertExactJSON(t, replayed, http.StatusOK, wantBody)
-	if location := replayed.Header.Get("Location"); location != "" {
-		t.Fatalf("replay Location = %q, want empty", location)
 	}
 
 	loaded := environment.request(
@@ -195,16 +185,15 @@ func TestOrganizationReplayAndGetExactWireShape(t *testing.T) {
 
 	environment.organizations.mu.Lock()
 	defer environment.organizations.mu.Unlock()
-	// The bootstrap Organization plus this one; the replay must not add a third.
 	if len(environment.organizations.byID) != 2 || len(environment.organizations.projects) != 2 {
 		t.Fatalf(
-			"idempotent replay retained %d Organizations and %d Projects",
+			"creation left %d Organizations and %d Projects",
 			len(environment.organizations.byID), len(environment.organizations.projects),
 		)
 	}
 }
 
-func TestOrganizationRenameGateAndReplayBoundary(t *testing.T) {
+func TestOrganizationRenameGateAndValidation(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	token := environment.bootstrapAdministrator(t)
 	const bootstrapOrganization = "00000000-0000-7000-8000-000000000002"
@@ -230,26 +219,8 @@ func TestOrganizationRenameGateAndReplayBoundary(t *testing.T) {
 	if err := json.Unmarshal(renamed.Body, &after); err != nil {
 		t.Fatal(err)
 	}
-	if after.DisplayName != "Acme Monitoring" || after.Slug != "default" {
-		t.Fatalf("after rename = %#v, want the trimmed name and an unchanged slug", after)
-	}
-
-	// Renaming moves the replay boundary. The original display name no longer
-	// replays, and the new one does.
-	stale := environment.request(
-		t, environment.client, http.MethodPost, "/api/v1/organizations",
-		`{"slug":"default","displayName":"Default"}`, environment.server.URL, token,
-	)
-	if problem := decodeProblem(t, stale); stale.StatusCode != http.StatusConflict ||
-		problem.Code != organization.SlugConflictCode {
-		t.Fatalf("provisioning with the pre-rename name = %d, body %s", stale.StatusCode, stale.Body)
-	}
-	replay := environment.request(
-		t, environment.client, http.MethodPost, "/api/v1/organizations",
-		`{"slug":"default","displayName":"Acme Monitoring"}`, environment.server.URL, token,
-	)
-	if replay.StatusCode != http.StatusOK {
-		t.Fatalf("provisioning with the current name = %d, body %s", replay.StatusCode, replay.Body)
+	if after.DisplayName != "Acme Monitoring" || after.ID != bootstrapOrganization {
+		t.Fatalf("after rename = %#v, want the trimmed name and an unchanged id", after)
 	}
 
 	invalid := environment.request(
@@ -325,7 +296,7 @@ func TestSetupProvisionsBootstrapOrganizationAndListsIt(t *testing.T) {
 	const userID = "00000000-0000-7000-8000-000000000001"
 	const organizationID = "00000000-0000-7000-8000-000000000002"
 	const projectID = "00000000-0000-7000-8000-000000000003"
-	wantOrganization := `{"id":"` + organizationID + `","slug":"default","displayName":"Default",` +
+	wantOrganization := `{"id":"` + organizationID + `","displayName":"Default",` +
 		`"createdAt":"2026-07-24T00:00:00Z","defaultProject":{"id":"` + projectID +
 		`","organizationId":"` + organizationID + `","name":"Default","isDefault":true,` +
 		`"createdAt":"2026-07-24T00:00:00Z"}}`
@@ -354,11 +325,61 @@ func TestOrganizationListIsEmptyArrayAndRequiresAdministrator(t *testing.T) {
 	environment.organizations.mu.Lock()
 	clear(environment.organizations.byID)
 	clear(environment.organizations.projects)
-	clear(environment.organizations.bySlug)
 	environment.organizations.mu.Unlock()
 
 	empty := environment.request(t, environment.client, http.MethodGet, "/api/v1/organizations", "", "", "")
 	assertExactJSON(t, empty, http.StatusOK, "[]\n")
+}
+
+func TestUserAdministrationCreatesTeammatesAndSharesOrganizations(t *testing.T) {
+	environment := newTestEnvironment(t, true, 0)
+	unauthenticated := environment.request(t, environment.client, http.MethodGet, "/api/v1/users", "", "", "")
+	assertProblem(t, unauthenticated, http.StatusUnauthorized, "Unauthorized", "")
+
+	token := environment.bootstrapAdministrator(t)
+	const bootstrapOrganization = "00000000-0000-7000-8000-000000000002"
+	// Setup consumes 0001-0003, so the created user takes 0004.
+	const teammateID = "00000000-0000-7000-8000-000000000004"
+
+	created := environment.request(
+		t, environment.client, http.MethodPost, "/api/v1/users",
+		`{"email":" TEAMMATE@Example.Test ","password":"password-123"}`,
+		environment.server.URL, token,
+	)
+	assertExactJSON(t, created, http.StatusCreated, `{"id":"`+teammateID+`","email":"teammate@example.test","displayName":"teammate@example.test","role":"Administrator","createdAt":"2026-07-24T00:00:00Z"}`+"\n")
+	if location := created.Header.Get("Location"); location != "/api/v1/users/"+teammateID {
+		t.Fatalf("created Location = %q", location)
+	}
+
+	listed := environment.request(t, environment.client, http.MethodGet, "/api/v1/users", "", "", "")
+	if listed.StatusCode != http.StatusOK {
+		t.Fatalf("list = %d, body %s", listed.StatusCode, listed.Body)
+	}
+	var accounts []api.UserResponse
+	if err := json.Unmarshal(listed.Body, &accounts); err != nil {
+		t.Fatal(err)
+	}
+	if len(accounts) != 2 || accounts[1].Email != "teammate@example.test" {
+		t.Fatalf("users = %#v, want the administrator and the teammate in creation order", accounts)
+	}
+
+	// The teammate shares the instance: membership was granted for every Organization.
+	membership, found, err := environment.organizations.FindMembership(
+		context.Background(), organization.ID(bootstrapOrganization), teammateID,
+	)
+	if err != nil || !found || membership.Role != organization.RoleAdministrator {
+		t.Fatalf("teammate membership = %#v, found %v, error %v", membership, found, err)
+	}
+
+	duplicate := environment.request(
+		t, environment.client, http.MethodPost, "/api/v1/users",
+		`{"email":"teammate@example.test","password":"password-123"}`,
+		environment.server.URL, token,
+	)
+	if problem := decodeProblem(t, duplicate); duplicate.StatusCode != http.StatusConflict ||
+		problem.Code != user.EmailConflictCode {
+		t.Fatalf("duplicate email = %d, body %s", duplicate.StatusCode, duplicate.Body)
+	}
 }
 
 func TestReadinessFailureReturnsPlainTextServiceUnavailable(t *testing.T) {

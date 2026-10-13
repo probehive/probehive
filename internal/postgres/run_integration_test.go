@@ -283,7 +283,7 @@ func TestRenewLeaseRequiresTheCurrentHolder(t *testing.T) {
 func TestRunQueriesDenyWrongOrganization(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	store, slot, now := seedRunSlot(t, database, 180)
-	otherOrganization, _ := seedTenant(t, database, 195, "other-run-tenant")
+	otherOrganization, _ := seedTenant(t, database, 195)
 
 	claimed := mustClaim(t, run.ID(testUUID(301)), slot, run.KindScheduled, "worker-a", now.Add(time.Minute))
 	if _, err := store.ClaimSlot(t.Context(), claimed, now); err != nil {
@@ -434,7 +434,7 @@ func TestEnsurePartitionsIsIdempotentAndRequiredForInserts(t *testing.T) {
 
 func TestInsertWithoutAPartitionFails(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 210, "unpartitioned-tenant")
+	organizationValue, project := seedTenant(t, database, 210)
 	monitorValue := seedMonitor(t, database, 215, organizationValue, project, testTime())
 
 	// No partition covers this instant, because EnsurePartitions was never called.
@@ -689,7 +689,7 @@ func TestScopedRunQueryServicePaginatesFiltersAndHidesWrongProject(t *testing.T)
 // in, and the slot identity the tests contend over.
 func seedRunSlot(t *testing.T, database *DB, offset int) (*RunStore, run.Slot, time.Time) {
 	t.Helper()
-	organizationValue, project := seedTenant(t, database, offset, fmt.Sprintf("run-tenant-%d", offset))
+	organizationValue, project := seedTenant(t, database, offset)
 	monitorValue := seedMonitor(t, database, offset+5, organizationValue, project, testTime())
 
 	store := database.Runs()
@@ -775,7 +775,7 @@ func countRows(t *testing.T, database *DB, query string) int {
 func TestListSchedulableReturnsActiveMonitorsWithTheirLatestRevision(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	store := database.Runs()
-	organizationValue, project := seedTenant(t, database, 400, "schedulable-tenant")
+	organizationValue, project := seedTenant(t, database, 400)
 
 	// Active with two revisions: the latest one is what a new Run executes.
 	active := seedMonitor(t, database, 410, organizationValue, project, testTime())
@@ -873,7 +873,7 @@ func TestListSchedulableReturnsActiveMonitorsWithTheirLatestRevision(t *testing.
 // leaves the revision counter alone.
 func TestMonitorIntervalRoundTripsAndChangesWithoutARevision(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 440, "interval-tenant")
+	organizationValue, project := seedTenant(t, database, 440)
 	created, err := monitor.NewMonitor(
 		monitor.ID(testUUID(450)), string(organizationValue.ID), string(project.ID),
 		"Interval Monitor", "http", 300, testTime(),
@@ -918,7 +918,7 @@ func TestMonitorIntervalRoundTripsAndChangesWithoutARevision(t *testing.T) {
 // second, whatever the application validator did.
 func TestMonitorIntervalCheckConstraint(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 460, "interval-constraint-tenant")
+	organizationValue, project := seedTenant(t, database, 460)
 	for _, seconds := range []int{29, 0, -1, 86401} {
 		_, err := database.pool.Exec(t.Context(), `
 INSERT INTO monitors (

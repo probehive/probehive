@@ -52,7 +52,7 @@ func (server *Server) setupAdministrator(w http.ResponseWriter, r *http.Request)
 			server.internalError(w, r, "provision bootstrap Organization", err)
 			return
 		}
-		if provisioned.Kind != organization.ProvisionCreated && provisioned.Kind != organization.ProvisionReplayed {
+		if provisioned.Kind != organization.ProvisionCreated {
 			server.internalError(w, r, "provision bootstrap Organization", errUnexpectedResult)
 			return
 		}

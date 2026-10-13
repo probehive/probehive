@@ -134,7 +134,7 @@ Every `/api/v1` endpoint except setup status, first-administrator creation, logi
 and antiforgery issuance requires an authenticated browser session. A fresh
 installation reports `{"setupComplete":false}` at `GET /api/v1/setup/status`.
 `POST /api/v1/setup/admin` creates the first administrator exactly once,
-provisions the installation Organization with slug `default` and its default
+provisions the installation Organization (`Default`) and its default
 Project, and signs the administrator in. It returns both the user and that
 Organization, so no separate Organization step is needed before creating a
 Monitor. Setup also makes that administrator the Organization's first member,
@@ -142,6 +142,12 @@ which grants access: every endpoint under `/api/v1/organizations/{id}/` resolves
 membership and checks a permission, and a non-member receives `404` rather than
 `403`. The instance `Administrator` role alone grants no access to an
 Organization's monitoring data.
+
+An instance is one team. An administrator creates additional users with
+`POST /api/v1/users` (same validation rules as setup); each new user is an
+`Administrator` and becomes a member of every existing Organization, and every
+new Organization includes every current user. There is no per-Organization
+member management in this milestone.
 
 Unsafe requests need the token from `GET /api/v1/auth/antiforgery` echoed in the response-named `X-ProbeHive-Antiforgery` header. The token is bound to the current anonymous or authenticated identity, so fetch a fresh token after setup, login, or logout.
 
@@ -164,7 +170,7 @@ want one:
 ```bash
 curl -s -b "$JAR" -X POST http://localhost:5080/api/v1/organizations \
   -H 'Content-Type: application/json' -H "X-ProbeHive-Antiforgery: $TOKEN" \
-  -d '{"slug":"acme","displayName":"Acme Monitoring"}'
+  -d '{"displayName":"Acme Monitoring"}'
 ```
 
 Only SHA-256 token digests are stored in PostgreSQL. Session cookies are host-only, `HttpOnly`, `SameSite=Lax`, fixed at 12 hours, and never renewed by reads. Authenticated antiforgery selector and request-token digests are also server-side; anonymous tokens are validated with one PostgreSQL-backed HMAC key. Cookies are unconditionally `Secure` outside Development.

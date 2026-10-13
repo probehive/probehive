@@ -70,7 +70,7 @@ Validation errors use this extension, one coded entry per failure:
   "status": 400,
   "errors": {
     "field.path": [
-      { "code": "organization.slug.invalid", "message": "One message, in validation order." }
+      { "code": "organization.displayName.invalid", "message": "One message, in validation order." }
     ]
   }
 }
@@ -117,7 +117,7 @@ inbox health, maintenance, or opening-Run evidence serialize as JSON `null` when
 | `SessionResponse` | `userId: UUID string`, `email: string`, `displayName: string`, `role: string` |
 | `UserResponse` | `id: UUID string`, `email: string`, `displayName: string`, `role: string`, `createdAt: UTC timestamp string` |
 | `ProjectResponse` | `id: UUID string`, `organizationId: UUID string`, `name: string`, `isDefault: boolean`, `createdAt: UTC timestamp string` |
-| `OrganizationResponse` | `id: UUID string`, `slug: string`, `displayName: string`, `createdAt: UTC timestamp string`, `defaultProject: ProjectResponse` |
+| `OrganizationResponse` | `id: UUID string`, `displayName: string`, `createdAt: UTC timestamp string`, `defaultProject: ProjectResponse` |
 | `OrganizationOverviewResponse` | `organizationId: UUID string`; nullable `monitors`, `health`, `incidents`, `integrations`, and `statusPage` summaries; `capabilities: OrganizationOverviewCapabilities` |
 | `OrganizationOverviewMonitorCounts` | non-negative `total`, `draft`, `active`, `paused`, `archived` integers covering every Monitor |
 | `OrganizationOverviewHealthCounts` | non-negative `notEvaluated`, `unknown`, `healthy`, `degraded`, and `down` integers covering Active Monitors only |
@@ -168,7 +168,8 @@ Request shapes are:
 | --- | --- |
 | `CreateFirstAdministratorRequest` | `email`, `displayName`, `password` (nullable strings at decoding boundary; `email` and `password` required by validation, `displayName` optional and defaults to the email address when omitted) |
 | `LoginRequest` | `email`, `password` (nullable strings at decoding boundary) |
-| `CreateOrganizationRequest` | `slug`, `displayName` (nullable strings at decoding boundary; required by validation) |
+| `CreateOrganizationRequest` | `displayName` (nullable string at decoding boundary; required by validation) |
+| `CreateUserRequest` | `email`, `displayName`, `password` (nullable strings at decoding boundary; `email` and `password` required by validation, `displayName` optional and defaults to the email address when omitted) |
 | `CreateWebhookIntegrationRequest` | `name`, `destinationUrl` (nullable strings at decoding boundary; required by validation) |
 | `WebhookIntegrationStateRequest` | `enabled: boolean`, `version: positive integer` for optimistic concurrency |
 | `WebhookIntegrationVersionRequest` | `version: positive integer`, the current Integration version for optimistic concurrency |
@@ -203,12 +204,14 @@ antiforgery and origin rules in section 5 also apply.
 | `POST /api/v1/auth/login` | Anonymous, unsafe, credential rate limit | `200 SessionResponse`, sets a fresh session cookie | `401` generic invalid credentials; `429` |
 | `POST /api/v1/auth/logout` | Authenticated, unsafe | `204` empty body, invalidates session and expires cookie | `401` |
 | `GET /api/v1/auth/session` | Authenticated | `200 SessionResponse` | `401` |
+| `GET /api/v1/users` | Instance admin | `200 UserResponse[]` of every local user in creation order | `401`, `403` |
+| `POST /api/v1/users` | Instance admin, unsafe | `201 UserResponse` and `Location: /api/v1/users/{id}`; the user becomes an Administrator of every existing Organization | `400` validation, `409` email conflict, `401`, `403` |
 | `GET /api/v1/organizations` | Authenticated | `200 OrganizationResponse[]` of the caller's memberships in creation order, UUID as tie-breaker; `[]` when none | `401` |
-| `POST /api/v1/organizations` | Instance admin, unsafe | first create: `201 OrganizationResponse` and `Location: /api/v1/organizations/{id}`; identical replay: `200 OrganizationResponse` without creating state | `400`, `409`, `401`, `403` |
+| `POST /api/v1/organizations` | Instance admin, unsafe | `201 OrganizationResponse` and `Location: /api/v1/organizations/{id}`; every current user becomes an Administrator of it in the same transaction | `400`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}` | `organization.read` | `200 OrganizationResponse` | `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/overview` | `organization.read` plus permission-aware summaries | `200 OrganizationOverviewResponse` | `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/incidents` | `incident.read` | `200 IncidentInboxPageResponse`, newest first by `(createdAt, id)`; optional `state` filter | `400`, `404`, `401`, `403` |
-| `PUT /api/v1/organizations/{organizationId}/name` | `organization.write`, unsafe | `200 OrganizationResponse` with the new display name and an unchanged slug | `400`, `404`, `401`, `403` |
+| `PUT /api/v1/organizations/{organizationId}/name` | `organization.write`, unsafe | `200 OrganizationResponse` with the new display name and an unchanged id | `400`, `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/webhook-integrations` | `integration.manage` | `200 WebhookIntegrationResponse[]` in creation order; never returns signing-secret material | `404`, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/webhook-integrations` | `integration.manage`, unsafe | `201 CreateWebhookIntegrationResponse`; creates a disabled Integration and returns its signing secret once | `400`, `404`, `409`, `503` without an operator keyring, `401`, `403` |
 | `PUT /api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/state` | `integration.manage`, unsafe | `200 WebhookIntegrationResponse`; enables or disables future Alert routing, with no version bump for an already-current desired state | `400`, `404`, `409` for stale version or the five-enabled limit, `401`, `403` |
@@ -422,9 +425,21 @@ display name or its email default, and one UTC creation instant. Once a user exi
 `Setup already completed` and detail
 `The instance already has at least one user; sign in instead.`
 
-Setup then provisions the installation Organization through the same idempotent use case
-as `POST /api/v1/organizations`, with slug exactly `default` and display name exactly
-`Default`. Setup accepts no Organization fields. The two writes are not one transaction
+Additional users are created by an instance Administrator through
+`POST /api/v1/users`, which applies exactly the same field rules as setup. An instance is
+one team: the created user has role `Administrator` and becomes an Administrator member of
+every existing Organization, so teammates share the instance without per-Organization
+member management. The user is written first and memberships follow; if the membership
+write fails the response is `500` and the user exists with no Organizations yet, and any
+Organization created afterwards includes every user, closing the gap. A duplicate
+normalized email returns `409` with title `Email already in use`, detail
+`A user with this email address already exists.`, and code `user.email.conflict`.
+`GET /api/v1/users` returns every local user in creation order; password hashes are never
+serialized.
+
+Setup then provisions the installation Organization through the same use case as
+`POST /api/v1/organizations`, with display name exactly `Default`. Setup accepts no
+Organization fields. The two writes are not one transaction
 and run in this order: create the administrator, provision the Organization, issue the
 session cookie. If provisioning fails the response is `500`, the administrator exists,
 and no session was issued, so the operator signs in and creates an Organization manually
@@ -432,31 +447,18 @@ as before. `SetupResponse` carries both the created user and that Organization.
 
 Organization provisioning rules are:
 
-- `slug`: 3-63 lowercase ASCII letters/digits and single interior hyphens, beginning
-  and ending with a letter or digit. It is not trimmed or case-normalized. Failure key
-  `slug`, message `A slug is 3 to 63 characters of lowercase ASCII letters and digits with single interior hyphens, starting and ending with a letter or digit.`
 - `displayName`: trim Unicode surrounding whitespace, then 1-100 UTF-16 code units.
   Failure key `displayName`, message
   `A display name is 1 to 100 characters after trimming.`
-- first creation atomically creates an Organization and its default Project using the
-  same UUIDv7 timestamp. The Project name is exactly `Default`, `isDefault` is true,
-  and its `organizationId` is the new Organization id.
-- slug is the idempotency key. An existing slug plus identical trimmed display name
-  returns the existing rows with `200` and performs no write. No idempotency header is
-  involved.
-- an existing slug plus a different trimmed display name returns `409`, title
-  `Organization slug already in use`, detail
-  `An Organization with slug '{slug}' already exists with a different display name.`
-- a uniqueness race re-reads the database winner and applies the same replay/conflict
-  rule. Organization and default Project are always inserted in one transaction.
+- creation atomically inserts an Organization, its default Project, and one Administrator
+  membership per current user, all using the same UUIDv7 timestamp. The Project name is
+  exactly `Default`, `isDefault` is true, and its `organizationId` is the new
+  Organization id. Every route, reference, and foreign key uses the generated
+  Organization id; Organizations carry no caller-chosen identifier.
 
-Renaming changes only the display name; the slug is immutable because it is the
-idempotency key. `PUT /api/v1/organizations/{organizationId}/name` applies the same
-`displayName` rule as provisioning and is last-write-wins with no version token.
-
-Rename moves the replay boundary, which callers must expect: after a rename, provisioning
-the same slug with the pre-rename display name returns `409`, and the current display name
-is what replays with `200`.
+Renaming changes only the display name. `PUT /api/v1/organizations/{organizationId}/name`
+applies the same `displayName` rule as provisioning and is last-write-wins with no version
+token; the id is the Organization's only stable identifier and never changes.
 
 ### Organization Operational Overview
 
@@ -846,9 +848,8 @@ All listed columns are `NOT NULL` unless marked nullable.
 
 ### Core tables
 
-- `organizations`: `id uuid` PK `pk_organizations`; `slug varchar(63)`;
-  `display_name varchar(100)`; `created_at timestamptz`. Unique index
-  `ux_organizations_slug(slug)`.
+- `organizations`: `id uuid` PK `pk_organizations`;
+  `display_name varchar(100)`; `created_at timestamptz`.
 - `projects`: `id uuid` PK `pk_projects`; `organization_id uuid` FK
   `fk_projects_organizations` -> `organizations(id)` ON DELETE CASCADE;
   `name varchar(100)`; `is_default boolean`; `created_at timestamptz`. Alternate
@@ -1150,7 +1151,7 @@ Before launching the API, `web/e2e/start-api.sh` must preserve this reset contra
 The browser journey assumes an empty database, routes `/` to `/setup`, creates and signs
 in the first Administrator, and lands directly on the Organization that setup provisioned,
 rendering its `Default` heading, default Project, and fresh operational overview. It
-renames that Organization and asserts the slug did not move. It creates and operates a
+renames that Organization. It creates and operates a
 passing HTTP Monitor, triggers a manual Run, follows the returned evidence, then schedules
 and cancels a one-time maintenance window. It then publishes the configured status page,
 creates an enabled loopback Webhook Integration, a failing HTTP Monitor, and an active
@@ -1162,7 +1163,7 @@ inbox and follows its opening Run and Incident evidence links. It replaces the t
 through revision 2, waits for confirmed recovery and its Alert intent, then verifies resolved
 inbox history and the narrow-screen inbox layout. Finally, it
 signs out, signs back in, lands on the Organization list containing the renamed
-Organization, creates slug `acme` with display name `Acme Monitoring`, follows the
+Organization, creates an Organization `Acme Monitoring`, follows the
 returned Organization, and renders its default Project. A second journey switches the
 interface to `zh-CN`, asserts the translated heading and the `lang` attribute of the
 document element, and reloads to confirm the preference
@@ -1189,13 +1190,13 @@ Users, sessions, and setup:
 
 ```text
 user.email.invalid       user.displayName.invalid     user.password.length
-user.credentials.invalid user.setup.alreadyCompleted
+user.credentials.invalid user.setup.alreadyCompleted   user.email.conflict
 ```
 
 Organizations:
 
 ```text
-organization.slug.invalid  organization.displayName.invalid  organization.slug.conflict
+organization.displayName.invalid
 ```
 
 Monitors:

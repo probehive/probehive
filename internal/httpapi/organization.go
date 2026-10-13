@@ -38,8 +38,8 @@ func (server *Server) listOrganizations(w http.ResponseWriter, r *http.Request) 
 }
 
 func (server *Server) createOrganization(w http.ResponseWriter, r *http.Request) {
-	// Creating an Organization stays an instance-scoped operation; the
-	// creator becomes its first Administrator inside the provisioning transaction.
+	// Creating an Organization stays an instance-scoped operation; every current
+	// user becomes an Administrator of it inside the provisioning transaction.
 	principal, ok := server.protectUnsafe(w, r, server.requireInstanceAdministrator)
 	if !ok {
 		return
@@ -49,8 +49,7 @@ func (server *Server) createOrganization(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	result, err := server.organizations.Provision(r.Context(), organization.ProvisionCommand{
-		Slug: valueOrEmpty(request.Slug), DisplayName: valueOrEmpty(request.DisplayName),
-		CreatorUserID: string(principal.account.ID),
+		DisplayName: valueOrEmpty(request.DisplayName), CreatorUserID: string(principal.account.ID),
 	})
 	if err != nil {
 		server.internalError(w, r, "provision Organization", err)
@@ -61,10 +60,6 @@ func (server *Server) createOrganization(w http.ResponseWriter, r *http.Request)
 		response := toOrganizationResponse(result.Details)
 		w.Header().Set("Location", "/api/v1/organizations/"+response.ID)
 		writeJSON(w, http.StatusCreated, response)
-	case organization.ProvisionReplayed:
-		writeJSON(w, http.StatusOK, toOrganizationResponse(result.Details))
-	case organization.ProvisionSlugConflict:
-		writeCodedProblem(w, http.StatusConflict, result.Code, organization.SlugConflictTitle, result.Detail)
 	case organization.ProvisionInvalid:
 		writeValidationProblem(w, organizationFailurePairs(result.Failures))
 	default:
@@ -139,7 +134,7 @@ func (server *Server) renameOrganization(w http.ResponseWriter, r *http.Request)
 
 func toOrganizationResponse(details organization.Details) api.OrganizationResponse {
 	return api.OrganizationResponse{
-		ID: string(details.Organization.ID), Slug: details.Organization.Slug,
+		ID:          string(details.Organization.ID),
 		DisplayName: details.Organization.DisplayName, CreatedAt: details.Organization.CreatedAt,
 		DefaultProject: api.ProjectResponse{
 			ID: string(details.DefaultProject.ID), OrganizationID: string(details.DefaultProject.OrganizationID),

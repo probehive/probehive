@@ -159,17 +159,16 @@ func TestOrganizationListJoinsDefaultProjectsInCreationOrder(t *testing.T) {
 	// Deliberately provision out of order and give two of them the same instant so the
 	// Organization id tie-breaker is exercised rather than assumed.
 	seeds := []struct {
-		slug      string
 		name      string
 		createdAt time.Time
 	}{
-		{"third-tenant", "Third Tenant", base.Add(time.Hour)},
-		{"second-tenant", "Second Tenant", base},
-		{"first-tenant", "First Tenant", base},
+		{"Third Tenant", base.Add(time.Hour)},
+		{"Second Tenant", base},
+		{"First Tenant", base},
 	}
 	for index, seed := range seeds {
 		value, err := organization.NewOrganization(
-			organization.ID(testUUID(index*2+1)), seed.slug, seed.name, seed.createdAt,
+			organization.ID(testUUID(index*2+1)), seed.name, seed.createdAt,
 		)
 		if err != nil {
 			t.Fatalf("NewOrganization() error = %v", err)
@@ -186,7 +185,7 @@ func TestOrganizationListJoinsDefaultProjectsInCreationOrder(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewMembership() error = %v", err)
 		}
-		if err := store.Create(t.Context(), value, project, membership); err != nil {
+		if err := store.Create(t.Context(), value, project, []organization.Membership{membership}); err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
 	}
@@ -200,10 +199,10 @@ func TestOrganizationListJoinsDefaultProjectsInCreationOrder(t *testing.T) {
 	}
 	// Both same-instant Organizations sort before the later one, and between them the
 	// id decides: second-tenant is testUUID(3) and first-tenant is testUUID(5).
-	wantSlugs := []string{"second-tenant", "first-tenant", "third-tenant"}
-	for index, want := range wantSlugs {
-		if listed[index].Organization.Slug != want {
-			t.Fatalf("List()[%d].Slug = %q, want %q", index, listed[index].Organization.Slug, want)
+	wantNames := []string{"Second Tenant", "First Tenant", "Third Tenant"}
+	for index, want := range wantNames {
+		if listed[index].Organization.DisplayName != want {
+			t.Fatalf("List()[%d].DisplayName = %q, want %q", index, listed[index].Organization.DisplayName, want)
 		}
 		project := listed[index].DefaultProject
 		if !project.IsDefault || project.OrganizationID != listed[index].Organization.ID {
@@ -243,65 +242,75 @@ VALUES ($1, $2, 'Secondary', false, $3)`, string(extra.ID), string(extra.Organiz
 	}
 }
 
-func TestOrganizationProvisioningRereadsDuplicateRaceWinner(t *testing.T) {
+func TestOrganizationProvisioningGrantsEveryUserMembership(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	delegate := database.Organizations()
-	store := &synchronizedOrganizationStore{OrganizationStore: delegate, ready: make(chan struct{})}
+	store := database.Organizations()
 	creator := seedAdministrator(t, database)
+	if _, err := database.pool.Exec(t.Context(), `
+INSERT INTO users (id, email, display_name, role, password_hash, created_at)
+VALUES ($1, 'teammate@example.test', 'Teammate', 'Administrator', 'test:teammate', $2)
+ON CONFLICT ON CONSTRAINT pk_users DO NOTHING`, testUUID(901), testTime()); err != nil {
+		t.Fatalf("seed teammate: %v", err)
+	}
 	now := testTime()
-	services := []*organization.Service{
-		organization.NewService(store, fixedClock{now}, &sequenceUUIDs{values: []string{testUUID(1), testUUID(2)}}),
-		organization.NewService(store, fixedClock{now}, &sequenceUUIDs{values: []string{testUUID(3), testUUID(4)}}),
+
+	result, err := organization.NewService(store, fixedClock{now}, &sequenceUUIDs{values: []string{testUUID(1), testUUID(2)}}).
+		Provision(t.Context(), organization.ProvisionCommand{
+			DisplayName: "Team Tenant", CreatorUserID: creator,
+		})
+	if err != nil {
+		t.Fatalf("Provision() error = %v", err)
+	}
+	if result.Kind != organization.ProvisionCreated {
+		t.Fatalf("Provision() kind = %d, want ProvisionCreated", result.Kind)
 	}
 
-	start := make(chan struct{})
-	results := make(chan organization.ProvisionResult, 2)
-	errorsByCall := make(chan error, 2)
-	for _, service := range services {
-		go func(service *organization.Service) {
-			<-start
-			result, err := service.Provision(t.Context(), organization.ProvisionCommand{
-				Slug: "race-tenant", DisplayName: "Race Tenant", CreatorUserID: creator,
-			})
-			results <- result
-			errorsByCall <- err
-		}(service)
+	// An instance is one team: the creator and the pre-existing teammate are both
+	// Administrators of the new Organization, inserted in the creation transaction.
+	for _, userID := range []string{creator, testUUID(901)} {
+		membership, found, err := store.FindMembership(t.Context(), result.Details.Organization.ID, userID)
+		if err != nil || !found || membership.Role != organization.RoleAdministrator {
+			t.Fatalf("membership for %s = %#v, found %v, error %v", userID, membership, found, err)
+		}
 	}
-	close(start)
+	stranger, found, err := store.FindMembership(t.Context(), result.Details.Organization.ID, testUUID(902))
+	if err != nil || found {
+		t.Fatalf("membership for a non-user = %#v, found %v, error %v; want none", stranger, found, err)
+	}
+}
 
-	kinds := map[organization.ProvisionKind]int{}
-	var winner organization.ID
+func TestCreateMembershipsIsRepeatablePerOrganizationAndUser(t *testing.T) {
+	database := newIntegrationDatabase(t, true)
+	organizationValue, _ := seedTenant(t, database, 80)
+	now := testTime()
+	membership, err := organization.NewMembership(
+		organizationValue.ID, testUUID(901), organization.RoleAdministrator, now,
+	)
+	if err != nil {
+		t.Fatalf("NewMembership() error = %v", err)
+	}
+	store := database.Organizations()
 	for range 2 {
-		if err := <-errorsByCall; err != nil {
-			t.Fatalf("Provision() error = %v", err)
-		}
-		result := <-results
-		kinds[result.Kind]++
-		if winner == "" {
-			winner = result.Details.Organization.ID
-		} else if result.Details.Organization.ID != winner {
-			t.Errorf("race results returned different Organizations: %s and %s", winner, result.Details.Organization.ID)
+		if err := store.CreateMemberships(t.Context(), []organization.Membership{membership}); err != nil {
+			t.Fatalf("CreateMemberships() error = %v", err)
 		}
 	}
-	if kinds[organization.ProvisionCreated] != 1 || kinds[organization.ProvisionReplayed] != 1 {
-		t.Fatalf("provision kinds = %#v, want one created and one replayed", kinds)
+	var count int
+	if err := database.pool.QueryRow(t.Context(), `
+SELECT count(*)
+FROM organization_members
+WHERE organization_id = $1 AND user_id = $2`,
+		string(organizationValue.ID), testUUID(901)).Scan(&count); err != nil {
+		t.Fatalf("count memberships: %v", err)
 	}
-
-	var organizationCount, projectCount int
-	if err := database.pool.QueryRow(t.Context(), "SELECT count(*) FROM organizations").Scan(&organizationCount); err != nil {
-		t.Fatalf("count Organizations: %v", err)
-	}
-	if err := database.pool.QueryRow(t.Context(), "SELECT count(*) FROM projects").Scan(&projectCount); err != nil {
-		t.Fatalf("count Projects: %v", err)
-	}
-	if organizationCount != 1 || projectCount != 1 {
-		t.Fatalf("persisted Organizations/Projects = %d/%d, want 1/1", organizationCount, projectCount)
+	if count != 1 {
+		t.Fatalf("persisted memberships = %d, want 1", count)
 	}
 }
 
 func TestDefaultProjectPartialUniqueIndex(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, _ := seedTenant(t, database, 80, "default-project-tenant")
+	organizationValue, _ := seedTenant(t, database, 80)
 	now := testTime().Add(time.Minute)
 
 	_, err := database.pool.Exec(t.Context(), `
@@ -331,9 +340,8 @@ WHERE organization_id = $1`, string(organizationValue.ID)).Scan(&projectCount, &
 
 func TestOrganizationProvisioningRollsBackWhenDefaultProjectInsertFails(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	_, existingProject := seedTenant(t, database, 90, "existing-tenant")
+	_, existingProject := seedTenant(t, database, 90)
 	now := testTime()
-	const slug = "rollback-tenant"
 	candidateID := organization.ID(testUUID(92))
 	service := organization.NewService(
 		database.Organizations(),
@@ -342,17 +350,13 @@ func TestOrganizationProvisioningRollsBackWhenDefaultProjectInsertFails(t *testi
 	)
 
 	_, err := service.Provision(t.Context(), organization.ProvisionCommand{
-		Slug: slug, DisplayName: "Rollback Tenant", CreatorUserID: seedAdministrator(t, database),
+		DisplayName: "Rollback Tenant", CreatorUserID: seedAdministrator(t, database),
 	})
 	requireConstraint(t, err, uniqueViolation, "pk_projects")
 
 	_, found, err := database.Organizations().FindByID(t.Context(), candidateID)
 	if err != nil || found {
 		t.Fatalf("FindByID() after rollback found/error = %v/%v, want false/nil", found, err)
-	}
-	_, found, err = database.Organizations().FindBySlug(t.Context(), slug)
-	if err != nil || found {
-		t.Fatalf("FindBySlug() after rollback found/error = %v/%v, want false/nil", found, err)
 	}
 
 	var organizationCount, projectCount int
@@ -369,8 +373,8 @@ func TestOrganizationProvisioningRollsBackWhenDefaultProjectInsertFails(t *testi
 
 func TestCompositeTenantForeignKeysRejectCrossTenantRows(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationA, projectA := seedTenant(t, database, 10, "tenant-a")
-	organizationB, projectB := seedTenant(t, database, 20, "tenant-b")
+	organizationA, projectA := seedTenant(t, database, 10)
+	organizationB, projectB := seedTenant(t, database, 20)
 	now := testTime()
 
 	wrongProject, err := monitor.NewMonitor(
@@ -658,7 +662,7 @@ SELECT selector_hash, request_token_hash FROM antiforgery_tokens`).Scan(&storedS
 
 func TestMonitorOrderingXminAndRevisionRace(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 60, "monitor-tenant")
+	organizationValue, project := seedTenant(t, database, 60)
 	now := testTime()
 	second := seedMonitor(t, database, 62, organizationValue, project, now)
 	first := seedMonitor(t, database, 61, organizationValue, project, now)
@@ -797,8 +801,8 @@ INSERT INTO monitor_revisions (
 
 func TestRevisionQueriesDenyWrongOrganization(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationA, projectA := seedTenant(t, database, 110, "revision-tenant-a")
-	organizationB, _ := seedTenant(t, database, 120, "revision-tenant-b")
+	organizationA, projectA := seedTenant(t, database, 110)
+	organizationB, _ := seedTenant(t, database, 120)
 	now := testTime()
 	created := seedMonitor(t, database, 130, organizationA, projectA, now)
 	store := database.Monitors()
@@ -919,33 +923,6 @@ func relationExists(t *testing.T, database *DB, name string) bool {
 	return relation != nil
 }
 
-type synchronizedOrganizationStore struct {
-	*OrganizationStore
-	mu     sync.Mutex
-	misses int
-	ready  chan struct{}
-}
-
-func (store *synchronizedOrganizationStore) FindBySlug(ctx context.Context, slug string) (organization.Organization, bool, error) {
-	value, found, err := store.OrganizationStore.FindBySlug(ctx, slug)
-	if err != nil || found {
-		return value, found, err
-	}
-	store.mu.Lock()
-	store.misses++
-	if store.misses == 2 {
-		close(store.ready)
-	}
-	ready := store.ready
-	store.mu.Unlock()
-	select {
-	case <-ready:
-		return value, false, nil
-	case <-ctx.Done():
-		return organization.Organization{}, false, ctx.Err()
-	}
-}
-
 type fixedClock struct{ value time.Time }
 
 func (clock fixedClock) Now() time.Time { return clock.value }
@@ -980,12 +957,12 @@ ON CONFLICT ON CONSTRAINT pk_users DO NOTHING`, id, testTime()); err != nil {
 	return id
 }
 
-func seedTenant(t *testing.T, database *DB, offset int, slug string) (organization.Organization, organization.Project) {
+func seedTenant(t *testing.T, database *DB, offset int) (organization.Organization, organization.Project) {
 	t.Helper()
 	now := testTime()
 	creator := seedAdministrator(t, database)
 	organizationValue, err := organization.NewOrganization(
-		organization.ID(testUUID(offset)), slug, "Test Tenant", now,
+		organization.ID(testUUID(offset)), "Test Tenant", now,
 	)
 	if err != nil {
 		t.Fatalf("NewOrganization() error = %v", err)
@@ -1002,7 +979,7 @@ func seedTenant(t *testing.T, database *DB, offset int, slug string) (organizati
 	if err != nil {
 		t.Fatalf("NewMembership() error = %v", err)
 	}
-	if err := database.Organizations().Create(t.Context(), organizationValue, project, membership); err != nil {
+	if err := database.Organizations().Create(t.Context(), organizationValue, project, []organization.Membership{membership}); err != nil {
 		t.Fatalf("OrganizationStore.Create() error = %v", err)
 	}
 	return organizationValue, project

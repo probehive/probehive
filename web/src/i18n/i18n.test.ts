@@ -31,8 +31,10 @@ test('locales are distinct and include the source locale', () => {
 })
 
 test('translation substitutes named placeholders', () => {
-  expect(translate('en', 'organization.create.view', { name: 'Acme' })).toBe('View Acme')
-  expect(translate('zh-CN', 'organization.create.view', { name: 'Acme' })).toBe('查看 Acme')
+  expect(translate('en', 'integration.secret.activeVersion', { version: '2' })).toBe('Active secret v2')
+  expect(translate('zh-CN', 'integration.secret.activeVersion', { version: '2' })).toBe(
+    '当前密钥 v2',
+  )
   // An unsupplied placeholder is left visible rather than rendering "undefined".
-  expect(translate('en', 'organization.create.view')).toBe('View {name}')
+  expect(translate('en', 'integration.secret.activeVersion')).toBe('Active secret v{version}')
 })

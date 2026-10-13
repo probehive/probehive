@@ -10,8 +10,8 @@ import (
 func TestMaintenanceWindowPersistenceIsTenantIsolatedAndRestartVisible(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	now := testTime()
-	organizationA, projectA := seedTenant(t, database, 200, "maintenance-a")
-	organizationB, projectB := seedTenant(t, database, 210, "maintenance-b")
+	organizationA, projectA := seedTenant(t, database, 200)
+	organizationB, projectB := seedTenant(t, database, 210)
 	monitorA := seedMonitor(t, database, 220, organizationA, projectA, now)
 
 	scopeA := maintenance.Scope{
@@ -81,7 +81,7 @@ func TestMaintenanceWindowPersistenceIsTenantIsolatedAndRestartVisible(t *testin
 func TestConcurrentMaintenanceCreationAllowsOnlyOneOverlap(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	now := testTime()
-	organizationValue, project := seedTenant(t, database, 230, "maintenance-race")
+	organizationValue, project := seedTenant(t, database, 230)
 	monitorValue := seedMonitor(t, database, 240, organizationValue, project, now)
 	scope := maintenance.Scope{
 		OrganizationID: string(organizationValue.ID),

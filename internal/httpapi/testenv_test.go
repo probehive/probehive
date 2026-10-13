@@ -57,6 +57,7 @@ func newTestEnvironment(t *testing.T, development bool, credentialLimit int, con
 	sessions := newMemorySessionStore()
 	antiforgery := newMemoryAntiforgeryStore()
 	organizations := newMemoryOrganizationStore()
+	organizations.users = users
 	overviews := newMemoryOverviewStore(organizations)
 	monitors := newMemoryMonitorStore()
 	maintenanceWindows := newMemoryMaintenanceStore(monitors)
@@ -351,11 +352,35 @@ func (store *memoryUserStore) FindByEmail(_ context.Context, email string) (user
 	}
 	return store.byID[id], true, nil
 }
+func (store *memoryUserStore) List(_ context.Context) ([]user.User, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	values := make([]user.User, 0, len(store.byID))
+	for _, value := range store.byID {
+		values = append(values, value)
+	}
+	sort.Slice(values, func(i, j int) bool {
+		if values[i].CreatedAt.Equal(values[j].CreatedAt) {
+			return values[i].ID < values[j].ID
+		}
+		return values[i].CreatedAt.Before(values[j].CreatedAt)
+	})
+	return values, nil
+}
 func (store *memoryUserStore) CreateFirstAdministrator(_ context.Context, value user.User) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	if len(store.byID) != 0 {
 		return user.ErrSetupAlreadyCompleted
+	}
+	store.byID[value.ID], store.byEmail[value.Email] = value, value.ID
+	return nil
+}
+func (store *memoryUserStore) Create(_ context.Context, value user.User) error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if _, found := store.byEmail[value.Email]; found {
+		return user.ErrDuplicateEmail
 	}
 	store.byID[value.ID], store.byEmail[value.Email] = value, value.ID
 	return nil
@@ -464,9 +489,11 @@ func (store *memoryAntiforgeryStore) DeleteSessionAntiforgeryBySelectorHash(_ co
 type memoryOrganizationStore struct {
 	mu          sync.Mutex
 	byID        map[organization.ID]organization.Organization
-	bySlug      map[string]organization.ID
 	projects    map[organization.ProjectID]organization.Project
 	memberships map[string]organization.Membership
+	// users mirrors the environment's user store so ListUserIDs sees local users,
+	// matching the SQL store which reads the same table.
+	users *memoryUserStore
 }
 
 func membershipKey(organizationID organization.ID, userID string) string {
@@ -475,7 +502,7 @@ func membershipKey(organizationID organization.ID, userID string) string {
 
 func newMemoryOrganizationStore() *memoryOrganizationStore {
 	return &memoryOrganizationStore{
-		byID: make(map[organization.ID]organization.Organization), bySlug: make(map[string]organization.ID),
+		byID:        make(map[organization.ID]organization.Organization),
 		projects:    make(map[organization.ProjectID]organization.Project),
 		memberships: make(map[string]organization.Membership),
 	}
@@ -485,15 +512,6 @@ func (store *memoryOrganizationStore) FindByID(_ context.Context, id organizatio
 	defer store.mu.Unlock()
 	value, found := store.byID[id]
 	return value, found, nil
-}
-func (store *memoryOrganizationStore) FindBySlug(_ context.Context, slug string) (organization.Organization, bool, error) {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	id, found := store.bySlug[slug]
-	if !found {
-		return organization.Organization{}, false, nil
-	}
-	return store.byID[id], true, nil
 }
 func (store *memoryOrganizationStore) FindDefaultProject(_ context.Context, id organization.ID) (organization.Project, bool, error) {
 	store.mu.Lock()
@@ -551,16 +569,51 @@ func (store *memoryOrganizationStore) Create(
 	_ context.Context,
 	value organization.Organization,
 	project organization.Project,
-	membership organization.Membership,
+	memberships []organization.Membership,
 ) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
-	if _, found := store.bySlug[value.Slug]; found {
-		return organization.ErrDuplicateSlug
+	store.byID[value.ID], store.projects[project.ID] = value, project
+	for _, membership := range memberships {
+		store.memberships[membershipKey(membership.OrganizationID, membership.UserID)] = membership
 	}
-	store.byID[value.ID], store.bySlug[value.Slug], store.projects[project.ID] = value, value.ID, project
-	store.memberships[membershipKey(membership.OrganizationID, membership.UserID)] = membership
 	return nil
+}
+
+func (store *memoryOrganizationStore) CreateMemberships(_ context.Context, memberships []organization.Membership) error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	for _, membership := range memberships {
+		key := membershipKey(membership.OrganizationID, membership.UserID)
+		if _, exists := store.memberships[key]; exists {
+			continue
+		}
+		store.memberships[key] = membership
+	}
+	return nil
+}
+
+func (store *memoryOrganizationStore) ListIDs(_ context.Context) ([]organization.ID, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	ids := make([]organization.ID, 0, len(store.byID))
+	for id := range store.byID {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids, nil
+}
+
+func (store *memoryOrganizationStore) ListUserIDs(_ context.Context) ([]string, error) {
+	values, err := store.users.List(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(values))
+	for _, value := range values {
+		ids = append(ids, string(value.ID))
+	}
+	return ids, nil
 }
 
 func (store *memoryOrganizationStore) UpdateDisplayName(

@@ -28,8 +28,9 @@ export default function App() {
             <span>{t('app.title')}</span>
           </Link>
           {session.data && (
-            <nav className="app-nav" aria-label={t('organizations.heading')}>
+            <nav className="app-nav" aria-label={t('app.title')}>
               <Link to="/">{t('organizations.heading')}</Link>
+              <Link to="/users">{t('app.users')}</Link>
             </nav>
           )}
           <div className="app-actions">

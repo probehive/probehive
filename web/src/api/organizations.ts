@@ -12,29 +12,21 @@ export interface ProjectResponse {
 
 export interface OrganizationResponse {
   id: string
-  slug: string
   displayName: string
   createdAt: string
   defaultProject: ProjectResponse
 }
 
 export interface CreateOrganizationRequest {
-  slug: string
   displayName: string
 }
 
-export interface CreateOrganizationOutcome {
-  organization: OrganizationResponse
-  /** True when this call created the Organization; false for an idempotent replay. */
-  created: boolean
-}
-
-export async function createOrganization(request: CreateOrganizationRequest): Promise<CreateOrganizationOutcome> {
+/** Creates an Organization; the id is its only stable identifier. */
+export async function createOrganization(
+  request: CreateOrganizationRequest,
+): Promise<OrganizationResponse> {
   const response = await postJson('/api/v1/organizations', request)
-  return {
-    organization: (await response.json()) as OrganizationResponse,
-    created: response.status === 201,
-  }
+  return (await response.json()) as OrganizationResponse
 }
 
 /** The Organizations the caller can see, in creation order. */
@@ -42,7 +34,7 @@ export function listOrganizations(): Promise<OrganizationResponse[]> {
   return getJson<OrganizationResponse[]>('/api/v1/organizations')
 }
 
-/** Changes only the display name; the slug is immutable. */
+/** Changes only the display name. */
 export async function renameOrganization(
   organizationId: string,
   displayName: string,

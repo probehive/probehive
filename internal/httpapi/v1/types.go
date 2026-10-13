@@ -49,7 +49,6 @@ type ProjectResponse struct {
 
 type OrganizationResponse struct {
 	ID             string          `json:"id"`
-	Slug           string          `json:"slug"`
 	DisplayName    string          `json:"displayName"`
 	CreatedAt      time.Time       `json:"createdAt"`
 	DefaultProject ProjectResponse `json:"defaultProject"`
@@ -422,8 +421,13 @@ type LoginRequest struct {
 }
 
 type CreateOrganizationRequest struct {
-	Slug        *string `json:"slug"`
 	DisplayName *string `json:"displayName"`
+}
+
+type CreateUserRequest struct {
+	Email       *string `json:"email"`
+	DisplayName *string `json:"displayName"`
+	Password    *string `json:"password"`
 }
 
 type RenameOrganizationRequest struct {

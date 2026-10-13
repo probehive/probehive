@@ -101,7 +101,7 @@
         "tags": ["Setup"],
         "operationId": "createFirstAdministrator",
         "summary": "Create the first administrator and provision the installation Organization",
-        "description": "Creates the first administrator, provisions the installation Organization with slug 'default' and its default Project through the idempotent provisioning use case, then issues a session cookie. A new installation is usable without a separate Organization step.",
+        "description": "Creates the first administrator, provisions the installation Organization ('Default') and its default Project through the same provisioning use case as any other creation, then issues a session cookie. A new installation is usable without a separate Organization step.",
         "security": [
           { "antiforgeryCookie": [], "antiforgeryHeader": [] }
         ],
@@ -222,8 +222,8 @@
       "post": {
         "tags": ["Organizations"],
         "operationId": "provisionOrganization",
-        "summary": "Idempotently provision an Organization and default Project",
-        "description": "Requires the instance Administrator role. The creator becomes the new Organization's Administrator member in the same transaction. A matching slug and display name replays with 200 and writes no membership; a new Organization returns 201.",
+        "summary": "Provision an Organization and default Project",
+        "description": "Requires the instance Administrator role. An instance is one team: every current user becomes an Administrator member of the new Organization inside the creation transaction.",
         "security": [
           { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
         ],
@@ -234,11 +234,60 @@
           }
         },
         "responses": {
-          "200": { "$ref": "#/components/responses/Organization" },
           "201": {
             "description": "The Organization and default Project were created.",
             "headers": { "Location": { "$ref": "#/components/headers/Location" } },
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrganizationResponse" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "tags": ["Users"],
+        "operationId": "listUsers",
+        "summary": "List the instance users",
+        "description": "Requires the instance Administrator role. Returns every local user in creation order. An instance is one team: every user is an Administrator of every Organization.",
+        "security": [
+          { "sessionCookie": [] }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every local user in creation order.",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/UserResponse" } }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "405": { "$ref": "#/components/responses/MethodNotAllowed" }
+        }
+      },
+      "post": {
+        "tags": ["Users"],
+        "operationId": "createUser",
+        "summary": "Create an additional local user",
+        "description": "Requires the instance Administrator role. Creates the user and makes it an Administrator of every existing Organization. The user is written first and memberships follow; if the membership write fails, the user exists with no Organizations until the next Organization creation, which includes every user.",
+        "security": [
+          { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CreateUserRequest" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The user was created and joined every Organization.",
+            "headers": { "Location": { "$ref": "#/components/headers/Location" } },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserResponse" } } }
           },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
@@ -254,7 +303,7 @@
         "tags": ["Organizations"],
         "operationId": "renameOrganization",
         "summary": "Change an Organization's display name",
-        "description": "Requires the organization.write permission. The slug is immutable because it is the idempotency key for provisioning; after a rename, provisioning the same slug with the pre-rename display name conflicts and the current name replays.",
+        "description": "Requires the organization.write permission. Changes only the display name; the generated id is the Organization's only stable identifier and never changes.",
         "security": [
           { "sessionCookie": [], "antiforgeryCookie": [], "antiforgeryHeader": [] }
         ],
@@ -1522,10 +1571,6 @@
         "description": "Current setup state.",
         "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SetupStatusResponse" } } }
       },
-      "Organization": {
-        "description": "The Organization and default Project.",
-        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrganizationResponse" } } }
-      },
       "Monitor": {
         "description": "The Monitor.",
         "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MonitorResponse" } } }
@@ -1599,7 +1644,7 @@
         "required": ["code", "message"],
         "description": "One field-level failure. 'code' is the stable contract identifier clients localize from; 'message' is current English documentation and may be reworded without a compatibility event.",
         "properties": {
-          "code": { "type": "string", "examples": ["organization.slug.invalid"] },
+          "code": { "type": "string", "examples": ["organization.displayName.invalid"] },
           "message": { "type": "string" }
         }
       },
@@ -1681,10 +1726,9 @@
       },
       "OrganizationResponse": {
         "type": "object",
-        "required": ["id", "slug", "displayName", "createdAt", "defaultProject"],
+        "required": ["id", "displayName", "createdAt", "defaultProject"],
         "properties": {
           "id": { "type": "string", "format": "uuid" },
-          "slug": { "type": "string" },
           "displayName": { "type": "string" },
           "createdAt": { "type": "string", "format": "date-time" },
           "defaultProject": { "$ref": "#/components/schemas/ProjectResponse" }
@@ -2509,10 +2553,23 @@
         "type": "object",
         "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown.",
         "x-probehive-property-name-comparison": "ascii-case-insensitive",
-        "required": ["slug", "displayName"],
+        "required": ["displayName"],
         "properties": {
-          "slug": { "type": ["string", "null"] },
           "displayName": { "type": ["string", "null"] }
+        }
+      },
+      "CreateUserRequest": {
+        "type": "object",
+        "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown.",
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": ["string", "null"] },
+          "displayName": {
+            "type": ["string", "null"],
+            "description": "Optional. An omitted or blank display name defaults to the normalized email address."
+          },
+          "password": { "type": ["string", "null"] }
         }
       },
       "CreateMonitorRequest": {

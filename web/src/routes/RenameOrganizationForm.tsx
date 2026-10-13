@@ -5,10 +5,7 @@ import { ApiError, renameOrganization, type OrganizationResponse } from '../api/
 import { useTranslation } from '../i18n/context'
 import { organizationsQueryKey } from './useOrganizations'
 
-/**
- * Changes an Organization's display name. The slug stays fixed because it is the
- * idempotency key for provisioning.
- */
+/** Changes an Organization's display name; the id is its only stable identifier. */
 export default function RenameOrganizationForm({ organization }: { organization: OrganizationResponse }) {
   const [displayName, setDisplayName] = useState(organization.displayName)
   const { t, translateError } = useTranslation()
@@ -52,7 +49,6 @@ export default function RenameOrganizationForm({ organization }: { organization:
           {mutation.isPending ? t('organization.rename.submitting') : t('organization.rename.submit')}
         </button>
       </form>
-      <p className="hint">{t('organization.rename.slugNote')}</p>
       {mutation.isSuccess && (
         <p className="success" role="status">
           {t('organization.rename.done')}

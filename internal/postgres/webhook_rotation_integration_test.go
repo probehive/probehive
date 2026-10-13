@@ -10,7 +10,7 @@ import (
 
 func TestWebhookSigningSecretRotationPersistsAtomicStateTransitions(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, _ := seedTenant(t, database, 1510, "webhook-rotation-tenant")
+	organizationValue, _ := seedTenant(t, database, 1510)
 	keyring, err := webhook.NewKeyring([]webhook.WrappingKey{{
 		ID: "active", Key: bytes.Repeat([]byte{4}, 32),
 	}})

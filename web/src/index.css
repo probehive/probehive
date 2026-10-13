@@ -2070,15 +2070,6 @@ button:disabled {
   padding: 0.7rem 1rem;
 }
 
-.organization-card-meta .slug {
-  background: var(--surface-subtle);
-  border-radius: 0.25rem;
-  color: var(--text);
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  overflow-wrap: anywhere;
-  padding: 0.15rem 0.35rem;
-}
-
 .organization-create-panel {
   min-width: 0;
 }

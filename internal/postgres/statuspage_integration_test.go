@@ -13,8 +13,8 @@ import (
 
 func TestStatusPageDraftPersistsOrderAndEnforcesTenantAvailability(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 100, "status-one")
-	otherOrganization, otherProject := seedTenant(t, database, 200, "status-two")
+	organizationValue, project := seedTenant(t, database, 100)
+	otherOrganization, otherProject := seedTenant(t, database, 200)
 	now := testTime()
 	first := seedMonitor(t, database, 110, organizationValue, project, now)
 	second := seedMonitor(t, database, 111, organizationValue, project, now)
@@ -116,7 +116,7 @@ func TestStatusPageDraftPersistsOrderAndEnforcesTenantAvailability(t *testing.T)
 
 func TestConcurrentStatusPageDraftCreationAllowsOnlyOneDraft(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 300, "status-race")
+	organizationValue, project := seedTenant(t, database, 300)
 	now := testTime()
 	monitorValue := seedMonitor(t, database, 310, organizationValue, project, now)
 	drafts := make([]statuspage.Draft, 2)
@@ -170,7 +170,7 @@ func TestConcurrentStatusPageDraftCreationAllowsOnlyOneDraft(t *testing.T) {
 
 func TestConcurrentStatusPagePublicationActivatesOnlyOneCapability(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 350, "status-publish-race")
+	organizationValue, project := seedTenant(t, database, 350)
 	now := testTime()
 	monitorValue := seedMonitor(t, database, 360, organizationValue, project, now)
 	draft, err := statuspage.RestoreDraft(
@@ -226,7 +226,7 @@ func TestConcurrentStatusPagePublicationActivatesOnlyOneCapability(t *testing.T)
 
 func TestStatusPagePublicationProjectsCurrentStateAndRevokesImmediately(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 400, "status-public")
+	organizationValue, project := seedTenant(t, database, 400)
 	now := testTime()
 	monitorValue := seedMonitor(t, database, 410, organizationValue, project, now)
 	draft, err := statuspage.RestoreDraft(

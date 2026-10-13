@@ -9,7 +9,7 @@ import (
 
 func TestListStaleHealthUsesTimestampCutoffs(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 1300, "stale-health-tenant")
+	organizationValue, project := seedTenant(t, database, 1300)
 	monitorValue := seedMonitor(t, database, 1305, organizationValue, project, testTime())
 	monitorValue = appendTestRevision(
 		t, database, monitorValue, 1, `{"url":"https://health.example.test"}`)

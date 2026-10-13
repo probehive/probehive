@@ -3,7 +3,6 @@ package organization
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 	"unicode/utf16"
@@ -12,32 +11,24 @@ import (
 const (
 	// DefaultProjectName is the source name assigned transactionally at provisioning.
 	DefaultProjectName = "Default"
-	// BootstrapSlug is the slug of the Organization first-administrator setup provisions
-	// so a new installation can create a Monitor without any manual setup step.
-	BootstrapSlug = "default"
-	// BootstrapDisplayName is the display name of that Organization. Setup accepts no
-	// Organization input; renaming is a separate operation.
+	// BootstrapDisplayName is the display name of the Organization first-administrator
+	// setup provisions. Setup accepts no Organization input; renaming is a separate
+	// operation.
 	BootstrapDisplayName = "Default"
 )
 
 // Stable error codes. Each code is part of the published contract; the English text beside
 // it is documentation and may be reworded freely.
 const (
-	SlugInvalidCode        = "organization.slug.invalid"
 	DisplayNameInvalidCode = "organization.displayName.invalid"
-	SlugConflictCode       = "organization.slug.conflict"
 )
 
 // Current English text for the codes above. Not contract; clients translate the code.
 const (
-	SlugValidationMessage        = "A slug is 3 to 63 characters of lowercase ASCII letters and digits with single interior hyphens, starting and ending with a letter or digit."
 	DisplayNameValidationMessage = "A display name is 1 to 100 characters after trimming."
-	SlugConflictTitle            = "Organization slug already in use"
 )
 
 var (
-	// ErrDuplicateSlug is returned by Store.Create when a concurrent insert wins.
-	ErrDuplicateSlug = errors.New("organization slug already exists")
 	// ErrDefaultProjectMissing reports a broken provisioning invariant in persistence.
 	ErrDefaultProjectMissing = errors.New("organization has no default Project")
 )
@@ -48,21 +39,19 @@ type ID string
 // ProjectID identifies a Project.
 type ProjectID string
 
-// Organization is the tenant root.
+// Organization is the tenant root. It carries no caller-chosen identifier: the
+// generated id is the only stable key, and every route, reference, and foreign
+// key uses it.
 type Organization struct {
 	ID          ID
-	Slug        string
 	DisplayName string
 	CreatedAt   time.Time
 }
 
 // NewOrganization restores or creates an Organization while enforcing its invariants.
-func NewOrganization(id ID, slug, displayName string, createdAt time.Time) (Organization, error) {
+func NewOrganization(id ID, displayName string, createdAt time.Time) (Organization, error) {
 	if id == "" {
 		return Organization{}, errors.New("an Organization requires an id")
-	}
-	if normalized, ok := ValidateSlug(slug); !ok || normalized != slug {
-		return Organization{}, errors.New("invalid Organization slug")
 	}
 	if normalized, ok := NormalizeDisplayName(displayName); !ok || normalized != displayName {
 		return Organization{}, errors.New("invalid Organization display name")
@@ -70,7 +59,7 @@ func NewOrganization(id ID, slug, displayName string, createdAt time.Time) (Orga
 	if !isUTC(createdAt) {
 		return Organization{}, errors.New("persisted timestamps must be UTC")
 	}
-	return Organization{ID: id, Slug: slug, DisplayName: displayName, CreatedAt: createdAt}, nil
+	return Organization{ID: id, DisplayName: displayName, CreatedAt: createdAt}, nil
 }
 
 // Project is an administrative owner of Monitors within an Organization.
@@ -110,29 +99,6 @@ type ValidationFailure struct {
 	Message string
 }
 
-// ValidateSlug validates and returns an Organization slug without normalization.
-func ValidateSlug(candidate string) (string, bool) {
-	if len(candidate) < 3 || len(candidate) > 63 {
-		return "", false
-	}
-	previousHyphen := false
-	for i := 0; i < len(candidate); i++ {
-		character := candidate[i]
-		if character == '-' {
-			if i == 0 || i == len(candidate)-1 || previousHyphen {
-				return "", false
-			}
-			previousHyphen = true
-			continue
-		}
-		if !isLowerASCII(character) && !isASCIIDigit(character) {
-			return "", false
-		}
-		previousHyphen = false
-	}
-	return candidate, true
-}
-
 // NormalizeDisplayName trims Unicode surrounding whitespace and enforces 100 UTF-16 code units.
 func NormalizeDisplayName(candidate string) (string, bool) {
 	normalized := strings.TrimSpace(candidate)
@@ -142,14 +108,6 @@ func NormalizeDisplayName(candidate string) (string, bool) {
 	}
 	return normalized, true
 }
-
-// SlugConflictDetail returns the exact public detail for a non-idempotent collision.
-func SlugConflictDetail(slug string) string {
-	return fmt.Sprintf("An Organization with slug '%s' already exists with a different display name.", slug)
-}
-
-func isLowerASCII(character byte) bool { return character >= 'a' && character <= 'z' }
-func isASCIIDigit(character byte) bool { return character >= '0' && character <= '9' }
 
 func utf16Length(value string) int {
 	length := 0

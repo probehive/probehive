@@ -83,8 +83,6 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await page.getByRole('button', { name: 'Rename', exact: true }).click()
   await expect(page.getByText('Organization renamed.')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'My Services' })).toBeVisible()
-  // The slug is immutable, so it still reads default.
-  await expect(page.getByText('default', { exact: true })).toBeVisible()
 
   // The default Project can immediately hold a fully configured HTTP Monitor.
   await workspaceNavigation.getByRole('link', { name: 'Monitors' }).click()
@@ -508,12 +506,11 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await expect(page.getByRole('link', { name: 'My Services' })).toBeVisible()
 
   // Provisioning an additional Organization is still reachable from that page.
-  await page.getByLabel('Slug').fill('acme')
   await page.getByLabel('Display name').fill('Acme Monitoring')
   await page.getByRole('button', { name: 'Create', exact: true }).click()
   await expect(page.getByText('Organization created.')).toBeVisible()
 
-  await page.getByRole('link', { name: 'View Acme Monitoring' }).click()
+  await page.getByRole('link', { name: 'Acme Monitoring' }).click()
   await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+$/)
   await expect(page.getByRole('heading', { name: 'Acme Monitoring' })).toBeVisible()
   await page.getByRole('navigation', { name: 'Organization sections' })

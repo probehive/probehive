@@ -14,8 +14,6 @@ import (
 
 var _ organization.Store = (*OrganizationStore)(nil)
 
-const organizationSlugUniqueIndex = "ux_organizations_slug"
-
 // OrganizationStore persists Organizations and Projects.
 type OrganizationStore struct {
 	pool *pgxpool.Pool
@@ -28,16 +26,9 @@ func (database *DB) Organizations() *OrganizationStore {
 
 func (store *OrganizationStore) FindByID(ctx context.Context, id organization.ID) (organization.Organization, bool, error) {
 	return scanOrganization(store.pool.QueryRow(ctx, `
-SELECT id, slug, display_name, created_at
+SELECT id, display_name, created_at
 FROM organizations
 WHERE id = $1`, string(id)))
-}
-
-func (store *OrganizationStore) FindBySlug(ctx context.Context, slug string) (organization.Organization, bool, error) {
-	return scanOrganization(store.pool.QueryRow(ctx, `
-SELECT id, slug, display_name, created_at
-FROM organizations
-WHERE slug = $1`, slug))
 }
 
 func (store *OrganizationStore) FindDefaultProject(ctx context.Context, organizationID organization.ID) (organization.Project, bool, error) {
@@ -58,7 +49,7 @@ WHERE id = $1 AND organization_id = $2`, string(projectID), string(organizationI
 // Projects, in creation order. Membership is the filter; the instance role is not.
 func (store *OrganizationStore) ListForMember(ctx context.Context, userID string) ([]organization.Details, error) {
 	rows, err := store.pool.Query(ctx, `
-SELECT o.id, o.slug, o.display_name, o.created_at,
+SELECT o.id, o.display_name, o.created_at,
        p.id, p.organization_id, p.name, p.is_default, p.created_at
 FROM organizations o
 JOIN projects p ON p.organization_id = o.id AND p.is_default
@@ -73,7 +64,6 @@ ORDER BY o.created_at, o.id`, userID)
 	for rows.Next() {
 		var (
 			id             string
-			slug           string
 			displayName    string
 			createdAt      time.Time
 			projectID      string
@@ -83,12 +73,12 @@ ORDER BY o.created_at, o.id`, userID)
 			projectCreated time.Time
 		)
 		if err := rows.Scan(
-			&id, &slug, &displayName, &createdAt,
+			&id, &displayName, &createdAt,
 			&projectID, &organizationID, &projectName, &isDefault, &projectCreated,
 		); err != nil {
 			return nil, fmt.Errorf("scan Organization list row: %w", err)
 		}
-		value, err := organization.NewOrganization(organization.ID(id), slug, displayName, createdAt.UTC())
+		value, err := organization.NewOrganization(organization.ID(id), displayName, createdAt.UTC())
 		if err != nil {
 			return nil, fmt.Errorf("restore Organization: %w", err)
 		}
@@ -106,11 +96,13 @@ ORDER BY o.created_at, o.id`, userID)
 	return values, nil
 }
 
+// Create inserts the Organization, its default Project, and the initial memberships
+// in one transaction, so no path can produce an Organization without a member.
 func (store *OrganizationStore) Create(
 	ctx context.Context,
 	value organization.Organization,
 	defaultProject organization.Project,
-	membership organization.Membership,
+	memberships []organization.Membership,
 ) error {
 	transaction, err := store.pool.Begin(ctx)
 	if err != nil {
@@ -119,11 +111,8 @@ func (store *OrganizationStore) Create(
 	defer func() { _ = transaction.Rollback(ctx) }()
 
 	if _, err := transaction.Exec(ctx, `
-INSERT INTO organizations (id, slug, display_name, created_at)
-VALUES ($1, $2, $3, $4)`, string(value.ID), value.Slug, value.DisplayName, value.CreatedAt.UTC()); err != nil {
-		if isConstraintViolation(err, uniqueViolation, organizationSlugUniqueIndex) {
-			return organization.ErrDuplicateSlug
-		}
+INSERT INTO organizations (id, display_name, created_at)
+VALUES ($1, $2, $3)`, string(value.ID), value.DisplayName, value.CreatedAt.UTC()); err != nil {
 		return fmt.Errorf("insert Organization: %w", err)
 	}
 	if _, err := transaction.Exec(ctx, `
@@ -132,19 +121,94 @@ VALUES ($1, $2, $3, $4, $5)`, string(defaultProject.ID), string(defaultProject.O
 		defaultProject.IsDefault, defaultProject.CreatedAt.UTC()); err != nil {
 		return fmt.Errorf("insert default Project: %w", err)
 	}
-	if _, err := transaction.Exec(ctx, `
-INSERT INTO organization_members (organization_id, user_id, role, created_at)
-VALUES ($1, $2, $3, $4)`, string(membership.OrganizationID), membership.UserID,
-		string(membership.Role), membership.CreatedAt.UTC()); err != nil {
-		return fmt.Errorf("insert creator membership: %w", err)
+	if err := insertMemberships(ctx, transaction, memberships); err != nil {
+		return err
 	}
 	if err := transaction.Commit(ctx); err != nil {
-		if isConstraintViolation(err, uniqueViolation, organizationSlugUniqueIndex) {
-			return organization.ErrDuplicateSlug
-		}
 		return fmt.Errorf("commit Organization creation: %w", err)
 	}
 	return nil
+}
+
+// CreateMemberships inserts memberships that do not exist yet.
+func (store *OrganizationStore) CreateMemberships(ctx context.Context, memberships []organization.Membership) error {
+	if len(memberships) == 0 {
+		return nil
+	}
+	transaction, err := store.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin membership creation: %w", err)
+	}
+	defer func() { _ = transaction.Rollback(ctx) }()
+	if err := insertMemberships(ctx, transaction, memberships); err != nil {
+		return err
+	}
+	if err := transaction.Commit(ctx); err != nil {
+		return fmt.Errorf("commit membership creation: %w", err)
+	}
+	return nil
+}
+
+func insertMemberships(ctx context.Context, transaction pgx.Tx, memberships []organization.Membership) error {
+	for _, membership := range memberships {
+		if _, err := transaction.Exec(ctx, `
+INSERT INTO organization_members (organization_id, user_id, role, created_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT ON CONSTRAINT pk_organization_members DO NOTHING`,
+			string(membership.OrganizationID), membership.UserID,
+			string(membership.Role), membership.CreatedAt.UTC()); err != nil {
+			return fmt.Errorf("insert membership: %w", err)
+		}
+	}
+	return nil
+}
+
+// ListIDs returns every Organization id in creation order.
+func (store *OrganizationStore) ListIDs(ctx context.Context) ([]organization.ID, error) {
+	rows, err := store.pool.Query(ctx, `
+SELECT id
+FROM organizations
+ORDER BY created_at, id`)
+	if err != nil {
+		return nil, fmt.Errorf("list Organization ids: %w", err)
+	}
+	defer rows.Close()
+	ids := make([]organization.ID, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan Organization id: %w", err)
+		}
+		ids = append(ids, organization.ID(id))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list Organization ids: %w", err)
+	}
+	return ids, nil
+}
+
+// ListUserIDs returns every local user id in creation order.
+func (store *OrganizationStore) ListUserIDs(ctx context.Context) ([]string, error) {
+	rows, err := store.pool.Query(ctx, `
+SELECT id
+FROM users
+ORDER BY created_at, id`)
+	if err != nil {
+		return nil, fmt.Errorf("list user ids: %w", err)
+	}
+	defer rows.Close()
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan user id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list user ids: %w", err)
+	}
+	return ids, nil
 }
 
 type rowScanner interface {
@@ -154,17 +218,16 @@ type rowScanner interface {
 func scanOrganization(row rowScanner) (organization.Organization, bool, error) {
 	var (
 		id          string
-		slug        string
 		displayName string
 		createdAt   time.Time
 	)
-	if err := row.Scan(&id, &slug, &displayName, &createdAt); err != nil {
+	if err := row.Scan(&id, &displayName, &createdAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return organization.Organization{}, false, nil
 		}
 		return organization.Organization{}, false, fmt.Errorf("scan Organization: %w", err)
 	}
-	value, err := organization.NewOrganization(organization.ID(id), slug, displayName, createdAt.UTC())
+	value, err := organization.NewOrganization(organization.ID(id), displayName, createdAt.UTC())
 	if err != nil {
 		return organization.Organization{}, false, fmt.Errorf("restore Organization: %w", err)
 	}
@@ -220,7 +283,7 @@ WHERE organization_id = $1 AND user_id = $2`,
 	return value, true, nil
 }
 
-// UpdateDisplayName renames one Organization. The slug is never touched.
+// UpdateDisplayName renames one Organization.
 func (store *OrganizationStore) UpdateDisplayName(
 	ctx context.Context, id organization.ID, displayName string,
 ) (bool, error) {

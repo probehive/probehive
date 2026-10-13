@@ -18,6 +18,7 @@ import OrganizationSettingsPage from './routes/OrganizationSettingsPage.tsx'
 import OrganizationStatusPage from './routes/OrganizationStatusPage.tsx'
 import PublicStatusPage from './routes/PublicStatusPage.tsx'
 import SetupPage from './routes/SetupPage.tsx'
+import UsersPage from './routes/UsersPage.tsx'
 import './index.css'
 
 const queryClient = new QueryClient({
@@ -40,6 +41,7 @@ const router = createBrowserRouter([
         element: <RequireAuth />,
         children: [
           { index: true, element: <OrganizationsPage /> },
+          { path: 'users', element: <UsersPage /> },
           {
             path: 'organizations/:organizationId',
             element: <OrganizationLayout />,

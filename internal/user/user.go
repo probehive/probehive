@@ -22,6 +22,7 @@ const (
 	DisplayNameInvalidCode    = "user.displayName.invalid"
 	PasswordLengthCode        = "user.password.length"
 	SetupAlreadyCompletedCode = "user.setup.alreadyCompleted"
+	EmailConflictCode         = "user.email.conflict"
 	InvalidCredentialsCode    = "user.credentials.invalid"
 )
 
@@ -32,6 +33,8 @@ const (
 	PasswordValidationMessage    = "A password is 12 to 128 characters."
 	SetupAlreadyCompletedTitle   = "Setup already completed"
 	SetupAlreadyCompletedDetail  = "The instance already has at least one user; sign in instead."
+	EmailConflictTitle           = "Email already in use"
+	EmailConflictDetail          = "A user with this email address already exists."
 	InvalidCredentialsTitle      = "Invalid credentials"
 	InvalidCredentialsDetail     = "The email and password combination did not match a local account."
 )

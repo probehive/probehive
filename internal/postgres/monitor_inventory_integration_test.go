@@ -10,8 +10,8 @@ import (
 
 func TestMonitorInventoryIsScopedFilteredSortedAndPaginated(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 4100, "inventory-one")
-	otherOrganization, otherProject := seedTenant(t, database, 4200, "inventory-two")
+	organizationValue, project := seedTenant(t, database, 4100)
+	otherOrganization, otherProject := seedTenant(t, database, 4200)
 	base := testTime()
 	alpha := seedMonitor(t, database, 4110, organizationValue, project, base)
 	beta := seedMonitor(t, database, 4111, organizationValue, project, base.Add(time.Minute))
