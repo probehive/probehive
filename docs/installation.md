@@ -5,6 +5,26 @@ unreleased pre-release candidate. "Supported" here describes the candidate's tes
 package boundary, not a published release or support service. It builds local images;
 ProbeHive does not yet publish images, releases, or upgrade guarantees.
 
+## Quick Reference
+
+Everyday evaluation needs only the commands below, run from the repository root.
+The remaining sections are deployment hardening, backup and restore, upgrades,
+and troubleshooting reference; read each when the corresponding need appears.
+
+| Action | Command |
+| --- | --- |
+| Generate local secrets (once, refuses to overwrite) | `./deploy/compose/generate-secrets.sh` |
+| Start or rebuild after source changes | `docker compose -f deploy/compose/compose.yaml up --detach --build` |
+| Stop (named volume and data are retained) | `docker compose -f deploy/compose/compose.yaml stop` |
+| Start again after a stop (no rebuild) | `docker compose -f deploy/compose/compose.yaml start` |
+| Inspect service state | `docker compose -f deploy/compose/compose.yaml ps` |
+
+Rootless Podman users substitute `podman compose` for `docker compose`. When all
+three services report healthy, open <https://localhost:8443>, accept the
+self-signed certificate exception, and create the first administrator on the
+setup page. Do not add `--volumes` to `down` unless the installation data is
+intentionally disposable.
+
 ## Prerequisites
 
 - Rootless Podman with Podman Compose (`podman compose` or the native
