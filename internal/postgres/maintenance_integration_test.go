@@ -13,6 +13,7 @@ func TestMaintenanceWindowPersistenceIsTenantIsolatedAndRestartVisible(t *testin
 	organizationA := seedTenant(t, database, 200)
 	organizationB := seedTenant(t, database, 210)
 	monitorA := seedMonitor(t, database, 220, organizationA, now)
+	monitorB := seedMonitor(t, database, 250, organizationB, now)
 
 	scopeA := maintenance.Scope{
 		OrganizationID: string(organizationA.ID),
@@ -50,7 +51,7 @@ func TestMaintenanceWindowPersistenceIsTenantIsolatedAndRestartVisible(t *testin
 		},
 		{
 			OrganizationID: string(organizationA.ID),
-			MonitorID:      string(monitorA.ID),
+			MonitorID:      string(monitorB.ID),
 		},
 	}
 	for _, scope := range wrongScopes {

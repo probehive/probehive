@@ -68,7 +68,7 @@ func TestMigrationsAreConcurrentSafeAndIdempotent(t *testing.T) {
 	// created by RunStore.EnsurePartitions rather than by a migration, so a
 	// freshly migrated schema holds no partition and the count below stays stable.
 	requiredTables := []string{
-		"organizations", "projects", "users", "monitors", "monitor_revisions",
+		"organizations", "users", "monitors", "monitor_revisions",
 		"organization_members", "sessions", "antiforgery_tokens",
 		"anonymous_antiforgery_keys", "schema_migrations",
 		"runs", "observations", "outbox_entries",
@@ -251,6 +251,12 @@ ON CONFLICT ON CONSTRAINT pk_users DO NOTHING`, testUUID(901), testTime()); err 
 func TestCreateMembershipsIsRepeatablePerOrganizationAndUser(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	organizationValue := seedTenant(t, database, 80)
+	if _, err := database.pool.Exec(t.Context(), `
+INSERT INTO users (id, email, display_name, role, password_hash, created_at)
+VALUES ($1, 'member@example.test', 'Member', 'Administrator', 'test:member', $2)
+ON CONFLICT ON CONSTRAINT pk_users DO NOTHING`, testUUID(901), testTime()); err != nil {
+		t.Fatalf("seed member user: %v", err)
+	}
 	now := testTime()
 	membership, err := organization.NewMembership(
 		organizationValue.ID, testUUID(901), organization.RoleAdministrator, now,

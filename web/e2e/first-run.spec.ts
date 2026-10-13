@@ -4,9 +4,10 @@ const administratorEmail = 'admin@example.test'
 const administratorPassword = 'a-long-admin-password'
 const applicationOrigin = new URL(
   process.env.PROBEHIVE_E2E_BASE_URL ?? 'http://127.0.0.1:5173').origin
-const passingMonitorTarget = process.env.PROBEHIVE_E2E_PASSING_TARGET ?? 'http://127.0.0.1:5080/readyz'
-const webhookTarget = process.env.PROBEHIVE_E2E_WEBHOOK_TARGET ?? 'https://127.0.0.1:5080/webhook'
-const failingMonitorTarget = process.env.PROBEHIVE_E2E_FAILING_TARGET ?? 'http://127.0.0.1:5080/not-found'
+const apiPort = process.env.PROBEHIVE_E2E_API_PORT ?? '5080'
+const passingMonitorTarget = process.env.PROBEHIVE_E2E_PASSING_TARGET ?? `http://127.0.0.1:${apiPort}/readyz`
+const webhookTarget = process.env.PROBEHIVE_E2E_WEBHOOK_TARGET ?? `https://127.0.0.1:${apiPort}/webhook`
+const failingMonitorTarget = process.env.PROBEHIVE_E2E_FAILING_TARGET ?? `http://127.0.0.1:${apiPort}/not-found`
 const recoveryMonitorTarget = process.env.PROBEHIVE_E2E_RECOVERY_TARGET ?? passingMonitorTarget
 const expectMonitorTLS = passingMonitorTarget.startsWith('https://')
 
@@ -76,7 +77,6 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   const workspaceNavigation = page.getByRole('navigation', { name: 'Organization sections' })
   await workspaceNavigation.getByRole('link', { name: 'Settings' }).click()
   await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+\/settings$/)
-  await expect(page.getByRole('heading', { name: 'Default Project' })).toBeVisible()
   // The installation Organization is named Default until it is renamed.
   await page.getByRole('textbox', { name: 'Display name' }).fill('My Services')
   await page.getByRole('button', { name: 'Rename', exact: true }).click()
@@ -515,8 +515,6 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await page.getByRole('navigation', { name: 'Organization sections' })
     .getByRole('link', { name: 'Settings' }).click()
   await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]+\/settings$/)
-  await expect(page.getByText('acme', { exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Default Project' })).toBeVisible()
 
   await page.getByRole('navigation', { name: 'Organization sections' })
     .getByRole('link', { name: 'Overview' }).click()

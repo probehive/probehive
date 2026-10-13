@@ -9,7 +9,7 @@ export default defineConfig({
     // The browser Host header must be preserved (no changeOrigin) so the API's
     // same-origin validation of Origin/Referer accepts proxied unsafe requests.
     proxy: {
-      '/api': { target: 'http://localhost:5080' },
+      '/api': { target: `http://localhost:${process.env.PROBEHIVE_E2E_API_PORT ?? '5080'}` },
     },
   },
   test: {

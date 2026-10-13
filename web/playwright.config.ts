@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const apiPort = process.env.PROBEHIVE_E2E_API_PORT ?? '5080'
+
 const externalBaseURL = process.env.PROBEHIVE_E2E_BASE_URL
 
 // End-to-end journeys against the real API and a dedicated disposable PostgreSQL
@@ -28,7 +30,7 @@ export default defineConfig({
     webServer: [
       {
         command: 'bash e2e/start-api.sh',
-        url: 'http://127.0.0.1:5080/readyz',
+        url: `http://127.0.0.1:${apiPort}/readyz`,
         // Never reuse a running API: the journey depends on a freshly reset database.
         reuseExistingServer: false,
         timeout: 180_000,

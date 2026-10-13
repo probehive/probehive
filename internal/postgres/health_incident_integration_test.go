@@ -344,7 +344,7 @@ WHERE delivery_id=$1 AND sequence=1`, deliveryID).Scan(
 		t.Context(), webhook.DeliveryScope{
 			OrganizationID: string(organizationValue.ID),
 			MonitorID:      string(monitorValue.ID),
-			AlertID:        routedAlertID,
+			AlertID:        testUUID(1299),
 		},
 	)
 	if err != nil || wrongScopeFound {

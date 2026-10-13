@@ -68,7 +68,7 @@ endpoint is disabled, and unsafe requests still require same-origin antiforgery
 validation.
 
 Use the setup page to create the first administrator. Setup also creates the
-installation Organization and its default Project.
+installation Organization.
 
 ## Runtime Shape
 
@@ -200,7 +200,7 @@ At least one API process with `PROBEHIVE_WORKER_ENABLED=true` must remain active
 to create future partitions and enforce expiry. The packaged API enables the
 worker by default. An API-only replica does not perform partition maintenance.
 
-Raw expiry does not remove Organizations, Projects, Monitors, Monitor Revisions,
+Raw expiry does not remove Organizations, Monitors, Monitor Revisions,
 health transitions, Incidents and their timelines, Alerts, Webhook
 Integrations, or Webhook delivery evidence. Durable health and Incident evidence
 keeps bounded counts plus the causal Run id and scheduled instant; after the raw

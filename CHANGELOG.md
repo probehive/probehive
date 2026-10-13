@@ -11,8 +11,11 @@ announcement. The owner controls version selection, signing, tagging, and public
 - Source-built, production-like Compose installation with a non-root TLS gateway, one Go
   application, one PostgreSQL database, external file secrets, health checks, persistent
   data, and graceful shutdown.
-- First-administrator setup, Organization membership, browser sessions, antiforgery and
-  origin validation, and permission-based tenant authorization.
+- First-administrator setup (email and password only), Organization membership, browser
+  sessions, antiforgery and origin validation, and permission-based tenant authorization.
+- Flat-team user administration: an administrator creates additional users who become
+  Administrators of every Organization, so personal and small-team deployments need no
+  per-Organization member management.
 - Versioned HTTP Monitor configuration, scheduled and manual Runs, bounded HTTP
   Observations, health evaluation, Incidents, immutable Alerts, and evidence views.
 - Monitor-scoped one-time maintenance windows. Maintenance preserves monitoring facts and

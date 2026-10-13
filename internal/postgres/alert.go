@@ -148,8 +148,8 @@ SELECT id, organization_id, monitor_id, incident_id,
 FROM alerts
 WHERE organization_id=$1 AND monitor_id=$2
   AND (
-      $4::timestamptz IS NULL
-      OR (occurred_at, id) < ($4::timestamptz, $5::uuid)
+      $3::timestamptz IS NULL
+      OR (occurred_at, id) < ($3::timestamptz, $4::uuid)
   )
 ORDER BY occurred_at DESC, id DESC
 LIMIT $5`, scope.OrganizationID, scope.MonitorID,
