@@ -10,13 +10,13 @@ import (
 
 func TestMonitorInventoryIsScopedFilteredSortedAndPaginated(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 4100)
-	otherOrganization, otherProject := seedTenant(t, database, 4200)
+	organizationValue := seedTenant(t, database, 4100)
+	otherOrganization := seedTenant(t, database, 4200)
 	base := testTime()
-	alpha := seedMonitor(t, database, 4110, organizationValue, project, base)
-	beta := seedMonitor(t, database, 4111, organizationValue, project, base.Add(time.Minute))
-	gamma := seedMonitor(t, database, 4112, organizationValue, project, base.Add(2*time.Minute))
-	other := seedMonitor(t, database, 4210, otherOrganization, otherProject, base)
+	alpha := seedMonitor(t, database, 4110, organizationValue, base)
+	beta := seedMonitor(t, database, 4111, organizationValue, base.Add(time.Minute))
+	gamma := seedMonitor(t, database, 4112, organizationValue, base.Add(2*time.Minute))
+	other := seedMonitor(t, database, 4210, otherOrganization, base)
 	setOverviewMonitorState(t, database, alpha, "paused")
 	setOverviewMonitorState(t, database, beta, "active")
 	setOverviewMonitorState(t, database, gamma, "active")
@@ -55,25 +55,25 @@ INSERT INTO maintenance_windows (
 	}
 
 	store := database.MonitorInventory()
-	first, total, err := store.ListMonitorInventory(t.Context(), string(organizationValue.ID), string(project.ID), monitor.InventoryQuery{
+	first, total, err := store.ListMonitorInventory(t.Context(), string(organizationValue.ID), monitor.InventoryQuery{
 		Sort: monitor.InventorySortName, Direction: monitor.InventoryDirectionAscending, Page: 1, PageSize: 2,
 	}, now)
 	if err != nil || total != 3 || len(first) != 2 || first[0].Monitor.Name != "Alpha API" || first[1].Monitor.Name != "Beta API" {
 		t.Fatalf("first page = %#v, total %d, error %v", first, total, err)
 	}
-	second, total, err := store.ListMonitorInventory(t.Context(), string(organizationValue.ID), string(project.ID), monitor.InventoryQuery{
+	second, total, err := store.ListMonitorInventory(t.Context(), string(organizationValue.ID), monitor.InventoryQuery{
 		Sort: monitor.InventorySortName, Direction: monitor.InventoryDirectionAscending, Page: 2, PageSize: 2,
 	}, now)
 	if err != nil || total != 3 || len(second) != 1 || second[0].Monitor.Name != "Gamma Site" {
 		t.Fatalf("second page = %#v, total %d, error %v", second, total, err)
 	}
-	literal, total, err := store.ListMonitorInventory(t.Context(), string(organizationValue.ID), string(project.ID), monitor.InventoryQuery{
+	literal, total, err := store.ListMonitorInventory(t.Context(), string(organizationValue.ID), monitor.InventoryQuery{
 		Search: "%", Sort: monitor.InventorySortName, Direction: monitor.InventoryDirectionAscending, Page: 1, PageSize: 25,
 	}, now)
 	if err != nil || total != 0 || len(literal) != 0 {
 		t.Fatalf("literal wildcard search = %#v, total %d, error %v", literal, total, err)
 	}
-	combined, total, err := store.ListMonitorInventory(t.Context(), string(organizationValue.ID), string(project.ID), monitor.InventoryQuery{
+	combined, total, err := store.ListMonitorInventory(t.Context(), string(organizationValue.ID), monitor.InventoryQuery{
 		Search: "api", State: monitor.StateActive, Health: monitor.InventoryHealthDown,
 		RunOutcome: monitor.InventoryRunFailed, Maintenance: monitor.InventoryMaintenanceActive,
 		Sort: monitor.InventorySortUpdatedAt, Direction: monitor.InventoryDirectionDescending,

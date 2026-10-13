@@ -28,7 +28,6 @@ func (store *memoryMaintenanceStore) monitorExists(
 ) (bool, error) {
 	_, found, err := store.monitors.FindMonitor(ctx, monitor.Scope{
 		OrganizationID: scope.OrganizationID,
-		ProjectID:      scope.ProjectID,
 		MonitorID:      monitor.ID(scope.MonitorID),
 	})
 	return found, err

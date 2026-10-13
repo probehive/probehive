@@ -10,24 +10,22 @@ import { jsonResponse, renderRoutes } from '../test/renderWithProviders.tsx'
 import MonitorPage from './MonitorPage.tsx'
 
 const organizationId = '019f8f3d-5bb0-76fc-8fcf-02811ef6b2ee'
-const projectId = '019f8f3d-5bb0-7aa5-b81a-2868fc7c2420'
 const monitorId = '019f8f3d-5bb0-7cf5-b971-3c752c712310'
 const passedRunId = '019f8f3d-5bb0-7de2-817b-71874054d7d1'
 const skippedRunId = '019f8f3d-5bb0-7e18-a0b4-9c4b126487a0'
 const expiredRunId = '019f8f3d-5bb0-7f37-88c8-67ce1958eac1'
 const monitorURL =
-  `/api/v1/organizations/${organizationId}/projects/${projectId}/monitors/${monitorId}`
+  `/api/v1/organizations/${organizationId}/monitors/${monitorId}`
 const runsURL = `${monitorURL}/runs`
 const healthURL = `${monitorURL}/health`
 const incidentsURL = `${monitorURL}/incidents`
 const alertsURL = `${monitorURL}/alerts`
 const monitorRoute =
-  `/organizations/${organizationId}/projects/${projectId}/monitors/${monitorId}`
+  `/organizations/${organizationId}/monitors/${monitorId}`
 
 const monitor: MonitorResponse = {
   id: monitorId,
   organizationId,
-  projectId,
   name: 'Homepage',
   checkType: 'http',
   state: 'active',
@@ -39,7 +37,6 @@ const monitor: MonitorResponse = {
 
 const health: MonitorHealthResponse = {
   organizationId,
-  projectId,
   monitorId,
   state: 'degraded',
   stableState: 'healthy',
@@ -76,7 +73,6 @@ const health: MonitorHealthResponse = {
 const passedRun: RunResponse = {
   id: passedRunId,
   organizationId,
-  projectId,
   monitorId,
   revisionNumber: 3,
   location: 'embedded',
@@ -142,8 +138,8 @@ afterEach(() => {
 function renderPage(initialPath = monitorRoute) {
   return renderRoutes(
     [
-      { path: 'organizations/:organizationId/projects/:projectId/monitors/:monitorId', element: <MonitorPage /> },
-      { path: 'organizations/:organizationId/projects/:projectId/monitors/:monitorId/runs/:runId', element: <MonitorPage /> },
+      { path: 'organizations/:organizationId/monitors/:monitorId', element: <MonitorPage /> },
+      { path: 'organizations/:organizationId/monitors/:monitorId/runs/:runId', element: <MonitorPage /> },
     ],
     initialPath,
   )

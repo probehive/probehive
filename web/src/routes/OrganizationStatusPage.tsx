@@ -8,7 +8,6 @@ export default function OrganizationStatusPage() {
   return (
     <StatusPageDraftSection
       organizationId={organization.id}
-      projectId={organization.defaultProject.id}
     />
   )
 }

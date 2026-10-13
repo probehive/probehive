@@ -15,20 +15,20 @@ import (
 func TestAlertAPIEnforcesScopePermissionAndKeysetPagination(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	environment.bootstrapAdministrator(t)
-	organizationID, projectID, monitorID := seedRunQueryMonitor(t, environment)
+	organizationID, monitorID := seedRunQueryMonitor(t, environment)
 	now := environment.clock.Now()
 	environment.alerts.mu.Lock()
 	environment.alerts.alerts = []alert.Alert{
 		{
 			ID:             "00000000-0000-7000-8000-000000000033",
-			OrganizationID: organizationID, ProjectID: projectID, MonitorID: monitorID,
+			OrganizationID: organizationID, MonitorID: monitorID,
 			IncidentID:      "00000000-0000-7000-8000-000000000133",
 			IncidentVersion: 3, Kind: alert.KindIncidentResolved,
 			OccurredAt: now.Add(-time.Minute), CreatedAt: now,
 		},
 		{
 			ID:             "00000000-0000-7000-8000-000000000032",
-			OrganizationID: organizationID, ProjectID: projectID, MonitorID: monitorID,
+			OrganizationID: organizationID, MonitorID: monitorID,
 			IncidentID:      "00000000-0000-7000-8000-000000000132",
 			IncidentVersion: 1, Kind: alert.KindIncidentOpened,
 			OccurredAt: now.Add(-2 * time.Minute), CreatedAt: now,
@@ -36,8 +36,7 @@ func TestAlertAPIEnforcesScopePermissionAndKeysetPagination(t *testing.T) {
 	}
 	environment.alerts.mu.Unlock()
 
-	path := "/api/v1/organizations/" + organizationID + "/projects/" + projectID +
-		"/monitors/" + monitorID + "/alerts"
+	path := "/api/v1/organizations/" + organizationID + "/monitors/" + monitorID + "/alerts"
 	firstResponse := environment.request(
 		t, environment.client, http.MethodGet, path+"?pageSize=1", "", "", "",
 	)
@@ -74,13 +73,12 @@ func TestAlertAPIEnforcesScopePermissionAndKeysetPagination(t *testing.T) {
 	if viewer.StatusCode != http.StatusOK {
 		t.Fatalf("Viewer Alert read = %d, body %s", viewer.StatusCode, viewer.Body)
 	}
-	wrongProject := environment.request(
+	wrongOrganization := environment.request(
 		t, environment.client, http.MethodGet,
-		"/api/v1/organizations/"+organizationID+
-			"/projects/00000000-0000-7000-8000-000000000099/monitors/"+monitorID+"/alerts",
+		"/api/v1/organizations/00000000-0000-7000-8000-000000000099/monitors/"+monitorID+"/alerts",
 		"", "", "",
 	)
-	assertProblem(t, wrongProject, http.StatusNotFound, "Not Found", "")
+	assertProblem(t, wrongOrganization, http.StatusNotFound, "Not Found", "")
 	environment.organizations.setMembership(
 		organization.ID(organizationID), environment.administratorID(t),
 		organization.RoleAdministrator, false,

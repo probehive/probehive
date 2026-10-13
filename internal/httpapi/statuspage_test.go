@@ -16,7 +16,7 @@ import (
 func TestStatusPageDraftAPIIsAdministratorOnlyAndDisclosureSafe(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	antiforgery := environment.bootstrapAdministrator(t)
-	organizationID, projectID, monitorID := seedRunQueryMonitor(t, environment)
+	organizationID, monitorID := seedRunQueryMonitor(t, environment)
 	path := "/api/v1/organizations/" + organizationID + "/status-page/draft"
 
 	if response := environment.request(t, &http.Client{}, http.MethodGet, path, "", "", ""); response.StatusCode != http.StatusUnauthorized {
@@ -67,7 +67,7 @@ func TestStatusPageDraftAPIIsAdministratorOnlyAndDisclosureSafe(t *testing.T) {
 
 	archivedID := "00000000-0000-7000-8000-000000000099"
 	archived, err := monitor.RestoreMonitor(
-		monitor.ID(archivedID), organizationID, projectID, "Archived", "http",
+		monitor.ID(archivedID), organizationID, "Archived", "http",
 		monitor.StateArchived, monitor.DefaultIntervalSeconds, 1,
 		time.Date(2026, 7, 23, 0, 0, 0, 0, time.UTC),
 		time.Date(2026, 7, 23, 0, 0, 0, 0, time.UTC), 1,
@@ -103,7 +103,7 @@ func TestStatusPagePublicationLifecycleIsProtectedAndDisclosureSafe(t *testing.T
 		config.PublicStatusReadsPerMinute = 20
 	})
 	antiforgery := environment.bootstrapAdministrator(t)
-	organizationID, _, monitorID := seedRunQueryMonitor(t, environment)
+	organizationID, monitorID := seedRunQueryMonitor(t, environment)
 	publicationPath := "/api/v1/organizations/" + organizationID + "/status-page/publication"
 	draftPath := "/api/v1/organizations/" + organizationID + "/status-page/draft"
 

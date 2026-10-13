@@ -30,22 +30,20 @@ function initialComponents(
 
 export default function StatusPageDraftSection({
   organizationId,
-  projectId,
 }: {
   organizationId: string
-  projectId: string
 }) {
   const { t, formatDateTime, translateError, translateProblem } = useTranslation()
   const queryClient = useQueryClient()
   const draftKey = statusPageQueryKey(organizationId)
-  const monitorsKey = monitorsQueryKey(organizationId, projectId)
+  const monitorsKey = monitorsQueryKey(organizationId)
   const draftQuery = useQuery({
     queryKey: draftKey,
     queryFn: () => getStatusPageDraft(organizationId),
   })
   const monitorsQuery = useQuery({
     queryKey: monitorsKey,
-    queryFn: () => listMonitors(organizationId, projectId),
+    queryFn: () => listMonitors(organizationId),
   })
   const [title, setTitle] = useState('')
   const [components, setComponents] = useState<StatusComponentInput[]>([])

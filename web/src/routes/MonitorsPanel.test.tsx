@@ -9,14 +9,12 @@ import { jsonResponse, renderWithProviders } from '../test/renderWithProviders.t
 import MonitorsPanel from './MonitorsPanel.tsx'
 
 const organizationId = '019f8f3d-5bb0-76fc-8fcf-02811ef6b2ee'
-const projectId = '019f8f3d-5bb0-7aa5-b81a-2868fc7c2420'
 const monitorId = '019f8f3d-5bb0-7cf5-b971-3c752c712310'
-const collectionURL = `/api/v1/organizations/${organizationId}/projects/${projectId}/monitors`
+const collectionURL = `/api/v1/organizations/${organizationId}/monitors`
 
 const draft: MonitorResponse = {
   id: monitorId,
   organizationId,
-  projectId,
   name: 'Homepage',
   checkType: 'http',
   state: 'draft',
@@ -39,7 +37,7 @@ afterEach(() => {
 
 function renderPanel() {
   return renderWithProviders(
-    <MonitorsPanel organizationId={organizationId} projectId={projectId} />,
+    <MonitorsPanel organizationId={organizationId} />,
     '',
     '/',
   )
@@ -56,7 +54,7 @@ test('lists existing Monitors with their operational state', async () => {
   expect(await screen.findByRole('row', { name: /Homepage Active/ })).toBeInTheDocument()
   expect(screen.getByRole('link', { name: /Homepage/ })).toHaveAttribute(
     'href',
-    `/organizations/${organizationId}/projects/${projectId}/monitors/${monitorId}`,
+    `/organizations/${organizationId}/monitors/${monitorId}`,
   )
   expect(screen.getByText('60 seconds')).toBeInTheDocument()
   expect(screen.getByText('v1')).toBeInTheDocument()

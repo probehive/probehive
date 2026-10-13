@@ -14,12 +14,11 @@ export default function MonitorLifecycleControls({ monitor }: { monitor: Monitor
   const { t, translateProblem } = useTranslation()
   const queryClient = useQueryClient()
   const [confirmingArchive, setConfirmingArchive] = useState(false)
-  const listKey = monitorsQueryKey(monitor.organizationId, monitor.projectId)
-  const detailKey = monitorQueryKey(monitor.organizationId, monitor.projectId, monitor.id)
+  const listKey = monitorsQueryKey(monitor.organizationId)
+  const detailKey = monitorQueryKey(monitor.organizationId, monitor.id)
   const mutation = useMutation<MonitorResponse, unknown, MonitorStateTarget>({
     mutationFn: (state) => changeMonitorState(
       monitor.organizationId,
-      monitor.projectId,
       monitor.id,
       state,
     ),

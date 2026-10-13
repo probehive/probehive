@@ -307,8 +307,8 @@ func (store *RunStore) MonitorExists(ctx context.Context, scope run.Scope) (bool
 SELECT EXISTS (
     SELECT 1
     FROM monitors
-    WHERE id = $1 AND project_id = $2 AND organization_id = $3
-)`, scope.MonitorID, scope.ProjectID, scope.OrganizationID).Scan(&exists); err != nil {
+    WHERE id = $1 AND organization_id = $2
+)`, scope.MonitorID, scope.OrganizationID).Scan(&exists); err != nil {
 		return false, fmt.Errorf("check Monitor scope for Run query: %w", err)
 	}
 	return exists, nil
@@ -337,18 +337,18 @@ SELECT `+scopedRunColumns+`
 FROM runs AS r
 JOIN monitors AS m
   ON m.id = r.monitor_id AND m.organization_id = r.organization_id
-WHERE r.monitor_id = $1 AND r.organization_id = $2 AND m.project_id = $3
-  AND r.scheduled_for >= $4
+WHERE r.monitor_id = $1 AND r.organization_id = $2
+  AND r.scheduled_for >= $3
   AND (
-      $5::timestamptz IS NULL
-      OR (r.scheduled_for, r.id) < ($5::timestamptz, $6::uuid)
+      $4::timestamptz IS NULL
+      OR (r.scheduled_for, r.id) < ($4::timestamptz, $5::uuid)
   )
-  AND ($7::text IS NULL OR r.outcome = $7)
-  AND ($8::text IS NULL OR r.kind = $8)
-  AND ($9::text IS NULL OR r.location = $9)
+  AND ($6::text IS NULL OR r.outcome = $6)
+  AND ($7::text IS NULL OR r.kind = $7)
+  AND ($8::text IS NULL OR r.location = $8)
 ORDER BY r.scheduled_for DESC, r.id DESC
-LIMIT $10`,
-		scope.MonitorID, scope.OrganizationID, scope.ProjectID, query.NotBefore.UTC(),
+LIMIT $9`,
+		scope.MonitorID, scope.OrganizationID, query.NotBefore.UTC(),
 		cursorTime, cursorID, textPointer(string(query.Outcome)),
 		textPointer(string(query.Kind)), textPointer(query.Location), query.PageSize+1)
 	if err != nil {
@@ -385,9 +385,9 @@ SELECT `+scopedRunColumns+`
 FROM runs AS r
 JOIN monitors AS m
   ON m.id = r.monitor_id AND m.organization_id = r.organization_id
-WHERE r.id = $1 AND r.monitor_id = $2 AND r.organization_id = $3 AND m.project_id = $4
+WHERE r.id = $1 AND r.monitor_id = $2 AND r.organization_id = $3
 ORDER BY r.scheduled_for DESC
-LIMIT 1`, string(id), scope.MonitorID, scope.OrganizationID, scope.ProjectID))
+LIMIT 1`, string(id), scope.MonitorID, scope.OrganizationID))
 }
 
 // FindRun loads one Run under explicit Organization scope.

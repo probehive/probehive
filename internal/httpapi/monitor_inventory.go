@@ -34,7 +34,7 @@ var monitorInventoryQueryMessages = map[string]string{
 }
 
 func (server *Server) monitorInventoryRoot(w http.ResponseWriter, r *http.Request) {
-	organizationID, projectID, ok := projectScope(r)
+	organizationID, ok := organizationScope(r)
 	if !ok {
 		writeStatusProblem(w, http.StatusNotFound)
 		return
@@ -51,13 +51,9 @@ func (server *Server) monitorInventoryRoot(w http.ResponseWriter, r *http.Reques
 		writeValidationProblem(w, failures)
 		return
 	}
-	page, found, err := server.monitorInventory.List(r.Context(), organizationID, projectID, query)
+	page, err := server.monitorInventory.List(r.Context(), organizationID, query)
 	if err != nil {
 		server.internalError(w, r, "list Monitor inventory", err)
-		return
-	}
-	if !found {
-		writeStatusProblem(w, http.StatusNotFound)
 		return
 	}
 	items := make([]api.MonitorInventoryItemResponse, len(page.Items))

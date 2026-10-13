@@ -14,12 +14,11 @@ export default function ChangeMonitorTargetForm({ monitor }: { monitor: MonitorR
   const { t, translateError, translateProblem } = useTranslation()
   const queryClient = useQueryClient()
   const [url, setURL] = useState('')
-  const listKey = monitorsQueryKey(monitor.organizationId, monitor.projectId)
-  const detailKey = monitorQueryKey(monitor.organizationId, monitor.projectId, monitor.id)
+  const listKey = monitorsQueryKey(monitor.organizationId)
+  const detailKey = monitorQueryKey(monitor.organizationId, monitor.id)
   const mutation = useMutation<MonitorRevisionResponse, unknown, string>({
     mutationFn: (nextURL) => createHTTPRevision(
       monitor.organizationId,
-      monitor.projectId,
       monitor.id,
       nextURL,
     ),

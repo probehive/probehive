@@ -13,15 +13,13 @@ import { jsonResponse, renderWithProviders } from '../test/renderWithProviders.t
 import MonitorInventoryPanel from './MonitorInventoryPanel.tsx'
 
 const organizationId = '019f8f3d-5bb0-76fc-8fcf-02811ef6b2ee'
-const projectId = '019f8f3d-5bb0-7aa5-b81a-2868fc7c2420'
 const monitorId = '019f8f3d-5bb0-7cf5-b971-3c752c712310'
 const inventoryURL = '/api/v1/organizations/' + organizationId
-  + '/projects/' + projectId + '/monitor-inventory'
+  + '/monitor-inventory'
 
 const active: MonitorResponse = {
   id: monitorId,
   organizationId,
-  projectId,
   name: 'API Gateway',
   checkType: 'http',
   state: 'active',
@@ -63,7 +61,7 @@ function requestURL(input: RequestInfo | URL): string {
 
 function renderPanel(initialPath = '/') {
   return renderWithProviders(
-    <MonitorInventoryPanel organizationId={organizationId} projectId={projectId} />,
+    <MonitorInventoryPanel organizationId={organizationId} />,
     '',
     initialPath,
   )
@@ -133,8 +131,7 @@ test('pauses a Monitor from the inventory and refreshes the row', async () => {
   let current = active
   const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
     const url = requestURL(input)
-    if (url === '/api/v1/organizations/' + organizationId + '/projects/' + projectId
-      + '/monitors/' + monitorId + '/state' && init?.method === 'PUT') {
+    if (url === '/api/v1/organizations/' + organizationId + '/monitors/' + monitorId + '/state' && init?.method === 'PUT') {
       current = { ...active, state: 'paused', updatedAt: '2026-08-18T01:06:00+00:00' }
       return Promise.resolve(jsonResponse(200, current))
     }
@@ -149,8 +146,7 @@ test('pauses a Monitor from the inventory and refreshes the row', async () => {
 
   expect(await screen.findByRole('button', { name: en['monitor.lifecycle.activate'] })).toBeInTheDocument()
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
-    '/api/v1/organizations/' + organizationId + '/projects/' + projectId
-      + '/monitors/' + monitorId + '/state',
+    '/api/v1/organizations/' + organizationId + '/monitors/' + monitorId + '/state',
     expect.objectContaining({
       method: 'PUT',
       body: JSON.stringify({ state: 'paused' }),

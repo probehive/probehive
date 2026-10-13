@@ -103,8 +103,8 @@ FROM monitors AS m
 JOIN monitor_revisions AS r
   ON r.monitor_id = m.id AND r.organization_id = m.organization_id
  AND r.revision_number = m.latest_revision_number
-WHERE m.id = $1 AND m.project_id = $2 AND m.organization_id = $3`,
-		scope.MonitorID, scope.ProjectID, scope.OrganizationID).Scan(
+WHERE m.id = $1 AND m.organization_id = $2`,
+		scope.MonitorID, scope.OrganizationID).Scan(
 		&value.OrganizationID, &value.MonitorID, &intervalSeconds, &updatedAt,
 		&value.RevisionNumber, &value.CheckType, &value.CheckSchemaVersion, &configuration)
 	if errors.Is(err, pgx.ErrNoRows) {

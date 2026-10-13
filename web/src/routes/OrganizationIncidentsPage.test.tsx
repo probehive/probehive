@@ -33,7 +33,6 @@ function incidentItem(
     incident: {
       id,
       organizationId: organization.id,
-      projectId: organization.defaultProject.id,
       monitorId: '00000000-0000-7000-8000-000000000010',
       state,
       version: 1,
@@ -122,7 +121,6 @@ test('renders active Organization Incident facts and retained unavailable Run ev
   expect(await within(inbox).findByRole('link', { name: 'Checkout API' })).toHaveAttribute(
     'href',
     '/organizations/' + organization.id +
-      '/projects/' + organization.defaultProject.id +
       '/monitors/00000000-0000-7000-8000-000000000010',
   )
   expect(inbox.querySelector('.incident-state[data-state="open"]')).toHaveTextContent('Open')
@@ -133,7 +131,6 @@ test('renders active Organization Incident facts and retained unavailable Run ev
   expect(within(inbox).getByRole('link', { name: 'View Incident evidence' })).toHaveAttribute(
     'href',
     '/organizations/' + organization.id +
-      '/projects/' + organization.defaultProject.id +
       '/monitors/00000000-0000-7000-8000-000000000010' +
       '/incidents/00000000-0000-7000-8000-000000000030',
   )
@@ -178,7 +175,6 @@ test('persists lifecycle filters in the URL and loads exactly one next cursor pa
   expect(screen.getByRole('link', { name: 'View opening Run' })).toHaveAttribute(
     'href',
     '/organizations/' + organization.id +
-      '/projects/' + organization.defaultProject.id +
       '/monitors/00000000-0000-7000-8000-000000000010' +
       '/runs/00000000-0000-7000-8000-000000000052',
   )

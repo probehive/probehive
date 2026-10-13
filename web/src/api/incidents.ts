@@ -22,7 +22,6 @@ export interface IncidentTimelineResponse {
 export interface IncidentResponse {
   id: string
   organizationId: string
-  projectId: string
   monitorId: string
   state: IncidentState
   version: number
@@ -48,17 +47,14 @@ interface ListIncidentsOptions {
 
 function incidentsPath(
   organizationId: string,
-  projectId: string,
   monitorId: string,
 ): string {
   return '/api/v1/organizations/' + encodeURIComponent(organizationId) +
-    '/projects/' + encodeURIComponent(projectId) +
-    '/monitors/' + encodeURIComponent(monitorId) + '/incidents'
+        '/monitors/' + encodeURIComponent(monitorId) + '/incidents'
 }
 
 export function listIncidents(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   options: ListIncidentsOptions = {},
 ): Promise<IncidentPageResponse> {
@@ -69,29 +65,27 @@ export function listIncidents(
     query.set('cursor', options.cursor)
   }
   return getJson<IncidentPageResponse>(
-    incidentsPath(organizationId, projectId, monitorId) + '?' + query.toString(),
+    incidentsPath(organizationId, monitorId) + '?' + query.toString(),
   )
 }
 
 export function getIncident(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   incidentId: string,
 ): Promise<IncidentResponse> {
   return getJson<IncidentResponse>(
-    incidentsPath(organizationId, projectId, monitorId) + '/' + encodeURIComponent(incidentId),
+    incidentsPath(organizationId, monitorId) + '/' + encodeURIComponent(incidentId),
   )
 }
 
 export async function acknowledgeIncident(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   incidentId: string,
 ): Promise<IncidentResponse> {
   const response = await postJson(
-    incidentsPath(organizationId, projectId, monitorId) + '/' +
+    incidentsPath(organizationId, monitorId) + '/' +
       encodeURIComponent(incidentId) + '/acknowledge',
   )
   return (await response.json()) as IncidentResponse
@@ -102,7 +96,6 @@ export type IncidentInboxState = 'active' | IncidentState
 export interface IncidentInboxIncidentResponse {
   id: string
   organizationId: string
-  projectId: string
   monitorId: string
   state: IncidentState
   version: number

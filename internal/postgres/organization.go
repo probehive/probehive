@@ -31,28 +31,12 @@ FROM organizations
 WHERE id = $1`, string(id)))
 }
 
-func (store *OrganizationStore) FindDefaultProject(ctx context.Context, organizationID organization.ID) (organization.Project, bool, error) {
-	return scanProject(store.pool.QueryRow(ctx, `
-SELECT id, organization_id, name, is_default, created_at
-FROM projects
-WHERE organization_id = $1 AND is_default`, string(organizationID)))
-}
-
-func (store *OrganizationStore) FindProject(ctx context.Context, organizationID organization.ID, projectID organization.ProjectID) (organization.Project, bool, error) {
-	return scanProject(store.pool.QueryRow(ctx, `
-SELECT id, organization_id, name, is_default, created_at
-FROM projects
-WHERE id = $1 AND organization_id = $2`, string(projectID), string(organizationID)))
-}
-
 // ListForMember returns the Organizations a user belongs to, joined to their default
 // Projects, in creation order. Membership is the filter; the instance role is not.
 func (store *OrganizationStore) ListForMember(ctx context.Context, userID string) ([]organization.Details, error) {
 	rows, err := store.pool.Query(ctx, `
-SELECT o.id, o.display_name, o.created_at,
-       p.id, p.organization_id, p.name, p.is_default, p.created_at
+SELECT o.id, o.display_name, o.created_at
 FROM organizations o
-JOIN projects p ON p.organization_id = o.id AND p.is_default
 JOIN organization_members m ON m.organization_id = o.id AND m.user_id = $1
 ORDER BY o.created_at, o.id`, userID)
 	if err != nil {
@@ -63,32 +47,18 @@ ORDER BY o.created_at, o.id`, userID)
 	values := make([]organization.Details, 0)
 	for rows.Next() {
 		var (
-			id             string
-			displayName    string
-			createdAt      time.Time
-			projectID      string
-			organizationID string
-			projectName    string
-			isDefault      bool
-			projectCreated time.Time
+			id          string
+			displayName string
+			createdAt   time.Time
 		)
-		if err := rows.Scan(
-			&id, &displayName, &createdAt,
-			&projectID, &organizationID, &projectName, &isDefault, &projectCreated,
-		); err != nil {
+		if err := rows.Scan(&id, &displayName, &createdAt); err != nil {
 			return nil, fmt.Errorf("scan Organization list row: %w", err)
 		}
 		value, err := organization.NewOrganization(organization.ID(id), displayName, createdAt.UTC())
 		if err != nil {
 			return nil, fmt.Errorf("restore Organization: %w", err)
 		}
-		values = append(values, organization.Details{
-			Organization: value,
-			DefaultProject: organization.Project{
-				ID: organization.ProjectID(projectID), OrganizationID: organization.ID(organizationID),
-				Name: projectName, IsDefault: isDefault, CreatedAt: projectCreated.UTC(),
-			},
-		})
+		values = append(values, organization.Details{Organization: value})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list Organizations: %w", err)
@@ -101,7 +71,6 @@ ORDER BY o.created_at, o.id`, userID)
 func (store *OrganizationStore) Create(
 	ctx context.Context,
 	value organization.Organization,
-	defaultProject organization.Project,
 	memberships []organization.Membership,
 ) error {
 	transaction, err := store.pool.Begin(ctx)
@@ -114,12 +83,6 @@ func (store *OrganizationStore) Create(
 INSERT INTO organizations (id, display_name, created_at)
 VALUES ($1, $2, $3)`, string(value.ID), value.DisplayName, value.CreatedAt.UTC()); err != nil {
 		return fmt.Errorf("insert Organization: %w", err)
-	}
-	if _, err := transaction.Exec(ctx, `
-INSERT INTO projects (id, organization_id, name, is_default, created_at)
-VALUES ($1, $2, $3, $4, $5)`, string(defaultProject.ID), string(defaultProject.OrganizationID), defaultProject.Name,
-		defaultProject.IsDefault, defaultProject.CreatedAt.UTC()); err != nil {
-		return fmt.Errorf("insert default Project: %w", err)
 	}
 	if err := insertMemberships(ctx, transaction, memberships); err != nil {
 		return err
@@ -232,26 +195,6 @@ func scanOrganization(row rowScanner) (organization.Organization, bool, error) {
 		return organization.Organization{}, false, fmt.Errorf("restore Organization: %w", err)
 	}
 	return value, true, nil
-}
-
-func scanProject(row rowScanner) (organization.Project, bool, error) {
-	var (
-		id             string
-		organizationID string
-		name           string
-		isDefault      bool
-		createdAt      time.Time
-	)
-	if err := row.Scan(&id, &organizationID, &name, &isDefault, &createdAt); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return organization.Project{}, false, nil
-		}
-		return organization.Project{}, false, fmt.Errorf("scan Project: %w", err)
-	}
-	return organization.Project{
-		ID: organization.ProjectID(id), OrganizationID: organization.ID(organizationID),
-		Name: name, IsDefault: isDefault, CreatedAt: createdAt.UTC(),
-	}, true, nil
 }
 
 // FindMembership resolves one user's membership of one Organization.

@@ -29,16 +29,14 @@ type CheckValidator interface {
 // Scope carries explicit tenant and ownership identity for every Monitor lookup.
 type Scope struct {
 	OrganizationID string
-	ProjectID      string
 	MonitorID      ID
 }
 
 // Store is the persistence port owned by the Monitor feature.
 type Store interface {
-	ProjectExists(context.Context, string, string) (bool, error)
 	FindMonitor(context.Context, Scope) (Monitor, bool, error)
 	// ListMonitors returns creation order with UUID as tie-breaker.
-	ListMonitors(context.Context, string, string) ([]Monitor, error)
+	ListMonitors(context.Context, string) ([]Monitor, error)
 	CreateMonitor(context.Context, Monitor) error
 	// UpdateMonitor uses expectedVersion in its mutation predicate and returns ErrConcurrentUpdate on zero rows.
 	UpdateMonitor(context.Context, Monitor, uint32) error
@@ -55,13 +53,11 @@ type CreateKind uint8
 const (
 	CreateInvalid CreateKind = iota + 1
 	CreateCreated
-	CreateProjectNotFound
 )
 
 // CreateCommand requests a new draft Monitor.
 type CreateCommand struct {
 	OrganizationID string
-	ProjectID      string
 	Name           string
 	CheckType      string
 	// IntervalSeconds is validated like every other field. Substituting the default for an
@@ -133,7 +129,7 @@ func NewService(store Store, checks CheckValidator, clock Clock, uuids UUIDGener
 	return &Service{store: store, checks: checks, clock: clock, uuids: uuids}
 }
 
-// Create validates all fields before checking Project existence.
+// Create validates all fields, then persists a new draft Monitor.
 func (service *Service) Create(ctx context.Context, command CreateCommand) (CreateResult, error) {
 	var failures []ValidationFailure
 	name, validName := NormalizeName(command.Name)
@@ -154,20 +150,12 @@ func (service *Service) Create(ctx context.Context, command CreateCommand) (Crea
 		return CreateResult{Kind: CreateInvalid, Failures: failures}, nil
 	}
 
-	exists, err := service.store.ProjectExists(ctx, command.OrganizationID, command.ProjectID)
-	if err != nil {
-		return CreateResult{}, err
-	}
-	if !exists {
-		return CreateResult{Kind: CreateProjectNotFound}, nil
-	}
-
 	now := service.clock.Now().UTC()
 	id, err := service.uuids.NewUUIDv7(now)
 	if err != nil {
 		return CreateResult{}, fmt.Errorf("generate Monitor id: %w", err)
 	}
-	created, err := NewMonitor(ID(id), command.OrganizationID, command.ProjectID, name, checkType, intervalSeconds, now)
+	created, err := NewMonitor(ID(id), command.OrganizationID, name, checkType, intervalSeconds, now)
 	if err != nil {
 		return CreateResult{}, err
 	}
@@ -177,25 +165,21 @@ func (service *Service) Create(ctx context.Context, command CreateCommand) (Crea
 	return CreateResult{Kind: CreateCreated, Monitor: created}, nil
 }
 
-// Get returns a Monitor only within its complete Organization and Project scope.
+// Get returns a Monitor only within its Organization scope.
 func (service *Service) Get(ctx context.Context, scope Scope) (Monitor, bool, error) {
 	return service.store.FindMonitor(ctx, scope)
 }
 
-// List returns Monitors in one Project, or found=false when that Project is outside the Organization.
-func (service *Service) List(ctx context.Context, organizationID, projectID string) ([]Monitor, bool, error) {
-	exists, err := service.store.ProjectExists(ctx, organizationID, projectID)
-	if err != nil || !exists {
-		return nil, exists, err
-	}
-	values, err := service.store.ListMonitors(ctx, organizationID, projectID)
+// List returns the Monitors of one Organization in creation order.
+func (service *Service) List(ctx context.Context, organizationID string) ([]Monitor, error) {
+	values, err := service.store.ListMonitors(ctx, organizationID)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	if values == nil {
 		values = []Monitor{}
 	}
-	return values, true, nil
+	return values, nil
 }
 
 // Rename validates before lookup, then applies an optimistic mutation.

@@ -26,7 +26,6 @@ func (store *memoryAlertStore) ListAlerts(
 ) ([]alert.Alert, bool, bool, error) {
 	if _, found, err := store.monitors.FindMonitor(ctx, monitor.Scope{
 		OrganizationID: scope.OrganizationID,
-		ProjectID:      scope.ProjectID,
 		MonitorID:      monitor.ID(scope.MonitorID),
 	}); err != nil || !found {
 		return nil, false, found, err
@@ -36,7 +35,7 @@ func (store *memoryAlertStore) ListAlerts(
 	values := make([]alert.Alert, 0)
 	for _, value := range store.alerts {
 		if value.OrganizationID != scope.OrganizationID ||
-			value.ProjectID != scope.ProjectID || value.MonitorID != scope.MonitorID {
+			value.MonitorID != scope.MonitorID {
 			continue
 		}
 		if query.Cursor != nil {

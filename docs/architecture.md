@@ -60,7 +60,7 @@ implementations until multiple current consumers justify a general interface.
 The required ownership path is:
 
 ```text
-Organization -> Project -> Monitor -> Monitor Revision -> Run -> Observation
+Organization -> Monitor -> Monitor Revision -> Run -> Observation
 ```
 
 Status Components are Organization-owned communication identities associated with
@@ -73,8 +73,8 @@ instants, and active-maintenance presentation. They expose no internal identity,
 evidence, membership, Integration, or secret and make no uptime or historical claim.
 
 Organization is the tenant, authorization, and isolation boundary. Every
-Organization creation path uses the same idempotent core operation and creates a
-default Project transactionally. Monitors never move between Organizations.
+Organization creation path uses the same core operation and creates its
+memberships transactionally. Monitors never move between Organizations.
 Tenant identity is explicit in authorization, persistence, leases, events, and
 uniqueness rules. A non-member cannot use object existence as an information
 oracle.

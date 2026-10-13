@@ -13,19 +13,17 @@ export default function ManualRunControl({ monitor }: { monitor: MonitorResponse
   const runsKey = [
     'runs',
     monitor.organizationId,
-    monitor.projectId,
     monitor.id,
   ] as const
   const mutation = useMutation<RunResponse>({
     mutationFn: () => triggerManualRun(
       monitor.organizationId,
-      monitor.projectId,
       monitor.id,
     ),
     onSuccess: async (run) => {
       await queryClient.invalidateQueries({ queryKey: runsKey })
       void navigate(
-        '/organizations/' + monitor.organizationId + '/projects/' + monitor.projectId +
+        '/organizations/' + monitor.organizationId +
         '/monitors/' + monitor.id + '/runs/' + run.id,
       )
     },

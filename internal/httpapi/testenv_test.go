@@ -489,7 +489,6 @@ func (store *memoryAntiforgeryStore) DeleteSessionAntiforgeryBySelectorHash(_ co
 type memoryOrganizationStore struct {
 	mu          sync.Mutex
 	byID        map[organization.ID]organization.Organization
-	projects    map[organization.ProjectID]organization.Project
 	memberships map[string]organization.Membership
 	// users mirrors the environment's user store so ListUserIDs sees local users,
 	// matching the SQL store which reads the same table.
@@ -503,7 +502,6 @@ func membershipKey(organizationID organization.ID, userID string) string {
 func newMemoryOrganizationStore() *memoryOrganizationStore {
 	return &memoryOrganizationStore{
 		byID:        make(map[organization.ID]organization.Organization),
-		projects:    make(map[organization.ProjectID]organization.Project),
 		memberships: make(map[string]organization.Membership),
 	}
 }
@@ -512,25 +510,6 @@ func (store *memoryOrganizationStore) FindByID(_ context.Context, id organizatio
 	defer store.mu.Unlock()
 	value, found := store.byID[id]
 	return value, found, nil
-}
-func (store *memoryOrganizationStore) FindDefaultProject(_ context.Context, id organization.ID) (organization.Project, bool, error) {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	for _, project := range store.projects {
-		if project.OrganizationID == id && project.IsDefault {
-			return project, true, nil
-		}
-	}
-	return organization.Project{}, false, nil
-}
-func (store *memoryOrganizationStore) FindProject(_ context.Context, organizationID organization.ID, projectID organization.ProjectID) (organization.Project, bool, error) {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	project, found := store.projects[projectID]
-	if !found || project.OrganizationID != organizationID {
-		return organization.Project{}, false, nil
-	}
-	return project, true, nil
 }
 func (store *memoryOrganizationStore) FindMembership(
 	_ context.Context, organizationID organization.ID, userID string,
@@ -549,12 +528,7 @@ func (store *memoryOrganizationStore) ListForMember(_ context.Context, userID st
 		if _, member := store.memberships[membershipKey(value.ID, userID)]; !member {
 			continue
 		}
-		for _, project := range store.projects {
-			if project.OrganizationID == value.ID && project.IsDefault {
-				values = append(values, organization.Details{Organization: value, DefaultProject: project})
-				break
-			}
-		}
+		values = append(values, organization.Details{Organization: value})
 	}
 	sort.Slice(values, func(i, j int) bool {
 		if values[i].Organization.CreatedAt.Equal(values[j].Organization.CreatedAt) {
@@ -568,12 +542,11 @@ func (store *memoryOrganizationStore) ListForMember(_ context.Context, userID st
 func (store *memoryOrganizationStore) Create(
 	_ context.Context,
 	value organization.Organization,
-	project organization.Project,
 	memberships []organization.Membership,
 ) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
-	store.byID[value.ID], store.projects[project.ID] = value, project
+	store.byID[value.ID] = value
 	for _, membership := range memberships {
 		store.memberships[membershipKey(membership.OrganizationID, membership.UserID)] = membership
 	}
@@ -648,26 +621,19 @@ func (store *memoryOrganizationStore) setMembership(
 
 type memoryMonitorStore struct {
 	mu          sync.Mutex
-	projects    map[string]bool
 	monitors    map[string]monitor.Monitor
 	revisions   map[string]monitor.Revision
 	updateError error
 }
 
 func newMemoryMonitorStore() *memoryMonitorStore {
-	return &memoryMonitorStore{projects: make(map[string]bool), monitors: make(map[string]monitor.Monitor), revisions: make(map[string]monitor.Revision)}
+	return &memoryMonitorStore{monitors: make(map[string]monitor.Monitor), revisions: make(map[string]monitor.Revision)}
 }
-func projectKey(organizationID, projectID string) string { return organizationID + "/" + projectID }
 func monitorKey(scope monitor.Scope) string {
-	return scope.OrganizationID + "/" + scope.ProjectID + "/" + string(scope.MonitorID)
+	return scope.OrganizationID + "/" + string(scope.MonitorID)
 }
 func revisionKey(organizationID string, monitorID monitor.ID, number int) string {
 	return fmt.Sprintf("%s/%s/%d", organizationID, monitorID, number)
-}
-func (store *memoryMonitorStore) ProjectExists(_ context.Context, organizationID, projectID string) (bool, error) {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	return store.projects[projectKey(organizationID, projectID)], nil
 }
 func (store *memoryMonitorStore) FindMonitor(_ context.Context, scope monitor.Scope) (monitor.Monitor, bool, error) {
 	store.mu.Lock()
@@ -675,12 +641,12 @@ func (store *memoryMonitorStore) FindMonitor(_ context.Context, scope monitor.Sc
 	value, found := store.monitors[monitorKey(scope)]
 	return value, found, nil
 }
-func (store *memoryMonitorStore) ListMonitors(_ context.Context, organizationID, projectID string) ([]monitor.Monitor, error) {
+func (store *memoryMonitorStore) ListMonitors(_ context.Context, organizationID string) ([]monitor.Monitor, error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	values := []monitor.Monitor{}
 	for _, value := range store.monitors {
-		if value.OrganizationID == organizationID && value.ProjectID == projectID {
+		if value.OrganizationID == organizationID {
 			values = append(values, value)
 		}
 	}
@@ -693,10 +659,10 @@ func (store *memoryMonitorStore) ListMonitors(_ context.Context, organizationID,
 	return values, nil
 }
 func (store *memoryMonitorStore) ListMonitorInventory(
-	ctx context.Context, organizationID, projectID string,
+	ctx context.Context, organizationID string,
 	query monitor.InventoryQuery, _ time.Time,
 ) ([]monitor.InventoryItem, int, error) {
-	values, err := store.ListMonitors(ctx, organizationID, projectID)
+	values, err := store.ListMonitors(ctx, organizationID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -743,7 +709,7 @@ func (store *memoryMonitorStore) ListMonitorInventory(
 func (store *memoryMonitorStore) CreateMonitor(_ context.Context, value monitor.Monitor) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
-	store.monitors[monitorKey(monitor.Scope{OrganizationID: value.OrganizationID, ProjectID: value.ProjectID, MonitorID: value.ID})] = value
+	store.monitors[monitorKey(monitor.Scope{OrganizationID: value.OrganizationID, MonitorID: value.ID})] = value
 	return nil
 }
 func (store *memoryMonitorStore) UpdateMonitor(_ context.Context, value monitor.Monitor, expected uint32) error {
@@ -752,7 +718,7 @@ func (store *memoryMonitorStore) UpdateMonitor(_ context.Context, value monitor.
 	if store.updateError != nil {
 		return store.updateError
 	}
-	key := monitorKey(monitor.Scope{OrganizationID: value.OrganizationID, ProjectID: value.ProjectID, MonitorID: value.ID})
+	key := monitorKey(monitor.Scope{OrganizationID: value.OrganizationID, MonitorID: value.ID})
 	current, found := store.monitors[key]
 	if !found || current.Version != expected {
 		return monitor.ErrConcurrentUpdate
@@ -791,6 +757,5 @@ func (store *memoryMonitorStore) ListRevisions(_ context.Context, organizationID
 func (store *memoryMonitorStore) seed(value monitor.Monitor) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
-	store.projects[projectKey(value.OrganizationID, value.ProjectID)] = true
-	store.monitors[monitorKey(monitor.Scope{OrganizationID: value.OrganizationID, ProjectID: value.ProjectID, MonitorID: value.ID})] = value
+	store.monitors[monitorKey(monitor.Scope{OrganizationID: value.OrganizationID, MonitorID: value.ID})] = value
 }

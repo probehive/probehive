@@ -73,7 +73,6 @@ func CountsFor(evidence Evidence) Counts {
 type Candidate struct {
 	ID                     string
 	OrganizationID         string
-	ProjectID              string
 	MonitorID              string
 	SourceRevisionNumber   int
 	Direction              Direction
@@ -87,7 +86,6 @@ type Candidate struct {
 
 type Snapshot struct {
 	OrganizationID            string
-	ProjectID                 string
 	MonitorID                 string
 	State                     State
 	StableState               State
@@ -104,15 +102,15 @@ type Snapshot struct {
 	UpdatedAt                 time.Time
 }
 
-func Initial(organizationID, projectID, monitorID string, now time.Time) (Snapshot, error) {
-	if organizationID == "" || projectID == "" || monitorID == "" {
-		return Snapshot{}, errors.New("health requires Organization, Project, and Monitor identity")
+func Initial(organizationID, monitorID string, now time.Time) (Snapshot, error) {
+	if organizationID == "" || monitorID == "" {
+		return Snapshot{}, errors.New("health requires Organization and Monitor identity")
 	}
 	if !isUTC(now) {
 		return Snapshot{}, errors.New("health timestamps must be UTC")
 	}
 	return Snapshot{
-		OrganizationID: organizationID, ProjectID: projectID, MonitorID: monitorID,
+		OrganizationID: organizationID, MonitorID: monitorID,
 		State: StateUnknown, StableState: StateUnknown, PolicyVersion: PolicyVersion,
 		TransitionedAt: now, UpdatedAt: now,
 	}, nil
@@ -249,7 +247,6 @@ func beginCandidate(
 	candidate := Candidate{
 		ID:                     input.NewCandidateID,
 		OrganizationID:         decision.Snapshot.OrganizationID,
-		ProjectID:              decision.Snapshot.ProjectID,
 		MonitorID:              decision.Snapshot.MonitorID,
 		SourceRevisionNumber:   input.RevisionNumber,
 		Direction:              direction,
@@ -377,8 +374,8 @@ func MarkStale(current Snapshot, now time.Time) (Decision, error) {
 }
 
 func validateSnapshot(value Snapshot) error {
-	if value.OrganizationID == "" || value.ProjectID == "" || value.MonitorID == "" {
-		return errors.New("health requires Organization, Project, and Monitor identity")
+	if value.OrganizationID == "" || value.MonitorID == "" {
+		return errors.New("health requires Organization and Monitor identity")
 	}
 	if value.PolicyVersion != PolicyVersion {
 		return fmt.Errorf("unsupported health policy %q", value.PolicyVersion)

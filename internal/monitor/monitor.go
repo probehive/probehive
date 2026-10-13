@@ -68,11 +68,10 @@ const (
 	StateArchived State = "archived"
 )
 
-// Monitor is the long-lived check identity owned by one Organization and Project.
+// Monitor is the long-lived check identity owned by one Organization.
 type Monitor struct {
 	ID             ID
 	OrganizationID string
-	ProjectID      string
 	Name           string
 	CheckType      string
 	State          State
@@ -88,21 +87,21 @@ type Monitor struct {
 }
 
 // NewMonitor creates a draft Monitor with no revisions.
-func NewMonitor(id ID, organizationID, projectID, name, checkType string, intervalSeconds int, createdAt time.Time) (Monitor, error) {
-	return RestoreMonitor(id, organizationID, projectID, name, checkType, StateDraft, intervalSeconds, 0, createdAt, createdAt, 0)
+func NewMonitor(id ID, organizationID, name, checkType string, intervalSeconds int, createdAt time.Time) (Monitor, error) {
+	return RestoreMonitor(id, organizationID, name, checkType, StateDraft, intervalSeconds, 0, createdAt, createdAt, 0)
 }
 
 // RestoreMonitor validates a Monitor loaded from persistence.
 func RestoreMonitor(
 	id ID,
-	organizationID, projectID, name, checkType string,
+	organizationID, name, checkType string,
 	state State,
 	intervalSeconds int,
 	latestRevisionNumber int,
 	createdAt, updatedAt time.Time,
 	version uint32,
 ) (Monitor, error) {
-	if id == "" || organizationID == "" || projectID == "" {
+	if id == "" || organizationID == "" {
 		return Monitor{}, errors.New("a Monitor requires identity and tenant scope")
 	}
 	if normalized, ok := NormalizeName(name); !ok || normalized != name {
@@ -127,7 +126,7 @@ func RestoreMonitor(
 		return Monitor{}, errors.New("persisted timestamps must be UTC")
 	}
 	return Monitor{
-		ID: id, OrganizationID: organizationID, ProjectID: projectID,
+		ID: id, OrganizationID: organizationID,
 		Name: name, CheckType: checkType, State: state,
 		IntervalSeconds:      intervalSeconds,
 		LatestRevisionNumber: latestRevisionNumber,

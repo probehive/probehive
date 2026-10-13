@@ -39,7 +39,6 @@ func (checks *fakeChecks) Validate(_ string, _ int, _ json.RawMessage) (json.Raw
 }
 
 type fakeStore struct {
-	projectExists    bool
 	monitor          Monitor
 	monitorFound     bool
 	monitors         []Monitor
@@ -52,22 +51,16 @@ type fakeStore struct {
 	updated          []Monitor
 	appended         []Revision
 	expectedVersions []uint32
-	projectCalls     int
 	findCalls        int
 	contextValue     any
 }
 
-func (store *fakeStore) ProjectExists(ctx context.Context, _, _ string) (bool, error) {
-	store.contextValue = ctx.Value(contextKey{})
-	store.projectCalls++
-	return store.projectExists, nil
-}
 func (store *fakeStore) FindMonitor(ctx context.Context, _ Scope) (Monitor, bool, error) {
 	store.contextValue = ctx.Value(contextKey{})
 	store.findCalls++
 	return store.monitor, store.monitorFound, nil
 }
-func (store *fakeStore) ListMonitors(context.Context, string, string) ([]Monitor, error) {
+func (store *fakeStore) ListMonitors(context.Context, string) ([]Monitor, error) {
 	return store.monitors, nil
 }
 func (store *fakeStore) CreateMonitor(ctx context.Context, value Monitor) error {
@@ -101,7 +94,7 @@ func newService(store *fakeStore, checks *fakeChecks, now time.Time, ids ...stri
 	return NewService(store, checks, fixedClock{now}, &sequenceUUIDs{values: ids})
 }
 func draftMonitor(revisions int) Monitor {
-	value, _ := RestoreMonitor("monitor", "org", "project", "API", "http", StateDraft, DefaultIntervalSeconds, revisions, testTime(), testTime(), 42)
+	value, _ := RestoreMonitor("monitor", "org", "API", "http", StateDraft, DefaultIntervalSeconds, revisions, testTime(), testTime(), 42)
 	return value
 }
 
@@ -121,8 +114,8 @@ func TestCreateValidatesAllFieldsBeforeProjectLookup(t *testing.T) {
 	if result.Kind != CreateInvalid || !reflect.DeepEqual(result.Failures, want) {
 		t.Fatalf("result = %#v", result)
 	}
-	if store.projectCalls != 0 {
-		t.Fatal("validation failure queried Project")
+	if len(store.created) != 0 {
+		t.Fatal("validation failure reached persistence")
 	}
 }
 
@@ -138,13 +131,13 @@ func TestCreateRejectsWellFormedUnsupportedCheckType(t *testing.T) {
 	}
 }
 
-func TestCreateChecksScopedProjectThenCreatesDraftAtUTCInstant(t *testing.T) {
+func TestCreateCreatesDraftAtUTCInstant(t *testing.T) {
 	t.Parallel()
 	local := time.Date(2026, 7, 24, 8, 0, 0, 0, time.FixedZone("CST", 8*3600))
-	store := &fakeStore{projectExists: true}
+	store := &fakeStore{}
 	checks := &fakeChecks{supported: true}
 	ctx := context.WithValue(context.Background(), contextKey{}, "kept")
-	result, err := newService(store, checks, local, "monitor-id").Create(ctx, CreateCommand{OrganizationID: "org", ProjectID: "project", Name: " API ", CheckType: "http", IntervalSeconds: 120})
+	result, err := newService(store, checks, local, "monitor-id").Create(ctx, CreateCommand{OrganizationID: "org", Name: " API ", CheckType: "http", IntervalSeconds: 120})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,20 +149,10 @@ func TestCreateChecksScopedProjectThenCreatesDraftAtUTCInstant(t *testing.T) {
 	}
 }
 
-func TestCreateReturnsProjectNotFoundWithoutClockOrUUID(t *testing.T) {
-	t.Parallel()
-	ids := &sequenceUUIDs{values: []string{"unused"}}
-	service := NewService(&fakeStore{}, &fakeChecks{supported: true}, fixedClock{testTime()}, ids)
-	result, err := service.Create(context.Background(), CreateCommand{OrganizationID: "org", ProjectID: "other", Name: "API", CheckType: "http", IntervalSeconds: DefaultIntervalSeconds})
-	if err != nil || result.Kind != CreateProjectNotFound || len(ids.times) != 0 {
-		t.Fatalf("result = %#v, error %v", result, err)
-	}
-}
-
 func TestRenameValidationNotFoundArchivedSuccessAndConcurrency(t *testing.T) {
 	t.Parallel()
 	now := testTime()
-	scope := Scope{OrganizationID: "org", ProjectID: "project", MonitorID: "monitor"}
+	scope := Scope{OrganizationID: "org", MonitorID: "monitor"}
 	tests := []struct {
 		name       string
 		store      *fakeStore
@@ -199,7 +182,7 @@ func TestRenameValidationNotFoundArchivedSuccessAndConcurrency(t *testing.T) {
 func TestChangeStateValidationLifecycleAndConcurrency(t *testing.T) {
 	t.Parallel()
 	now := testTime()
-	scope := Scope{OrganizationID: "org", ProjectID: "project", MonitorID: "monitor"}
+	scope := Scope{OrganizationID: "org", MonitorID: "monitor"}
 	invalid, err := newService(&fakeStore{}, &fakeChecks{}, now, "unused").ChangeState(context.Background(), scope, "draft")
 	if err != nil || invalid.Kind != UpdateInvalid || invalid.Failures[0].Message != TargetStateValidationMessage {
 		t.Fatalf("invalid = %#v, %v", invalid, err)
@@ -224,7 +207,7 @@ func TestChangeStateValidationLifecycleAndConcurrency(t *testing.T) {
 func TestCreateRevisionOrderingValidationCanonicalizationAndAtomicAdvance(t *testing.T) {
 	t.Parallel()
 	now := testTime()
-	scope := Scope{OrganizationID: "org", ProjectID: "project", MonitorID: "monitor"}
+	scope := Scope{OrganizationID: "org", MonitorID: "monitor"}
 	configuration := json.RawMessage(` { "url": "https://example.test" } `)
 	canonical := json.RawMessage(`{"url":"https://example.test"}`)
 
@@ -258,7 +241,7 @@ func TestCreateRevisionOrderingValidationCanonicalizationAndAtomicAdvance(t *tes
 
 func TestCreateRevisionNotFoundArchivedUnsupportedAndConcurrency(t *testing.T) {
 	t.Parallel()
-	scope := Scope{OrganizationID: "org", ProjectID: "project", MonitorID: "monitor"}
+	scope := Scope{OrganizationID: "org", MonitorID: "monitor"}
 	now := testTime()
 	tests := []struct {
 		name       string
@@ -291,16 +274,12 @@ func TestCreateRevisionNotFoundArchivedUnsupportedAndConcurrency(t *testing.T) {
 
 func TestListAndRevisionQueriesPreserveScopeAndEmptyArrays(t *testing.T) {
 	t.Parallel()
-	service := newService(&fakeStore{}, &fakeChecks{}, testTime(), "unused")
-	if values, found, err := service.List(context.Background(), "org", "project"); err != nil || found || values != nil {
-		t.Fatalf("missing list = %#v, %v, %v", values, found, err)
+	store := &fakeStore{monitor: draftMonitor(0), monitorFound: true}
+	service := newService(store, &fakeChecks{}, testTime(), "unused")
+	if values, err := service.List(context.Background(), "org"); err != nil || values == nil || len(values) != 0 {
+		t.Fatalf("empty list = %#v, %v", values, err)
 	}
-	store := &fakeStore{projectExists: true, monitor: draftMonitor(0), monitorFound: true}
-	service = newService(store, &fakeChecks{}, testTime(), "unused")
-	if values, found, err := service.List(context.Background(), "org", "project"); err != nil || !found || values == nil || len(values) != 0 {
-		t.Fatalf("empty list = %#v, %v, %v", values, found, err)
-	}
-	scope := Scope{OrganizationID: "org", ProjectID: "project", MonitorID: "monitor"}
+	scope := Scope{OrganizationID: "org", MonitorID: "monitor"}
 	if values, found, err := service.ListRevisions(context.Background(), scope); err != nil || !found || values == nil || len(values) != 0 {
 		t.Fatalf("empty revisions = %#v, %v, %v", values, found, err)
 	}

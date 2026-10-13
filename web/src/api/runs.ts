@@ -14,7 +14,6 @@ export interface ConfirmationCauseResponse {
 export interface RunResponse {
   id: string
   organizationId: string
-  projectId: string
   monitorId: string
   revisionNumber: number
   location: string
@@ -70,13 +69,12 @@ interface ListRunsOptions {
   cursor?: string
 }
 
-function runsPath(organizationId: string, projectId: string, monitorId: string): string {
-  return `/api/v1/organizations/${encodeURIComponent(organizationId)}/projects/${encodeURIComponent(projectId)}/monitors/${encodeURIComponent(monitorId)}/runs`
+function runsPath(organizationId: string, monitorId: string): string {
+  return `/api/v1/organizations/${encodeURIComponent(organizationId)}/monitors/${encodeURIComponent(monitorId)}/runs`
 }
 
 export function listRuns(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   options: ListRunsOptions,
 ): Promise<RunPageResponse> {
@@ -88,37 +86,34 @@ export function listRuns(
     query.set('cursor', options.cursor)
   }
   return getJson<RunPageResponse>(
-    `${runsPath(organizationId, projectId, monitorId)}?${query.toString()}`,
+    `${runsPath(organizationId, monitorId)}?${query.toString()}`,
   )
 }
 
 export async function triggerManualRun(
   organizationId: string,
-  projectId: string,
   monitorId: string,
 ): Promise<RunResponse> {
-  const response = await postJson(runsPath(organizationId, projectId, monitorId))
+  const response = await postJson(runsPath(organizationId, monitorId))
   return (await response.json()) as RunResponse
 }
 
 export function getRun(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   runId: string,
 ): Promise<RunResponse> {
   return getJson<RunResponse>(
-    `${runsPath(organizationId, projectId, monitorId)}/${encodeURIComponent(runId)}`,
+    `${runsPath(organizationId, monitorId)}/${encodeURIComponent(runId)}`,
   )
 }
 
 export function getObservation(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   runId: string,
 ): Promise<ObservationResponse> {
   return getJson<ObservationResponse>(
-    `${runsPath(organizationId, projectId, monitorId)}/${encodeURIComponent(runId)}/observation`,
+    `${runsPath(organizationId, monitorId)}/${encodeURIComponent(runId)}/observation`,
   )
 }

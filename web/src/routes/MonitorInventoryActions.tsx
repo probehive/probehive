@@ -18,11 +18,11 @@ export default function MonitorInventoryActions({ monitor, onResume }: MonitorIn
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [confirmingArchive, setConfirmingArchive] = useState(false)
-  const listKey = monitorsQueryKey(monitor.organizationId, monitor.projectId)
-  const detailKey = monitorQueryKey(monitor.organizationId, monitor.projectId, monitor.id)
+  const listKey = monitorsQueryKey(monitor.organizationId)
+  const detailKey = monitorQueryKey(monitor.organizationId, monitor.id)
   const stateMutation = useMutation({
     mutationFn: (state: 'active' | 'paused' | 'archived') => changeMonitorState(
-      monitor.organizationId, monitor.projectId, monitor.id, state,
+      monitor.organizationId, monitor.id, state,
     ),
     onSuccess: async (value) => {
       setConfirmingArchive(false)
@@ -34,10 +34,10 @@ export default function MonitorInventoryActions({ monitor, onResume }: MonitorIn
     },
   })
   const runMutation = useMutation({
-    mutationFn: () => triggerManualRun(monitor.organizationId, monitor.projectId, monitor.id),
+    mutationFn: () => triggerManualRun(monitor.organizationId, monitor.id),
     onSuccess: async (run) => {
       await queryClient.invalidateQueries({ queryKey: listKey })
-      void navigate(`/organizations/${monitor.organizationId}/projects/${monitor.projectId}/monitors/${monitor.id}/runs/${run.id}`)
+      void navigate(`/organizations/${monitor.organizationId}/monitors/${monitor.id}/runs/${run.id}`)
     },
   })
 

@@ -8,7 +8,6 @@ export type MonitorStateTarget = Exclude<MonitorState, 'draft'>
 export interface MonitorResponse {
   id: string
   organizationId: string
-  projectId: string
   name: string
   checkType: string
   state: MonitorState
@@ -28,30 +27,29 @@ export interface MonitorRevisionResponse {
   createdAt: string
 }
 
-function collectionPath(organizationId: string, projectId: string): string {
-  return `/api/v1/organizations/${encodeURIComponent(organizationId)}/projects/${encodeURIComponent(projectId)}/monitors`
+function collectionPath(organizationId: string): string {
+  return `/api/v1/organizations/${encodeURIComponent(organizationId)}/monitors`
 }
 
-function monitorPath(organizationId: string, projectId: string, monitorId: string): string {
-  return `${collectionPath(organizationId, projectId)}/${encodeURIComponent(monitorId)}`
+function monitorPath(organizationId: string, monitorId: string): string {
+  return `${collectionPath(organizationId)}/${encodeURIComponent(monitorId)}`
 }
 
-export function listMonitors(organizationId: string, projectId: string): Promise<MonitorResponse[]> {
-  return getJson<MonitorResponse[]>(collectionPath(organizationId, projectId))
+export function listMonitors(organizationId: string): Promise<MonitorResponse[]> {
+  return getJson<MonitorResponse[]>(collectionPath(organizationId))
 }
 
-export function getMonitor(organizationId: string, projectId: string, monitorId: string): Promise<MonitorResponse> {
-  return getJson<MonitorResponse>(monitorPath(organizationId, projectId, monitorId))
+export function getMonitor(organizationId: string, monitorId: string): Promise<MonitorResponse> {
+  return getJson<MonitorResponse>(monitorPath(organizationId, monitorId))
 }
 
 export async function renameMonitor(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   name: string,
 ): Promise<MonitorResponse> {
   const response = await putJson(
-    `${monitorPath(organizationId, projectId, monitorId)}/name`,
+    `${monitorPath(organizationId, monitorId)}/name`,
     { name },
   )
   return (await response.json()) as MonitorResponse
@@ -59,12 +57,11 @@ export async function renameMonitor(
 
 export async function changeMonitorInterval(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   intervalSeconds: number,
 ): Promise<MonitorResponse> {
   const response = await putJson(
-    `${monitorPath(organizationId, projectId, monitorId)}/interval`,
+    `${monitorPath(organizationId, monitorId)}/interval`,
     { intervalSeconds },
   )
   return (await response.json()) as MonitorResponse
@@ -72,11 +69,10 @@ export async function changeMonitorInterval(
 
 export async function createHTTPMonitor(
   organizationId: string,
-  projectId: string,
   name: string,
   intervalSeconds: number,
 ): Promise<MonitorResponse> {
-  const response = await postJson(collectionPath(organizationId, projectId), {
+  const response = await postJson(collectionPath(organizationId), {
     name,
     checkType: 'http',
     intervalSeconds,
@@ -86,12 +82,11 @@ export async function createHTTPMonitor(
 
 export async function createHTTPRevision(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   url: string,
 ): Promise<MonitorRevisionResponse> {
   const response = await postJson(
-    `${monitorPath(organizationId, projectId, monitorId)}/revisions`,
+    `${monitorPath(organizationId, monitorId)}/revisions`,
     {
       checkSchemaVersion: 1,
       checkConfiguration: { url },
@@ -102,12 +97,11 @@ export async function createHTTPRevision(
 
 export async function changeMonitorState(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   state: MonitorStateTarget,
 ): Promise<MonitorResponse> {
   const response = await putJson(
-    `${monitorPath(organizationId, projectId, monitorId)}/state`,
+    `${monitorPath(organizationId, monitorId)}/state`,
     { state },
   )
   return (await response.json()) as MonitorResponse
@@ -115,10 +109,9 @@ export async function changeMonitorState(
 
 export function activateMonitor(
   organizationId: string,
-  projectId: string,
   monitorId: string,
 ): Promise<MonitorResponse> {
-  return changeMonitorState(organizationId, projectId, monitorId, 'active')
+  return changeMonitorState(organizationId, monitorId, 'active')
 }
 export type MonitorHealthState = 'notEvaluated' | 'unknown' | 'healthy' | 'degraded' | 'down'
 export type MonitorRunOutcome = 'notRun' | 'inProgress' | 'passed' | 'failed' | 'errored' | 'timedout' | 'cancelled' | 'skipped'
@@ -158,7 +151,6 @@ export interface MonitorInventoryQuery {
 }
 export function listMonitorInventory(
   organizationId: string,
-  projectId: string,
   query: MonitorInventoryQuery,
 ): Promise<MonitorInventoryPageResponse> {
   const parameters = new URLSearchParams()
@@ -171,6 +163,6 @@ export function listMonitorInventory(
   parameters.set('direction', query.direction)
   parameters.set('page', String(query.page))
   parameters.set('pageSize', String(query.pageSize))
-  const path = `/api/v1/organizations/${encodeURIComponent(organizationId)}/projects/${encodeURIComponent(projectId)}/monitor-inventory`
+  const path = `/api/v1/organizations/${encodeURIComponent(organizationId)}/monitor-inventory`
   return getJson<MonitorInventoryPageResponse>(`${path}?${parameters.toString()}`)
 }

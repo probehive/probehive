@@ -61,7 +61,6 @@ func validHealthTransitionEvent(now time.Time) HealthTransitionedV1 {
 		CausationID:  "00000000-0000-7000-8000-000000000004",
 		TransitionID: "00000000-0000-7000-8000-000000000005",
 		MonitorID:    "00000000-0000-7000-8000-000000000003",
-		ProjectID:    "00000000-0000-7000-8000-000000000006",
 		OldState:     "degraded", NewState: "down", PolicyVersion: "phase1.v1",
 	}
 }

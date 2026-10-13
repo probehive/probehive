@@ -39,19 +39,10 @@ type SetupResponse struct {
 	Organization OrganizationResponse `json:"organization"`
 }
 
-type ProjectResponse struct {
-	ID             string    `json:"id"`
-	OrganizationID string    `json:"organizationId"`
-	Name           string    `json:"name"`
-	IsDefault      bool      `json:"isDefault"`
-	CreatedAt      time.Time `json:"createdAt"`
-}
-
 type OrganizationResponse struct {
-	ID             string          `json:"id"`
-	DisplayName    string          `json:"displayName"`
-	CreatedAt      time.Time       `json:"createdAt"`
-	DefaultProject ProjectResponse `json:"defaultProject"`
+	ID          string    `json:"id"`
+	DisplayName string    `json:"displayName"`
+	CreatedAt   time.Time `json:"createdAt"`
 }
 
 type OrganizationOverviewResponse struct {
@@ -90,7 +81,6 @@ type OrganizationOverviewIncidentSummary struct {
 
 type OrganizationOverviewActiveIncident struct {
 	ID          string    `json:"id"`
-	ProjectID   string    `json:"projectId"`
 	MonitorID   string    `json:"monitorId"`
 	MonitorName string    `json:"monitorName"`
 	State       string    `json:"state"`
@@ -116,7 +106,6 @@ type OrganizationOverviewCapabilities struct {
 type MonitorResponse struct {
 	ID                   string    `json:"id"`
 	OrganizationID       string    `json:"organizationId"`
-	ProjectID            string    `json:"projectId"`
 	Name                 string    `json:"name"`
 	CheckType            string    `json:"checkType"`
 	State                string    `json:"state"`
@@ -161,7 +150,6 @@ type MonitorInventoryMaintenanceResponse struct {
 type MaintenanceWindowResponse struct {
 	ID             string     `json:"id"`
 	OrganizationID string     `json:"organizationId"`
-	ProjectID      string     `json:"projectId"`
 	MonitorID      string     `json:"monitorId"`
 	StartsAt       time.Time  `json:"startsAt"`
 	EndsAt         time.Time  `json:"endsAt"`
@@ -221,7 +209,6 @@ type ReplaceStatusComponentInput struct {
 
 type MonitorHealthResponse struct {
 	OrganizationID            string                   `json:"organizationId"`
-	ProjectID                 string                   `json:"projectId"`
 	MonitorID                 string                   `json:"monitorId"`
 	State                     string                   `json:"state"`
 	StableState               string                   `json:"stableState"`
@@ -267,7 +254,6 @@ type IncidentPageResponse struct {
 type IncidentResponse struct {
 	ID                   string                     `json:"id"`
 	OrganizationID       string                     `json:"organizationId"`
-	ProjectID            string                     `json:"projectId"`
 	MonitorID            string                     `json:"monitorId"`
 	State                string                     `json:"state"`
 	Version              int64                      `json:"version"`
@@ -304,7 +290,6 @@ type AlertPageResponse struct {
 type AlertResponse struct {
 	ID              string    `json:"id"`
 	OrganizationID  string    `json:"organizationId"`
-	ProjectID       string    `json:"projectId"`
 	MonitorID       string    `json:"monitorId"`
 	IncidentID      string    `json:"incidentId"`
 	IncidentVersion int64     `json:"incidentVersion"`
@@ -356,7 +341,6 @@ type RunPageResponse struct {
 type RunResponse struct {
 	ID             string                     `json:"id"`
 	OrganizationID string                     `json:"organizationId"`
-	ProjectID      string                     `json:"projectId"`
 	MonitorID      string                     `json:"monitorId"`
 	RevisionNumber int                        `json:"revisionNumber"`
 	Location       string                     `json:"location"`
@@ -537,7 +521,6 @@ type IncidentInboxItemResponse struct {
 type IncidentInboxIncidentResponse struct {
 	ID                   string     `json:"id"`
 	OrganizationID       string     `json:"organizationId"`
-	ProjectID            string     `json:"projectId"`
 	MonitorID            string     `json:"monitorId"`
 	State                string     `json:"state"`
 	Version              int64      `json:"version"`

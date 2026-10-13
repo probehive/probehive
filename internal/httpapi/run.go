@@ -70,7 +70,7 @@ func (server *Server) monitorRuns(w http.ResponseWriter, r *http.Request) {
 		}
 		items := make([]api.RunResponse, len(page.Runs))
 		for index, value := range page.Runs {
-			items[index] = toRunResponse(scope.ProjectID, value)
+			items[index] = toRunResponse(value)
 		}
 		var nextCursor *string
 		if page.NextCursor != nil {
@@ -104,7 +104,7 @@ func (server *Server) monitorRuns(w http.ResponseWriter, r *http.Request) {
 			server.internalError(w, r, "trigger manual Run", err)
 		default:
 			w.Header().Set("Location", r.URL.Path+"/"+string(value.ID))
-			writeJSON(w, http.StatusCreated, toRunResponse(scope.ProjectID, value))
+			writeJSON(w, http.StatusCreated, toRunResponse(value))
 		}
 	default:
 		methodNotAllowed(w, http.MethodGet, http.MethodPost)
@@ -133,7 +133,7 @@ func (server *Server) monitorRun(w http.ResponseWriter, r *http.Request) {
 		writeStatusProblem(w, http.StatusNotFound)
 		return
 	}
-	writeJSON(w, http.StatusOK, toRunResponse(scope.ProjectID, value))
+	writeJSON(w, http.StatusOK, toRunResponse(value))
 }
 
 func (server *Server) monitorRunObservation(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +165,6 @@ func queryRunScope(r *http.Request) (run.Scope, bool) {
 	scope, ok := monitorScope(r)
 	return run.Scope{
 		OrganizationID: scope.OrganizationID,
-		ProjectID:      scope.ProjectID,
 		MonitorID:      string(scope.MonitorID),
 	}, ok
 }
@@ -302,11 +301,10 @@ func decodeRunCursor(value string) (run.Cursor, error) {
 	return run.Cursor{ScheduledFor: decoded.ScheduledFor.UTC(), ID: run.ID(id)}, nil
 }
 
-func toRunResponse(projectID string, value run.Run) api.RunResponse {
+func toRunResponse(value run.Run) api.RunResponse {
 	response := api.RunResponse{
 		ID:             string(value.ID),
 		OrganizationID: value.Slot.OrganizationID,
-		ProjectID:      projectID,
 		MonitorID:      value.Slot.MonitorID,
 		RevisionNumber: value.Slot.RevisionNumber,
 		Location:       value.Slot.Location,

@@ -14,14 +14,14 @@ import (
 
 func TestOrganizationOverviewIsTenantScopedAndBounded(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	firstOrganization, firstProject := seedTenant(t, database, 3100)
-	secondOrganization, secondProject := seedTenant(t, database, 3200)
+	firstOrganization := seedTenant(t, database, 3100)
+	secondOrganization := seedTenant(t, database, 3200)
 	base := testTime()
 
 	firstMonitors := make([]monitor.Monitor, 6)
 	for index := range firstMonitors {
 		firstMonitors[index] = seedMonitor(
-			t, database, 3110+index, firstOrganization, firstProject, base.Add(time.Duration(index)*time.Minute),
+			t, database, 3110+index, firstOrganization, base.Add(time.Duration(index)*time.Minute),
 		)
 	}
 	setOverviewMonitorState(t, database, firstMonitors[1], "active")
@@ -45,7 +45,7 @@ func TestOrganizationOverviewIsTenantScopedAndBounded(t *testing.T) {
 	seedOverviewIntegration(t, database, firstOrganization, testUUID(3150), "Primary", true, base)
 	seedOverviewIntegration(t, database, firstOrganization, testUUID(3151), "Standby", false, base)
 
-	otherMonitor := seedMonitor(t, database, 3210, secondOrganization, secondProject, base)
+	otherMonitor := seedMonitor(t, database, 3210, secondOrganization, base)
 	setOverviewMonitorState(t, database, otherMonitor, "active")
 	seedOverviewHealth(t, database, otherMonitor, "down", base)
 	seedOverviewStatusPage(t, database, secondOrganization, testUUID(3240), true, base)
@@ -109,12 +109,12 @@ func seedOverviewHealth(
 	t.Helper()
 	if _, err := database.pool.Exec(t.Context(), `
 INSERT INTO monitor_health (
-    monitor_id, organization_id, project_id, state, stable_state, policy_version,
+    monitor_id, organization_id, state, stable_state, policy_version,
     version, source_revision_number, configured_count, eligible_count,
     responding_count, passing_count, failing_count, location_fault_count,
     indeterminate_count, missing_count, transitioned_at, updated_at
-) VALUES ($1,$2,$3,$4,$4,'v1',1,1,1,1,1,$5,$6,0,0,0,$7,$7)`,
-		string(value.ID), value.OrganizationID, value.ProjectID, state,
+) VALUES ($1,$2,$3,$3,'v1',1,1,1,1,1,$4,$5,0,0,0,$6,$6)`,
+		string(value.ID), value.OrganizationID, state,
 		boolCount(state == "healthy"), boolCount(state == "down"), updatedAt.UTC(),
 	); err != nil {
 		t.Fatalf("seed overview health: %v", err)
@@ -131,12 +131,12 @@ func seedOverviewIncident(
 	t.Helper()
 	if _, err := database.pool.Exec(t.Context(), `
 INSERT INTO health_transitions (
-    id, organization_id, project_id, monitor_id, version, old_state, new_state,
+    id, organization_id, monitor_id, version, old_state, new_state,
     policy_version, source_revision_number, configured_count, eligible_count,
     responding_count, passing_count, failing_count, location_fault_count,
     indeterminate_count, missing_count, occurred_at
-) VALUES ($1,$2,$3,$4,1,'healthy','down','v1',1,1,1,1,0,1,0,0,0,$5)`,
-		transitionID, value.OrganizationID, value.ProjectID, string(value.ID), updatedAt.UTC(),
+) VALUES ($1,$2,$3,1,'healthy','down','v1',1,1,1,1,0,1,0,0,0,$4)`,
+		transitionID, value.OrganizationID, string(value.ID), updatedAt.UTC(),
 	); err != nil {
 		t.Fatalf("seed overview health transition: %v", err)
 	}
@@ -147,10 +147,10 @@ INSERT INTO health_transitions (
 	}
 	if _, err := database.pool.Exec(t.Context(), `
 INSERT INTO incidents (
-    id, organization_id, project_id, monitor_id, state, version,
+    id, organization_id, monitor_id, state, version,
     opened_transition_id, acknowledged_by, acknowledged_at, created_at, updated_at
-) VALUES ($1,$2,$3,$4,$5,1,$6,$7,$8,$9,$9)`,
-		incidentID, value.OrganizationID, value.ProjectID, string(value.ID), state,
+) VALUES ($1,$2,$3,$4,1,$5,$6,$7,$8,$8)`,
+		incidentID, value.OrganizationID, string(value.ID), state,
 		transitionID, actor, acknowledgedAt, updatedAt.UTC(),
 	); err != nil {
 		t.Fatalf("seed overview Incident: %v", err)

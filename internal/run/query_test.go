@@ -52,7 +52,7 @@ func (store *fakeQueryStore) FindObservation(
 }
 
 func queryTestScope() Scope {
-	return Scope{OrganizationID: "organization", ProjectID: "project", MonitorID: "monitor"}
+	return Scope{OrganizationID: "organization", MonitorID: "monitor"}
 }
 
 func queryTestRun(t *testing.T, id string, scheduledFor time.Time, outcome Outcome) Run {

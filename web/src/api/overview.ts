@@ -38,7 +38,6 @@ export interface OrganizationOverviewIncidentSummary {
 
 export interface OrganizationOverviewActiveIncident {
   id: string
-  projectId: string
   monitorId: string
   monitorName: string
   state: OverviewIncidentState

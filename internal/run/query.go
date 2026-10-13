@@ -17,12 +17,11 @@ const (
 // Scope carries the complete ownership path required to query a Monitor's Runs.
 type Scope struct {
 	OrganizationID string
-	ProjectID      string
 	MonitorID      string
 }
 
 func (scope Scope) validate() error {
-	if scope.OrganizationID == "" || scope.ProjectID == "" || scope.MonitorID == "" {
+	if scope.OrganizationID == "" || scope.MonitorID == "" {
 		return errors.New("a Run query requires Organization, Project, and Monitor identity")
 	}
 	return nil

@@ -122,7 +122,7 @@ same second. Partition maintenance runs at startup and every six hours; an
 installation whose worker never runs eventually cannot insert a Run, because there is no
 default partition to fall back on.
 
-`POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs`
+`POST /api/v1/organizations/{organizationId}/monitors/{monitorId}/runs`
 executes the latest revision synchronously and returns the completed manual Run. An explicit
 request may exercise a draft or paused Monitor. It does not queue when the shared worker
 capacity is occupied, and an API-only process with `PROBEHIVE_WORKER_ENABLED=false` returns
@@ -135,7 +135,7 @@ and antiforgery issuance requires an authenticated browser session. A fresh
 installation reports `{"setupComplete":false}` at `GET /api/v1/setup/status`.
 `POST /api/v1/setup/admin` creates the first administrator exactly once,
 provisions the installation Organization (`Default`) and its default
-Project, and signs the administrator in. It returns both the user and that
+and signs the administrator in. It returns both the user and that
 Organization, so no separate Organization step is needed before creating a
 Monitor. Setup also makes that administrator the Organization's first member,
 which grants access: every endpoint under `/api/v1/organizations/{id}/` resolves
@@ -179,11 +179,11 @@ The server does not implicitly trust forwarded headers. A TLS-terminating produc
 
 ## Monitors and Revisions
 
-Monitors nest under their Organization and Project. With the session and token from above, and the `organization.id` / `organization.defaultProject.id` values that setup returned:
+Monitors nest directly under their Organization. With the session and token from above, and the `organization.id` value that setup returned:
 
 ```bash
-ORG=<organization id>; PROJ=<default project id>
-BASE="http://localhost:5080/api/v1/organizations/$ORG/projects/$PROJ/monitors"
+ORG=<organization id>
+BASE="http://localhost:5080/api/v1/organizations/$ORG/monitors"
 MON=$(curl -s -b "$JAR" -X POST "$BASE" \
   -H 'Content-Type: application/json' -H "X-ProbeHive-Antiforgery: $TOKEN" \
   -d '{"name":"Checkout heartbeat","checkType":"http"}' | jq -r .id)

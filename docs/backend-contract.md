@@ -17,7 +17,7 @@ into a compatibility promise.
 - The versioned API root is `/api/v1`. There is no unversioned API contract.
 - Requests and successful structured responses use JSON. Response property names
   are camelCase exactly as listed below.
-- Identifiers are JSON strings containing UUIDs. New Organization, Project, User,
+- Identifiers are JSON strings containing UUIDs. New Organization, User,
   Monitor, and Monitor Revision identifiers are time-ordered UUID version 7 values.
 - Persisted and returned timestamps are UTC. They are JSON ISO 8601 strings; clients
   must not depend on a particular fractional-second precision.
@@ -28,7 +28,7 @@ into a compatibility promise.
   same field-level `400` response as an invalid string. A JSON value of the wrong
   primitive type or malformed JSON is a framework-level `400`.
 - Unpaginated collections are returned as bare JSON arrays, not wrapper objects. An
-  existing empty Project or Monitor has an empty array, not `null` and not `404`.
+  existing empty Monitor or Run list has an empty array, not `null` and not `404`.
   Bounded Run and Incident collections use their documented page response objects.
 - Canonical route parameters are UUID strings. A malformed UUID, non-decimal revision
   number, or revision number outside the positive signed 32-bit range does not match
@@ -102,90 +102,22 @@ antiforgery token and `request.origin.rejected` for a browser-origin mismatch.
 
 ## 2. Wire Types
 
-All response fields below are required and non-null unless explicitly marked nullable.
-Nullable fields are still present in the JSON object: `nextCursor`, `outcome`, `startedAt`,
-`finishedAt`, `leaseExpiresAt`, `confirmation`, `http`, `tls`, `certificateExpiresAt`,
-health evidence pointers, a health `candidate`, maintenance cancellation, Incident
-acknowledgement/resolution pointers, acknowledgement-only timeline evidence, and Incident
-inbox health, maintenance, or opening-Run evidence serialize as JSON `null` when absent.
+The authoritative field-level shape of every request and response body is the served
+machine-readable OpenAPI document at `GET /openapi/v1.json` (source:
+`internal/httpapi/openapi_v1.json`). It is validated by tests to describe every route,
+so this document no longer restates per-type field lists. Semantic rules that the
+schema cannot express:
 
-| Type | Exact JSON fields |
-| --- | --- |
-| `SetupStatusResponse` | `setupComplete: boolean` |
-| `SetupResponse` | `user: UserResponse`, `organization: OrganizationResponse` |
-| `AntiforgeryTokenResponse` | `headerName: string`, `requestToken: string` |
-| `SessionResponse` | `userId: UUID string`, `email: string`, `displayName: string`, `role: string` |
-| `UserResponse` | `id: UUID string`, `email: string`, `displayName: string`, `role: string`, `createdAt: UTC timestamp string` |
-| `ProjectResponse` | `id: UUID string`, `organizationId: UUID string`, `name: string`, `isDefault: boolean`, `createdAt: UTC timestamp string` |
-| `OrganizationResponse` | `id: UUID string`, `displayName: string`, `createdAt: UTC timestamp string`, `defaultProject: ProjectResponse` |
-| `OrganizationOverviewResponse` | `organizationId: UUID string`; nullable `monitors`, `health`, `incidents`, `integrations`, and `statusPage` summaries; `capabilities: OrganizationOverviewCapabilities` |
-| `OrganizationOverviewMonitorCounts` | non-negative `total`, `draft`, `active`, `paused`, `archived` integers covering every Monitor |
-| `OrganizationOverviewHealthCounts` | non-negative `notEvaluated`, `unknown`, `healthy`, `degraded`, and `down` integers covering Active Monitors only |
-| `OrganizationOverviewIncidentSummary` | non-negative `active`, `open`, `acknowledged`; at most five `activePreview` rows; `activePreviewTruncated: boolean` |
-| `OrganizationOverviewActiveIncident` | Incident, Project, and Monitor UUIDs; `monitorName`; active `state` `open` or `acknowledged`; `updatedAt: UTC timestamp string` |
-| `OrganizationOverviewIntegrationCounts` | non-negative `total` and `enabled` integers; Administrator-only |
-| `OrganizationOverviewStatusPageState` | `configured: boolean`, `published: boolean`; Administrator-only |
-| `OrganizationOverviewCapabilities` | presentation hints `manageOrganization`, `manageIntegrations`, `manageStatusPage`; authorization remains server-side |
-| `MonitorResponse` | `id`, `organizationId`, `projectId` as UUID strings; `name`, `checkType`, `state` as strings; `intervalSeconds`, `latestRevisionNumber` as integers; `createdAt`, `updatedAt` as UTC timestamp strings |
-| `MonitorRevisionResponse` | `id`, `monitorId` as UUID strings; `revisionNumber: integer`; `checkType: string`; `checkSchemaVersion: integer`; `checkConfiguration: JSON value`; `createdAt: UTC timestamp string` |
-| `MaintenanceWindowResponse` | `id`, `organizationId`, `projectId`, `monitorId` as UUID strings; `startsAt`, `endsAt`, `createdAt` as UTC timestamp strings; `status` exactly `upcoming`, `active`, `ended`, or `cancelled`; `cancelledAt: nullable UTC timestamp string` |
-| `StatusPageDraftResponse` | `id`, `organizationId` as UUID strings; `title`; positive `version`; `components: StatusComponentResponse[]` in deterministic position order; `publication: nullable StatusPagePublicationResponse`; `createdAt`, `updatedAt` as UTC timestamp strings |
-| `StatusComponentResponse` | component `id`, selected `monitorId` as distinct UUID strings; operator-chosen `label`; zero-based `position` |
-| `StatusPagePublicationResponse` | `publishedAt: UTC timestamp string`; never a token or URL |
-| `PublishStatusPageResponse` | one-time `publicUrl`; `publishedAt: UTC timestamp string` |
-| `PublicStatusPageResponse` | `title`; `components: PublicStatusComponentResponse[]` in draft order |
-| `PublicStatusComponentResponse` | operator `label`; `state` exactly `unknown`, `healthy`, `degraded`, or `down`; `updatedAt: UTC timestamp string`; `maintenance: boolean` |
-| `MonitorHealthResponse` | scoped Organization, Project, and Monitor UUIDs; `state`, `stableState`, `policyVersion`; `version`; nullable source revision, Run, cohort, candidate, and determinate-finish pointers; `counts: HealthCountsResponse`; transition/update timestamps |
-| `HealthCountsResponse` | `configured`, `eligible`, `responding`, `passing`, `failing`, `locationFault`, `indeterminate`, and `missing` non-negative integers |
-| `RunPageResponse` | `items: RunResponse[]`; `nextCursor: nullable opaque string` |
-| `RunResponse` | `id`, `organizationId`, `projectId`, `monitorId` as UUID strings; `revisionNumber: integer`; `location`, `kind` as strings; `scheduledFor: UTC timestamp string`; `outcome: nullable string`; `startedAt`, `finishedAt`, `leaseExpiresAt` as nullable UTC timestamp strings; `confirmation: nullable ConfirmationCauseResponse` |
-| `ConfirmationCauseResponse` | candidate, triggering Run, and causation-event UUIDs; triggering slot timestamp; policy version |
-| `ObservationResponse` | `runId`, `organizationId` as UUID strings; `scheduledFor: UTC timestamp string`; `failureCode`, `failureClass` as strings; `durationMicroseconds: integer`; `phases: ObservationPhasesResponse`; `http: nullable HTTPObservationResponse` |
-| `ObservationPhasesResponse` | `connectMicroseconds`, `tlsMicroseconds`, `firstByteMicroseconds` as integers |
-| `HTTPObservationResponse` | `statusCode`, `redirectCount`, `bodyBytes` as integers; `protocol: string`; `bodyTruncated: boolean`; `tls: nullable TLSObservationResponse` |
-| `TLSObservationResponse` | `version`, `cipherSuite` as strings; `certificateExpiresAt: nullable UTC timestamp string` |
-| `IncidentPageResponse` | `items: IncidentResponse[]`; `nextCursor: nullable opaque string` |
-| `IncidentInboxPageResponse` | `items: IncidentInboxItemResponse[]`; `nextCursor: nullable opaque string` |
-| `IncidentInboxItemResponse` | `incident: IncidentInboxIncidentResponse`; Monitor UUID, name, and lifecycle; nullable current health, current-or-upcoming maintenance, and opening Run evidence |
-| `IncidentInboxIncidentResponse` | scoped UUIDs; lifecycle `state` and `version`; opening transition; nullable acknowledgement and resolution identity/timestamps; created/updated timestamps; no timeline |
-| `IncidentInboxHealthResponse` | current evaluated health `state` and `updatedAt` |
-| `IncidentInboxMaintenanceResponse` | window UUID; `state` exactly `active` or `upcoming`; start and end timestamps |
-| `IncidentInboxRunResponse` | opening Run UUID and scheduled timestamp; `available` reports whether retained raw Run evidence can still be opened |
-| `IncidentResponse` | scoped UUIDs; lifecycle `state` and `version`; opening transition; nullable acknowledgement and resolution identity/timestamps; created/updated timestamps; `timeline: IncidentTimelineResponse[]` |
-| `IncidentTimelineResponse` | timeline UUID, Incident version and kind; nullable health transition, actor, health states, policy, causal Run, slot, and counts; occurrence timestamp |
-| `AlertPageResponse` | `items: AlertResponse[]`; `nextCursor: nullable opaque string` |
-| `AlertResponse` | Alert, Organization, Project, Monitor, and source Incident UUIDs; positive source Incident version; kind `incident.opened` or `incident.resolved`; source occurrence and projection creation timestamps |
-| `AlertDeliveryPageResponse` | `items: AlertDeliveryResponse[]`, at most five point-in-time routes |
-| `AlertDeliveryResponse` | stable delivery and Integration UUIDs; channel `webhook`; positive Integration and signing-secret versions; route timestamp; `attempts: DeliveryAttemptResponse[]` ordered by sequence and limited to five |
-| `DeliveryAttemptResponse` | positive sequence; start and nullable finish timestamps; outcome `inProgress`, `succeeded`, `failed`, or `cancelled`; nullable HTTP status and stable allowlisted failure code |
-| `WebhookIntegrationResponse` | Integration and Organization UUIDs; name; Administrator-visible HTTPS destination URL; `enabled`; positive Integration and active-secret versions; nullable pending- and retiring-secret versions; creation/update timestamps |
-| `CreateWebhookIntegrationResponse` | `integration: WebhookIntegrationResponse`; `signingSecret: string` returned exactly once |
-| `PrepareWebhookSigningSecretResponse` | `integration: WebhookIntegrationResponse`; positive `secretVersion`; `signingSecret: string` returned exactly once |
-
-Request shapes are:
-
-| Type | Exact JSON fields |
-| --- | --- |
-| `CreateFirstAdministratorRequest` | `email`, `displayName`, `password` (nullable strings at decoding boundary; `email` and `password` required by validation, `displayName` optional and defaults to the email address when omitted) |
-| `LoginRequest` | `email`, `password` (nullable strings at decoding boundary) |
-| `CreateOrganizationRequest` | `displayName` (nullable string at decoding boundary; required by validation) |
-| `CreateUserRequest` | `email`, `displayName`, `password` (nullable strings at decoding boundary; `email` and `password` required by validation, `displayName` optional and defaults to the email address when omitted) |
-| `CreateWebhookIntegrationRequest` | `name`, `destinationUrl` (nullable strings at decoding boundary; required by validation) |
-| `WebhookIntegrationStateRequest` | `enabled: boolean`, `version: positive integer` for optimistic concurrency |
-| `WebhookIntegrationVersionRequest` | `version: positive integer`, the current Integration version for optimistic concurrency |
-| `CreateMonitorRequest` | `name`, `checkType` strings |
-| `RenameOrganizationRequest` | `displayName` (nullable string at decoding boundary; required by validation) |
-| `RenameMonitorRequest` | `name` string |
-| `ChangeMonitorStateRequest` | `state` string |
-| `ChangeMonitorIntervalRequest` | `intervalSeconds: integer` |
-| `CreateMonitorRevisionRequest` | `checkSchemaVersion: integer`, `checkConfiguration: JSON value` |
-| `CreateMaintenanceWindowRequest` | `startsAt`, `endsAt` (nullable timestamp strings at decoding boundary; required by validation and restricted to an explicit zero UTC offset) |
-| `ReplaceStatusPageDraftRequest` | `title` nullable string at decoding boundary; `version` non-negative integer (`0` creates); `components: ReplaceStatusComponentInput[]` in desired order |
-| `ReplaceStatusComponentInput` | `monitorId`, `label` nullable strings at decoding boundary; required by validation |
-
-Current Organization role strings are exactly `Administrator` and `Viewer`. Monitor state strings are
-exactly `draft`, `active`, `paused`, and `archived`. The only supported check type is
-exactly lowercase `http`.
+- All response fields are required and non-null unless the OpenAPI document marks the
+  property nullable. Nullable fields are still present in the JSON object and
+  serialize as JSON `null` when absent.
+- A collection that exists but is empty serializes as `[]`, never `null` and not `404`.
+- Timestamps are UTC strings; identifiers are UUID strings.
+- Current Organization role strings are exactly `Administrator` and `Viewer`. Monitor
+  state strings are exactly `draft`, `active`, `paused`, and `archived`. The only
+  supported check type is exactly lowercase `http`.
+- Request property names are matched ASCII-case-insensitively; canonical spellings are
+  shown in the OpenAPI document.
 
 ## 3. Endpoint Matrix
 
@@ -218,38 +150,38 @@ antiforgery and origin rules in section 5 also apply.
 | `POST /api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/prepare` | `integration.manage`, unsafe | `201 PrepareWebhookSigningSecretResponse`; keeps the current secret active and returns the pending secret once | `400`, `404`, `409`, `503` without an operator keyring, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/activate` | `integration.manage`, unsafe | `200 WebhookIntegrationResponse`; activates the pending secret and marks the former active secret retiring | `400`, `404`, `409`, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/webhook-integrations/{integrationId}/signing-secrets/retire` | `integration.manage`, unsafe | `200 WebhookIntegrationResponse`; clears the retiring secret's ciphertext and retains audit metadata | `400`, `404`, `409` while unfinished deliveries still reference the secret, `401`, `403` |
-| `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | `monitor.write`, unsafe | `201 MonitorResponse` and canonical monitor `Location` | `400`, `404`, `401`, `403` |
+| `POST /api/v1/organizations/{organizationId}/monitors` | `monitor.write`, unsafe | `201 MonitorResponse` and canonical monitor `Location` | `400`, `404`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}/status-page/draft` | `statusPage.write` | `200 StatusPageDraftResponse`; `204` before configuration exists | `404`, `401`, `403` |
 | `PUT /api/v1/organizations/{organizationId}/status-page/draft` | `statusPage.write`, unsafe | `200 StatusPageDraftResponse`; whole-draft replacement keeps array order | `400` invalid or unavailable Monitor; `409` stale version; `404`, `401`, `403` |
 | `POST /api/v1/organizations/{organizationId}/status-page/publication` | `statusPage.write`, unsafe | `201 PublishStatusPageResponse`; publishes the existing draft and reveals the URL once | `409` no draft or already published; `404`, `401`, `403` |
 | `DELETE /api/v1/organizations/{organizationId}/status-page/publication` | `statusPage.write`, unsafe | `204`; idempotently revokes anonymous access | `404`, `401`, `403` |
 | `GET /api/v1/status-pages/{publicationToken}` | Anonymous, public-status rate limit | `200 PublicStatusPageResponse`; `Cache-Control: no-store` | byte-identical `404` for invalid, missing, or revoked token; `429` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors` | `monitor.read` | `200 MonitorResponse[]` in creation order, UUID as tie-breaker | `404` if the Project is not in the Organization; `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}` | `monitor.read` | `200 MonitorResponse` | `404`, `401`, `403` |
-| `PUT /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/name` | `monitor.write`, unsafe | `200 MonitorResponse` | `400`, `404`, `409`, `401`, `403` |
-| `PUT /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/state` | `monitor.write`, unsafe | `200 MonitorResponse` | `400`, `404`, `409`, `401`, `403` |
-| `PUT /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/interval` | `monitor.write`, unsafe | `200 MonitorResponse` | `400`, `404`, `409`, `401`, `403` |
-| `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions` | `monitor.write`, unsafe | `201 MonitorRevisionResponse` and canonical revision `Location` | `400`, `404`, `409`, `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions` | `monitor.read` | `200 MonitorRevisionResponse[]` in ascending revision number | `404`, `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions/{revisionNumber}` | `monitor.read` | `200 MonitorRevisionResponse` | `404`, `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows` | `maintenance.read` | `200 MaintenanceWindowResponse[]` for current, upcoming, and cancelled-but-not-ended windows in ascending `(startsAt, id)` order | `404`, `401`, `403` |
-| `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows` | `maintenance.write`, unsafe | `201 MaintenanceWindowResponse` and canonical maintenance-window `Location` | `400`, `404`; `409` on overlap; `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows/{maintenanceWindowId}` | `maintenance.read` | `200 MaintenanceWindowResponse` | `404`, `401`, `403` |
-| `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/maintenance-windows/{maintenanceWindowId}/cancel` | `maintenance.write`, unsafe | `200 MaintenanceWindowResponse`; repeat cancellation is idempotent | `404`; `409` after the window ended or on an unresolved concurrent update; `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/health` | `monitor.read` | `200 MonitorHealthResponse` | `404`, `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents` | `incident.read` | `200 IncidentPageResponse`, newest first by `(createdAt, id)` | `400`, `404`, `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/alerts` | `alert.read` | `200 AlertPageResponse`, newest first by `(occurredAt, id)` | `400`, `404`, `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/alerts/{alertId}/deliveries` | `alert.read` | `200 AlertDeliveryPageResponse` with point-in-time routes and append-only attempts | `404`, `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}` | `incident.read` | `200 IncidentResponse` with timeline | `404`, `401`, `403` |
-| `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/incidents/{incidentId}/acknowledge` | `incident.write`, unsafe | `200 IncidentResponse`; repeat acknowledgement is idempotent | `400`, `404`, `409` when resolved, `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs` | `monitor.read` | `200 RunPageResponse`, newest first by `(scheduledFor, id)` | `400`, `404`, `401`, `403` |
-| `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs` | `monitor.write`, unsafe | `201 RunResponse` for the completed manual Run and canonical Run `Location` | `400`, `404`; `409` without a revision; `429` when execution capacity is occupied; `503` on an API-only process; `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}` | `monitor.read` | `200 RunResponse` | `404`, `401`, `403` |
-| `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/runs/{runId}/observation` | `monitor.read` | `200 ObservationResponse` for a completed, non-skipped Run | `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/monitors` | `monitor.read` | `200 MonitorResponse[]` in creation order, UUID as tie-breaker | `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/monitors/{monitorId}` | `monitor.read` | `200 MonitorResponse` | `404`, `401`, `403` |
+| `PUT /api/v1/organizations/{organizationId}/monitors/{monitorId}/name` | `monitor.write`, unsafe | `200 MonitorResponse` | `400`, `404`, `409`, `401`, `403` |
+| `PUT /api/v1/organizations/{organizationId}/monitors/{monitorId}/state` | `monitor.write`, unsafe | `200 MonitorResponse` | `400`, `404`, `409`, `401`, `403` |
+| `PUT /api/v1/organizations/{organizationId}/monitors/{monitorId}/interval` | `monitor.write`, unsafe | `200 MonitorResponse` | `400`, `404`, `409`, `401`, `403` |
+| `POST /api/v1/organizations/{organizationId}/monitors/{monitorId}/revisions` | `monitor.write`, unsafe | `201 MonitorRevisionResponse` and canonical revision `Location` | `400`, `404`, `409`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/monitors/{monitorId}/revisions` | `monitor.read` | `200 MonitorRevisionResponse[]` in ascending revision number | `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/monitors/{monitorId}/revisions/{revisionNumber}` | `monitor.read` | `200 MonitorRevisionResponse` | `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/monitors/{monitorId}/maintenance-windows` | `maintenance.read` | `200 MaintenanceWindowResponse[]` for current, upcoming, and cancelled-but-not-ended windows in ascending `(startsAt, id)` order | `404`, `401`, `403` |
+| `POST /api/v1/organizations/{organizationId}/monitors/{monitorId}/maintenance-windows` | `maintenance.write`, unsafe | `201 MaintenanceWindowResponse` and canonical maintenance-window `Location` | `400`, `404`; `409` on overlap; `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/monitors/{monitorId}/maintenance-windows/{maintenanceWindowId}` | `maintenance.read` | `200 MaintenanceWindowResponse` | `404`, `401`, `403` |
+| `POST /api/v1/organizations/{organizationId}/monitors/{monitorId}/maintenance-windows/{maintenanceWindowId}/cancel` | `maintenance.write`, unsafe | `200 MaintenanceWindowResponse`; repeat cancellation is idempotent | `404`; `409` after the window ended or on an unresolved concurrent update; `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/monitors/{monitorId}/health` | `monitor.read` | `200 MonitorHealthResponse` | `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/monitors/{monitorId}/incidents` | `incident.read` | `200 IncidentPageResponse`, newest first by `(createdAt, id)` | `400`, `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/monitors/{monitorId}/alerts` | `alert.read` | `200 AlertPageResponse`, newest first by `(occurredAt, id)` | `400`, `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/monitors/{monitorId}/alerts/{alertId}/deliveries` | `alert.read` | `200 AlertDeliveryPageResponse` with point-in-time routes and append-only attempts | `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/monitors/{monitorId}/incidents/{incidentId}` | `incident.read` | `200 IncidentResponse` with timeline | `404`, `401`, `403` |
+| `POST /api/v1/organizations/{organizationId}/monitors/{monitorId}/incidents/{incidentId}/acknowledge` | `incident.write`, unsafe | `200 IncidentResponse`; repeat acknowledgement is idempotent | `400`, `404`, `409` when resolved, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/monitors/{monitorId}/runs` | `monitor.read` | `200 RunPageResponse`, newest first by `(scheduledFor, id)` | `400`, `404`, `401`, `403` |
+| `POST /api/v1/organizations/{organizationId}/monitors/{monitorId}/runs` | `monitor.write`, unsafe | `201 RunResponse` for the completed manual Run and canonical Run `Location` | `400`, `404`; `409` without a revision; `429` when execution capacity is occupied; `503` on an API-only process; `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/monitors/{monitorId}/runs/{runId}` | `monitor.read` | `200 RunResponse` | `404`, `401`, `403` |
+| `GET /api/v1/organizations/{organizationId}/monitors/{monitorId}/runs/{runId}/observation` | `monitor.read` | `200 ObservationResponse` for a completed, non-skipped Run | `404`, `401`, `403` |
 
 The canonical revision `Location` ends in `/revisions/{revisionNumber}`. All monitor
-and Run lookups include Organization, Project, and Monitor scope. A real identifier
-presented through the wrong Organization, Project, or Monitor is indistinguishable from
+and Run lookups include Organization and Monitor scope. A real identifier
+presented through the wrong Organization or Monitor is indistinguishable from
 an unknown one and returns `404`.
 
 Manual Run creation executes the latest immutable revision through the same outbound policy,
@@ -403,6 +335,18 @@ deployment is same-origin (the development Vite server uses a proxy). Do not add
 cross-origin response headers or treat `OPTIONS` as an authorization bypass; a future
 cross-origin profile requires a separate security decision.
 
+### Why antiforgery is this strong
+
+The browser UI cannot rely on `SameSite` cookies alone: a same-site subpage or a
+compromised sibling application could still ride a session, and `SameSite=Lax` is
+required so top-level navigation signs in cleanly. The synchronizer-token pattern
+(double-submit cookie bound to a server-side session record, rotated on every issue)
+makes every unsafe request prove freshness that an attacker's page cannot read, and
+the anonymous HMAC token protects setup and login before any session exists. Origin
+and Referer validation adds a second, independent browser-only check. These controls
+are cheap at runtime once implemented; removing any one of them reopens a documented
+request-forgery class, so they are treated as a floor, not a tuning knob.
+
 ## 6. Setup, Users, and Organizations
 
 `GET /api/v1/setup/status` returns `setupComplete: false` exactly while there are zero users,
@@ -450,11 +394,10 @@ Organization provisioning rules are:
 - `displayName`: trim Unicode surrounding whitespace, then 1-100 UTF-16 code units.
   Failure key `displayName`, message
   `A display name is 1 to 100 characters after trimming.`
-- creation atomically inserts an Organization, its default Project, and one Administrator
-  membership per current user, all using the same UUIDv7 timestamp. The Project name is
-  exactly `Default`, `isDefault` is true, and its `organizationId` is the new
-  Organization id. Every route, reference, and foreign key uses the generated
-  Organization id; Organizations carry no caller-chosen identifier.
+- creation atomically inserts an Organization and one Administrator membership per
+  current user, all using the same UUIDv7 timestamp. Every route, reference, and
+  foreign key uses the generated Organization id; Organizations carry no
+  caller-chosen identifier and Monitors hang directly off their Organization.
 
 Renaming changes only the display name. `PUT /api/v1/organizations/{organizationId}/name`
 applies the same `displayName` rule as provisioning and is last-write-wins with no version
@@ -577,7 +520,6 @@ order; the body is bounded to 16 KiB:
   "alertId": "<Alert UUID>",
   "alertKind": "incident.opened",
   "organizationId": "<Organization UUID>",
-  "projectId": "<Project UUID>",
   "monitorId": "<Monitor UUID>",
   "incidentId": "<Incident UUID>",
   "incidentVersion": 1,
@@ -606,7 +548,7 @@ ProbeHive-Secret-Version: <positive version>
 ProbeHive-Signature: <unpadded base64url HMAC-SHA256>
 ```
 
-`GET .../alerts/{alertId}/deliveries` carries Organization, Project, Monitor, and Alert
+`GET .../alerts/{alertId}/deliveries` carries Organization, Monitor, and Alert
 scope through the authorization and storage query. Viewers with `alert.read` may use it;
 wrong-tenant or wrong-parent identities return the ordinary hidden `404`. The response shows
 stable route identity, versions, timestamps, outcomes, HTTP status when present, and stable
@@ -616,7 +558,7 @@ when a row is expanded.
 
 ## 7. Monitor and Revision Semantics
 
-Monitor creation validates all fields before checking Project existence:
+Monitor creation validates all fields before persisting:
 
 - `name`: trimmed Unicode text, 1-100 UTF-16 code units; failure key `name`, message
   `A Monitor name is 1 to 100 characters after trimming.`
@@ -666,8 +608,8 @@ version. The server must never silently reorder or renumber revisions.
 
 ### Monitor inventory query
 
-`GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitor-inventory`
-requires `monitor.read` and returns a bounded Project-scoped page without changing the
+`GET /api/v1/organizations/{organizationId}/monitor-inventory`
+requires `monitor.read` and returns a bounded page without changing the
 legacy Monitor collection used by status-page configuration. All query parameters are
 optional, non-empty when present, and may appear at most once. Defaults are
 `sort=name`, `direction=asc`, `page=1`, and `pageSize=25`.
@@ -715,7 +657,7 @@ Response status is evaluated against the server clock: `upcoming` before `starts
 until their original end and omits every ended interval. Cancelling a window releases its
 time range for a replacement. Item lookup can still return an ended interval by id.
 
-Every create, list, get, and cancel operation carries Organization, Project, and Monitor
+Every create, list, get, and cancel operation carries Organization and Monitor
 scope. Wrong-tenant and wrong-parent identities return the ordinary hidden `404`. Viewers
 can inspect windows through `maintenance.read`; only Administrators can schedule or cancel
 through `maintenance.write`.
@@ -850,23 +792,16 @@ All listed columns are `NOT NULL` unless marked nullable.
 
 - `organizations`: `id uuid` PK `pk_organizations`;
   `display_name varchar(100)`; `created_at timestamptz`.
-- `projects`: `id uuid` PK `pk_projects`; `organization_id uuid` FK
-  `fk_projects_organizations` -> `organizations(id)` ON DELETE CASCADE;
-  `name varchar(100)`; `is_default boolean`; `created_at timestamptz`. Alternate
-  unique constraint `ak_projects_id_organization_id(id, organization_id)`; index
-  `ix_projects_organization_id(organization_id)`; partial unique index
-  `ux_projects_organization_default(organization_id) WHERE is_default`.
 - `users`: `id uuid` PK `pk_users`; `email varchar(254)`; `display_name varchar(100)`;
   `role varchar(50)`; `password_hash text`; `created_at timestamptz`. Unique index
   `ux_users_email(email)`. Email is stored only in normalized form.
-- `monitors`: `id uuid` PK `pk_monitors`; `organization_id uuid`; `project_id uuid`;
+- `monitors`: `id uuid` PK `pk_monitors`; `organization_id uuid`;
   `name varchar(100)`; `check_type varchar(50)`; `state varchar(20)`;
+  `interval_seconds integer`;
   `latest_revision_number integer`; `created_at timestamptz`; `updated_at timestamptz`.
-  FK `fk_monitors_organizations` -> `organizations(id)` ON DELETE CASCADE. Composite
-  FK `fk_monitors_projects(project_id, organization_id)` ->
-  `projects(id, organization_id)` ON DELETE CASCADE. Indexes
-  `ix_monitors_organization_project(organization_id, project_id)` and
-  `ix_monitors_project_id_organization_id(project_id, organization_id)`.
+  FK `fk_monitors_organizations` -> `organizations(id)` ON DELETE CASCADE. Index
+  `ix_monitors_organization_id(organization_id)`. Monitors hang directly off their
+  Organization; there is no intermediate grouping layer.
   PostgreSQL system column `xmin` is the optimistic row version; do not create a
   user-owned `xmin` column.
 - `monitor_revisions`: `id uuid` PK `pk_monitor_revisions`; `monitor_id uuid`;
@@ -929,7 +864,7 @@ All listed columns are `NOT NULL` unless marked nullable.
   unresolved automatic Incident per Monitor, immutable versioned timeline entries, and
   aggregate-version ordering for the projector. Health timeline entries either carry all
   eight quorum counts or none.
-- `alerts`: immutable Incident-derived notification intents with Organization, Project,
+- `alerts`: immutable Incident-derived notification intents with Organization,
   Monitor, source Incident and source Incident version identity, kind, source occurrence,
   and projection creation timestamps. The Organization, Incident, and Incident-version
   tuple is unique for idempotent projection.
@@ -957,12 +892,12 @@ check constraint exists; those invariants remain in feature code.
 - Password hashes use the versioned Argon2id encoding described below.
 - Sessions and antiforgery state use the bounded PostgreSQL structures defined above.
 
-Organization, default Project, and the creator's `Administrator` membership are
+Organization and the creator's `Administrator` membership are
 inserted in one transaction. Migration `0002` adds `organization_members` and backfills
 every instance Administrator as an Organization Administrator of every pre-existing
 Organization, so an installation that predates membership keeps access to its own data.
 
-Organization plus default Project insertion is one transaction. First administrator
+Organization insertion with its memberships is one transaction. First administrator
 creation is one transaction that obtains
 `pg_advisory_xact_lock(7355608013)`, re-checks whether any user exists after obtaining
 the lock, inserts exactly one Administrator, and commits. Concurrent losers return the
@@ -1015,7 +950,7 @@ Incident lists are newest-first by descending `(createdAt, id)`. `pageSize` defa
 50 and is 1 through 100; `cursor` is optional, opaque, exclusive, and accepted exactly
 once. Both malformed values use field-level `400` validation. `nextCursor` is null on the
 final page. Every Monitor list, detail, and acknowledgement lookup carries Organization,
-Project, and Monitor scope. A resolved acknowledgement returns `409` with title
+and Monitor scope. A resolved acknowledgement returns `409` with title
 `Incident acknowledgement rejected`.
 
 The Organization Incident inbox uses the same ordering, bound, cursor, and final-page rules
@@ -1040,7 +975,7 @@ Delivery Attempt outcomes.
 
 Alert lists are newest-first by descending `(occurredAt, id)` and use the same default 50,
 range 1 through 100, opaque exclusive cursor, and final null `nextCursor` rules as Incident
-lists. Every lookup carries Organization, Project, and Monitor scope.
+lists. Every lookup carries Organization and Monitor scope.
 
 ### Internal outbox event contract
 
@@ -1081,10 +1016,10 @@ The current React client makes exactly these calls:
 | rename Organization | antiforgery-authenticated JSON `PUT /api/v1/organizations/{id}/name`; parse `OrganizationResponse` |
 | get Organization | `GET /api/v1/organizations/{encodeURIComponent(id)}`; parse `OrganizationResponse` |
 | get Organization overview | `GET /api/v1/organizations/{encodeURIComponent(id)}/overview`; parse permission-aware `OrganizationOverviewResponse` |
-| list Monitors | `GET /api/v1/organizations/{organizationId}/projects/{projectId}/monitors`; parse `MonitorResponse[]` |
+| list Monitors | `GET /api/v1/organizations/{organizationId}/monitors`; parse `MonitorResponse[]` |
 | create HTTP Monitor | antiforgery-authenticated JSON `POST` to the Monitor collection; parse the Draft `MonitorResponse` |
-| create HTTP revision | antiforgery-authenticated JSON `POST /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/revisions`; send schema version 1 and `{ url }`, then parse `MonitorRevisionResponse` |
-| activate Monitor | antiforgery-authenticated JSON `PUT /api/v1/organizations/{organizationId}/projects/{projectId}/monitors/{monitorId}/state`; send `active` and parse `MonitorResponse` |
+| create HTTP revision | antiforgery-authenticated JSON `POST /api/v1/organizations/{organizationId}/monitors/{monitorId}/revisions`; send schema version 1 and `{ url }`, then parse `MonitorRevisionResponse` |
+| activate Monitor | antiforgery-authenticated JSON `PUT /api/v1/organizations/{organizationId}/monitors/{monitorId}/state`; send `active` and parse `MonitorResponse` |
 
 `GET` calls set no custom headers. Unsafe calls set `Content-Type: application/json`
 and the exact dynamic antiforgery header. The fetch calls do not spell out
@@ -1093,7 +1028,7 @@ accepts same-origin cookies. Do not require `credentials: include`, bearer token
 `Accept` header, local storage, or a frontend-visible session token. Non-success bodies
 are parsed as the Problem Details shape in section 1.
 
-The default-Project form creates a Draft, adds its first HTTP revision, and activates it.
+The creation form creates a Draft, adds its first HTTP revision, and activates it.
 The client retains the successfully created Draft between failed steps and invalidates the
 scoped Monitor list after every attempt. A validation retry therefore continues the same
 Monitor instead of creating a duplicate.
@@ -1150,7 +1085,7 @@ Before launching the API, `web/e2e/start-api.sh` must preserve this reset contra
 
 The browser journey assumes an empty database, routes `/` to `/setup`, creates and signs
 in the first Administrator, and lands directly on the Organization that setup provisioned,
-rendering its `Default` heading, default Project, and fresh operational overview. It
+rendering its `Default` heading and fresh operational overview. It
 renames that Organization. It creates and operates a
 passing HTTP Monitor, triggers a manual Run, follows the returned evidence, then schedules
 and cancels a one-time maintenance window. It then publishes the configured status page,
@@ -1164,7 +1099,7 @@ through revision 2, waits for confirmed recovery and its Alert intent, then veri
 inbox history and the narrow-screen inbox layout. Finally, it
 signs out, signs back in, lands on the Organization list containing the renamed
 Organization, creates an Organization `Acme Monitoring`, follows the
-returned Organization, and renders its default Project. A second journey switches the
+returned Organization. A second journey switches the
 interface to `zh-CN`, asserts the translated heading and the `lang` attribute of the
 document element, and reloads to confirm the preference
 persists rather than renegotiating from the browser.

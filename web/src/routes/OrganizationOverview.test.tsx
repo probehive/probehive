@@ -126,7 +126,6 @@ test('renders populated counts and direct active Incident evidence links', async
       activePreview: [
         {
           id: '00000000-0000-7000-8000-000000000101',
-          projectId: '00000000-0000-7000-8000-000000000201',
           monitorId: '00000000-0000-7000-8000-000000000301',
           monitorName: 'Checkout',
           state: 'open',
@@ -151,7 +150,6 @@ test('renders populated counts and direct active Incident evidence links', async
     .toHaveAttribute(
       'href',
       '/organizations/' + organizationId +
-        '/projects/00000000-0000-7000-8000-000000000201' +
         '/monitors/00000000-0000-7000-8000-000000000301' +
         '/incidents/00000000-0000-7000-8000-000000000101',
     )

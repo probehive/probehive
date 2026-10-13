@@ -62,7 +62,7 @@ WHERE delivery.completed_at IS NULL
 
 	rows, err := transaction.Query(ctx, `
 SELECT delivery.id, delivery.organization_id, delivery.alert_id,
-       alert.kind, alert.project_id, alert.monitor_id,
+       alert.kind, alert.monitor_id,
        alert.incident_id, alert.incident_version,
        delivery.integration_id, delivery.integration_version,
        delivery.secret_version, integration.destination_url,
@@ -109,7 +109,6 @@ FOR UPDATE OF delivery SKIP LOCKED`,
 			&value.route.OrganizationID,
 			&value.route.AlertID,
 			&value.route.AlertKind,
-			&value.route.ProjectID,
 			&value.route.MonitorID,
 			&value.route.IncidentID,
 			&value.route.IncidentVersion,
@@ -276,11 +275,10 @@ SELECT EXISTS (
     SELECT 1
     FROM alerts
     WHERE id=$1 AND organization_id=$2
-      AND project_id=$3 AND monitor_id=$4
+      AND monitor_id=$3
 )`,
 		scope.AlertID,
 		scope.OrganizationID,
-		scope.ProjectID,
 		scope.MonitorID,
 	).Scan(&found); err != nil {
 		return nil, false, fmt.Errorf("check Webhook delivery Alert scope: %w", err)

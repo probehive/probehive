@@ -39,12 +39,11 @@ type ID string
 
 type Scope struct {
 	OrganizationID string
-	ProjectID      string
 	MonitorID      string
 }
 
 func (scope Scope) valid() bool {
-	return scope.OrganizationID != "" && scope.ProjectID != "" && scope.MonitorID != ""
+	return scope.OrganizationID != "" && scope.MonitorID != ""
 }
 
 type Status string
@@ -60,7 +59,6 @@ const (
 type Window struct {
 	ID             ID
 	OrganizationID string
-	ProjectID      string
 	MonitorID      string
 	StartsAt       time.Time
 	EndsAt         time.Time
@@ -102,7 +100,7 @@ func RestoreWindow(
 		restoredCancellation = &value
 	}
 	return Window{
-		ID: id, OrganizationID: scope.OrganizationID, ProjectID: scope.ProjectID,
+		ID: id, OrganizationID: scope.OrganizationID,
 		MonitorID: scope.MonitorID, StartsAt: startsAt.UTC(), EndsAt: endsAt.UTC(),
 		CreatedAt: createdAt.UTC(), CancelledAt: restoredCancellation, Version: version,
 	}, nil
@@ -111,7 +109,6 @@ func RestoreWindow(
 func (value Window) Scope() Scope {
 	return Scope{
 		OrganizationID: value.OrganizationID,
-		ProjectID:      value.ProjectID,
 		MonitorID:      value.MonitorID,
 	}
 }

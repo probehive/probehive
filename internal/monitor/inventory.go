@@ -188,8 +188,7 @@ type InventoryPage struct {
 }
 
 type InventoryStore interface {
-	ProjectExists(context.Context, string, string) (bool, error)
-	ListMonitorInventory(context.Context, string, string, InventoryQuery, time.Time) ([]InventoryItem, int, error)
+	ListMonitorInventory(context.Context, string, InventoryQuery, time.Time) ([]InventoryItem, int, error)
 }
 type InventoryService struct {
 	store InventoryStore
@@ -203,26 +202,22 @@ func NewInventoryService(store InventoryStore, clock Clock) *InventoryService {
 	return &InventoryService{store: store, clock: clock}
 }
 
-func (service *InventoryService) List(ctx context.Context, organizationID, projectID string, query InventoryQuery) (InventoryPage, bool, error) {
-	if organizationID == "" || projectID == "" {
-		return InventoryPage{}, false, errors.New("a Monitor inventory query requires Organization and Project identity")
+func (service *InventoryService) List(ctx context.Context, organizationID string, query InventoryQuery) (InventoryPage, error) {
+	if organizationID == "" {
+		return InventoryPage{}, errors.New("a Monitor inventory query requires Organization identity")
 	}
 	if err := query.validate(); err != nil {
-		return InventoryPage{}, false, err
+		return InventoryPage{}, err
 	}
-	exists, err := service.store.ProjectExists(ctx, organizationID, projectID)
-	if err != nil || !exists {
-		return InventoryPage{}, exists, err
-	}
-	items, total, err := service.store.ListMonitorInventory(ctx, organizationID, projectID, query, service.clock.Now().UTC())
+	items, total, err := service.store.ListMonitorInventory(ctx, organizationID, query, service.clock.Now().UTC())
 	if err != nil {
-		return InventoryPage{}, false, err
+		return InventoryPage{}, err
 	}
 	if total < 0 || total < len(items) {
-		return InventoryPage{}, false, errors.New("Monitor inventory store returned an invalid total")
+		return InventoryPage{}, errors.New("Monitor inventory store returned an invalid total")
 	}
 	if items == nil {
 		items = []InventoryItem{}
 	}
-	return InventoryPage{Items: items, Page: query.Page, PageSize: query.PageSize, Total: total}, true, nil
+	return InventoryPage{Items: items, Page: query.Page, PageSize: query.PageSize, Total: total}, nil
 }

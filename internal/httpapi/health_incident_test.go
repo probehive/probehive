@@ -17,13 +17,13 @@ import (
 func TestHealthAndIncidentAPIsEnforceScopePermissionsAndLifecycle(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	token := environment.bootstrapAdministrator(t)
-	organizationID, projectID, monitorID := seedRunQueryMonitor(t, environment)
+	organizationID, monitorID := seedRunQueryMonitor(t, environment)
 	now := environment.clock.Now()
 
 	environment.health.mu.Lock()
 	environment.health.snapshots = map[string]health.Snapshot{
-		organizationID + "/" + projectID + "/" + monitorID: {
-			OrganizationID: organizationID, ProjectID: projectID, MonitorID: monitorID,
+		organizationID + "/" + monitorID: {
+			OrganizationID: organizationID, MonitorID: monitorID,
 			State: health.StateDown, StableState: health.StateDown,
 			PolicyVersion: health.PolicyVersion, Version: 4, SourceRevisionNumber: 1,
 			LastScheduledFor: now.Add(-time.Minute), LastDeterminateFinishedAt: now.Add(-50 * time.Second),
@@ -35,8 +35,7 @@ func TestHealthAndIncidentAPIsEnforceScopePermissionsAndLifecycle(t *testing.T) 
 	environment.health.mu.Unlock()
 
 	first := incident.Incident{
-		ID: "00000000-0000-7000-8000-000000000030", OrganizationID: organizationID,
-		ProjectID: projectID, MonitorID: monitorID, State: incident.StateOpen, Version: 1,
+		ID: "00000000-0000-7000-8000-000000000030", OrganizationID: organizationID, MonitorID: monitorID, State: incident.StateOpen, Version: 1,
 		OpenedTransitionID: "00000000-0000-7000-8000-000000000130",
 		CreatedAt:          now.Add(-time.Minute), UpdatedAt: now.Add(-time.Minute),
 		Timeline: []incident.TimelineEntry{{
@@ -65,8 +64,7 @@ func TestHealthAndIncidentAPIsEnforceScopePermissionsAndLifecycle(t *testing.T) 
 	}
 	environment.incidents.mu.Unlock()
 
-	base := "/api/v1/organizations/" + organizationID + "/projects/" + projectID +
-		"/monitors/" + monitorID
+	base := "/api/v1/organizations/" + organizationID + "/monitors/" + monitorID
 	healthResponse := environment.request(t, environment.client, http.MethodGet, base+"/health", "", "", "")
 	var healthValue api.MonitorHealthResponse
 	if err := json.Unmarshal(healthResponse.Body, &healthValue); err != nil {
@@ -164,8 +162,7 @@ func TestHealthAndIncidentAPIsEnforceScopePermissionsAndLifecycle(t *testing.T) 
 
 	wrongProject := environment.request(
 		t, environment.client, http.MethodGet,
-		"/api/v1/organizations/"+organizationID+
-			"/projects/00000000-0000-7000-8000-000000000099/monitors/"+monitorID+"/incidents/"+first.ID,
+		"/api/v1/organizations/00000000-0000-7000-8000-000000000099/monitors/"+monitorID+"/incidents/"+first.ID,
 		"", "", "",
 	)
 	assertProblem(t, wrongProject, http.StatusNotFound, "Not Found", "")
@@ -198,12 +195,12 @@ func TestIncidentCursorRoundTripsAndRejectsUnknownShape(t *testing.T) {
 func TestOrganizationIncidentInboxIsScopedAndKeepsEvidenceSeparate(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	environment.bootstrapAdministrator(t)
-	organizationID, projectID, monitorID := seedRunQueryMonitor(t, environment)
+	organizationID, monitorID := seedRunQueryMonitor(t, environment)
 	now := environment.clock.Now()
 	environment.health.mu.Lock()
 	environment.health.snapshots = map[string]health.Snapshot{
-		organizationID + "/" + projectID + "/" + monitorID: {
-			OrganizationID: organizationID, ProjectID: projectID, MonitorID: monitorID,
+		organizationID + "/" + monitorID: {
+			OrganizationID: organizationID, MonitorID: monitorID,
 			State: health.StateDown, StableState: health.StateDown,
 			PolicyVersion: health.PolicyVersion, UpdatedAt: now.Add(-time.Minute),
 			TransitionedAt: now.Add(-time.Minute),
@@ -212,7 +209,7 @@ func TestOrganizationIncidentInboxIsScopedAndKeepsEvidenceSeparate(t *testing.T)
 	environment.health.mu.Unlock()
 	window, err := maintenance.NewWindow(
 		maintenance.ID("00000000-0000-7000-8000-000000000060"),
-		maintenance.Scope{OrganizationID: organizationID, ProjectID: projectID, MonitorID: monitorID},
+		maintenance.Scope{OrganizationID: organizationID, MonitorID: monitorID},
 		now.Add(-time.Minute), now.Add(time.Hour), now.Add(-2*time.Minute),
 	)
 	if err != nil {
@@ -223,8 +220,7 @@ func TestOrganizationIncidentInboxIsScopedAndKeepsEvidenceSeparate(t *testing.T)
 	}
 	openingRunID := "00000000-0000-7000-8000-000000000040"
 	first := incident.Incident{
-		ID: "00000000-0000-7000-8000-000000000030", OrganizationID: organizationID,
-		ProjectID: projectID, MonitorID: monitorID, State: incident.StateOpen, Version: 1,
+		ID: "00000000-0000-7000-8000-000000000030", OrganizationID: organizationID, MonitorID: monitorID, State: incident.StateOpen, Version: 1,
 		OpenedTransitionID: "00000000-0000-7000-8000-000000000130",
 		CreatedAt:          now.Add(-time.Minute), UpdatedAt: now.Add(-time.Minute),
 		Timeline: []incident.TimelineEntry{{

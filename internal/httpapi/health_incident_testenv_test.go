@@ -42,7 +42,7 @@ func (store *memoryHealthStore) GetHealth(
 ) (health.Snapshot, bool, error) {
 	store.mu.Lock()
 	if store.snapshots != nil {
-		if value, found := store.snapshots[scope.OrganizationID+"/"+scope.ProjectID+"/"+scope.MonitorID]; found {
+		if value, found := store.snapshots[scope.OrganizationID+"/"+scope.MonitorID]; found {
 			store.mu.Unlock()
 			return value, true, nil
 		}
@@ -50,13 +50,12 @@ func (store *memoryHealthStore) GetHealth(
 	store.mu.Unlock()
 	value, found, err := store.monitors.FindMonitor(ctx, monitor.Scope{
 		OrganizationID: scope.OrganizationID,
-		ProjectID:      scope.ProjectID,
 		MonitorID:      monitor.ID(scope.MonitorID),
 	})
 	if err != nil || !found {
 		return health.Snapshot{}, found, err
 	}
-	snapshot, err := health.Initial(scope.OrganizationID, scope.ProjectID, scope.MonitorID, value.CreatedAt)
+	snapshot, err := health.Initial(scope.OrganizationID, scope.MonitorID, value.CreatedAt)
 	return snapshot, err == nil, err
 }
 
@@ -79,8 +78,8 @@ func (store *memoryIncidentStore) ListIncidents(
 	ctx context.Context, scope incident.Scope, query incident.ListQuery,
 ) ([]incident.Incident, bool, bool, error) {
 	_, found, err := store.monitors.FindMonitor(ctx, monitor.Scope{
-		OrganizationID: scope.OrganizationID, ProjectID: scope.ProjectID,
-		MonitorID: monitor.ID(scope.MonitorID),
+		OrganizationID: scope.OrganizationID,
+		MonitorID:      monitor.ID(scope.MonitorID),
 	})
 	if err != nil || !found {
 		return nil, false, found, err
@@ -89,7 +88,7 @@ func (store *memoryIncidentStore) ListIncidents(
 	defer store.mu.Unlock()
 	values := make([]incident.Incident, 0)
 	for _, value := range store.incidents {
-		if value.OrganizationID == scope.OrganizationID && value.ProjectID == scope.ProjectID &&
+		if value.OrganizationID == scope.OrganizationID &&
 			value.MonitorID == scope.MonitorID {
 			values = append(values, value)
 		}
@@ -124,7 +123,7 @@ func (store *memoryIncidentStore) GetIncident(
 	defer store.mu.Unlock()
 	value, found := store.incidents[id]
 	if !found || value.OrganizationID != scope.OrganizationID ||
-		value.ProjectID != scope.ProjectID || value.MonitorID != scope.MonitorID {
+		value.MonitorID != scope.MonitorID {
 		return incident.Incident{}, false, nil
 	}
 	return value, true, nil
@@ -136,7 +135,7 @@ func (store *memoryIncidentStore) AcknowledgeIncident(
 	store.mu.Lock()
 	value, found := store.incidents[id]
 	if !found || value.OrganizationID != scope.OrganizationID ||
-		value.ProjectID != scope.ProjectID || value.MonitorID != scope.MonitorID {
+		value.MonitorID != scope.MonitorID {
 		store.mu.Unlock()
 		return incident.Incident{}, false, nil
 	}
@@ -197,8 +196,8 @@ func (store *memoryIncidentStore) ListInbox(
 	items := make([]incident.InboxItem, 0, len(values))
 	for _, value := range values {
 		monitorValue, found, err := store.monitors.FindMonitor(ctx, monitor.Scope{
-			OrganizationID: value.OrganizationID, ProjectID: value.ProjectID,
-			MonitorID: monitor.ID(value.MonitorID),
+			OrganizationID: value.OrganizationID,
+			MonitorID:      monitor.ID(value.MonitorID),
 		})
 		if err != nil {
 			return nil, false, false, err
@@ -211,8 +210,8 @@ func (store *memoryIncidentStore) ListInbox(
 		}
 		if store.health != nil {
 			snapshot, healthFound, err := store.health.GetHealth(ctx, health.Scope{
-				OrganizationID: value.OrganizationID, ProjectID: value.ProjectID,
-				MonitorID: string(value.MonitorID),
+				OrganizationID: value.OrganizationID,
+				MonitorID:      string(value.MonitorID),
 			})
 			if err != nil {
 				return nil, false, false, err
@@ -223,8 +222,8 @@ func (store *memoryIncidentStore) ListInbox(
 		}
 		if store.maintenance != nil {
 			windows, _, err := store.maintenance.ListWindows(ctx, maintenance.Scope{
-				OrganizationID: value.OrganizationID, ProjectID: value.ProjectID,
-				MonitorID: string(value.MonitorID),
+				OrganizationID: value.OrganizationID,
+				MonitorID:      string(value.MonitorID),
 			}, now)
 			if err != nil {
 				return nil, false, false, err
@@ -247,8 +246,8 @@ func (store *memoryIncidentStore) ListInbox(
 			available := true
 			if store.runs != nil {
 				_, available, err = store.runs.FindScopedRun(ctx, run.Scope{
-					OrganizationID: value.OrganizationID, ProjectID: value.ProjectID,
-					MonitorID: string(value.MonitorID),
+					OrganizationID: value.OrganizationID,
+					MonitorID:      string(value.MonitorID),
 				}, run.ID(entry.CausalRunID))
 				if err != nil {
 					return nil, false, false, err

@@ -84,7 +84,6 @@ func newManualTestRunner(
 func manualTestScope() Scope {
 	return Scope{
 		OrganizationID: "00000000-0000-7000-8000-000000000001",
-		ProjectID:      "00000000-0000-7000-8000-000000000003",
 		MonitorID:      "00000000-0000-7000-8000-000000000002",
 	}
 }

@@ -35,14 +35,14 @@ func (store *IncidentStore) ProcessHealthTransition(
 		return nil
 	}
 
-	var projectID, monitorID, oldState, newState, policyVersion, monitorState string
+	var monitorID, oldState, newState, policyVersion, monitorState string
 	var version int64
 	var occurredAt time.Time
 	var causalRunID *string
 	var causalRunScheduled *time.Time
 	var counts incident.Counts
 	err = transaction.QueryRow(ctx, `
-SELECT t.project_id, t.monitor_id, t.version, t.old_state, t.new_state,
+SELECT t.monitor_id, t.version, t.old_state, t.new_state,
        t.policy_version, t.causal_run_id, t.causal_run_scheduled_for,
        t.occurred_at, m.state,
        t.configured_count, t.eligible_count, t.responding_count,
@@ -52,7 +52,7 @@ FROM health_transitions AS t
 JOIN monitors AS m ON m.id = t.monitor_id AND m.organization_id = t.organization_id
 WHERE t.id = $1 AND t.organization_id = $2
 FOR UPDATE OF m`, event.TransitionID, event.OrganizationID).Scan(
-		&projectID, &monitorID, &version, &oldState, &newState,
+		&monitorID, &version, &oldState, &newState,
 		&policyVersion, &causalRunID, &causalRunScheduled, &occurredAt, &monitorState,
 		&counts.Configured, &counts.Eligible, &counts.Responding,
 		&counts.Passing, &counts.Failing, &counts.LocationFault,
@@ -63,7 +63,7 @@ FOR UPDATE OF m`, event.TransitionID, event.OrganizationID).Scan(
 	if err != nil {
 		return fmt.Errorf("load health transition for Incident: %w", err)
 	}
-	if projectID != event.ProjectID || monitorID != event.MonitorID ||
+	if monitorID != event.MonitorID ||
 		version != event.AggregateVersion || oldState != event.OldState ||
 		newState != event.NewState || policyVersion != event.PolicyVersion {
 		return incident.ErrPayloadInvalid
@@ -164,7 +164,7 @@ func findActiveIncidentForUpdate(
 	ctx context.Context, transaction pgx.Tx, organizationID, monitorID string,
 ) (incident.Incident, bool, error) {
 	return scanIncident(transaction.QueryRow(ctx, `
-SELECT id, organization_id, project_id, monitor_id, state, version,
+SELECT id, organization_id, monitor_id, state, version,
        opened_transition_id, acknowledged_by, acknowledged_at,
        resolved_transition_id, resolved_at, created_at, updated_at
 FROM incidents
@@ -179,10 +179,10 @@ func insertIncidentOpened(
 ) error {
 	if _, err := transaction.Exec(ctx, `
 INSERT INTO incidents (
-    id, organization_id, project_id, monitor_id, state, version,
+    id, organization_id, monitor_id, state, version,
     opened_transition_id, created_at, updated_at
-) VALUES ($1,$2,$3,$4,'open',1,$5,$6,$6)`,
-		ids.IncidentID, event.OrganizationID, event.ProjectID, event.MonitorID,
+) VALUES ($1,$2,$3,'open',1,$4,$5,$5)`,
+		ids.IncidentID, event.OrganizationID, event.MonitorID,
 		event.TransitionID, occurredAt.UTC()); err != nil {
 		return fmt.Errorf("open Incident: %w", err)
 	}
@@ -263,7 +263,7 @@ func insertIncidentTransitionedEvent(
 		OccurredAt: occurredAt.UTC(), AggregateType: "incident",
 		AggregateID: incidentID, AggregateVersion: version,
 		CausationID: source.EventID, IncidentID: incidentID,
-		ProjectID: source.ProjectID, MonitorID: source.MonitorID,
+		MonitorID:  source.MonitorID,
 		Transition: transition,
 	})
 	if err != nil {
@@ -288,8 +288,8 @@ func (store *IncidentStore) ListIncidents(
 	}
 	var exists bool
 	if err := store.pool.QueryRow(ctx, `
-SELECT EXISTS (SELECT 1 FROM monitors WHERE id=$1 AND organization_id=$2 AND project_id=$3)`,
-		scope.MonitorID, scope.OrganizationID, scope.ProjectID).Scan(&exists); err != nil {
+SELECT EXISTS (SELECT 1 FROM monitors WHERE id=$1 AND organization_id=$2)`,
+		scope.MonitorID, scope.OrganizationID).Scan(&exists); err != nil {
 		return nil, false, false, fmt.Errorf("check Incident Monitor scope: %w", err)
 	}
 	if !exists {
@@ -302,17 +302,17 @@ SELECT EXISTS (SELECT 1 FROM monitors WHERE id=$1 AND organization_id=$2 AND pro
 		cursorTime, cursorID = &createdAt, &query.Cursor.ID
 	}
 	rows, err := store.pool.Query(ctx, `
-SELECT id, organization_id, project_id, monitor_id, state, version,
+SELECT id, organization_id, monitor_id, state, version,
        opened_transition_id, acknowledged_by, acknowledged_at,
        resolved_transition_id, resolved_at, created_at, updated_at
 FROM incidents
-WHERE monitor_id=$1 AND organization_id=$2 AND project_id=$3
+WHERE monitor_id=$1 AND organization_id=$2
   AND (
-      $4::timestamptz IS NULL
-      OR (created_at, id) < ($4::timestamptz, $5::uuid)
+      $3::timestamptz IS NULL
+      OR (created_at, id) < ($3::timestamptz, $4::uuid)
   )
 ORDER BY created_at DESC, id DESC
-LIMIT $6`, scope.MonitorID, scope.OrganizationID, scope.ProjectID,
+LIMIT $5`, scope.MonitorID, scope.OrganizationID,
 		cursorTime, cursorID, query.PageSize+1)
 	if err != nil {
 		return nil, false, false, fmt.Errorf("list Incidents: %w", err)
@@ -340,12 +340,12 @@ func (store *IncidentStore) GetIncident(
 	ctx context.Context, scope incident.Scope, id string,
 ) (incident.Incident, bool, error) {
 	value, found, err := scanIncident(store.pool.QueryRow(ctx, `
-SELECT id, organization_id, project_id, monitor_id, state, version,
+SELECT id, organization_id, monitor_id, state, version,
        opened_transition_id, acknowledged_by, acknowledged_at,
        resolved_transition_id, resolved_at, created_at, updated_at
 FROM incidents
-WHERE id=$1 AND monitor_id=$2 AND organization_id=$3 AND project_id=$4`,
-		id, scope.MonitorID, scope.OrganizationID, scope.ProjectID))
+WHERE id=$1 AND monitor_id=$2 AND organization_id=$3`,
+		id, scope.MonitorID, scope.OrganizationID))
 	if err != nil || !found {
 		return incident.Incident{}, found, err
 	}
@@ -366,12 +366,12 @@ func (store *IncidentStore) AcknowledgeIncident(
 	}
 	defer func() { _ = transaction.Rollback(ctx) }()
 	value, found, err := scanIncident(transaction.QueryRow(ctx, `
-SELECT id, organization_id, project_id, monitor_id, state, version,
+SELECT id, organization_id, monitor_id, state, version,
        opened_transition_id, acknowledged_by, acknowledged_at,
        resolved_transition_id, resolved_at, created_at, updated_at
 FROM incidents
-WHERE id=$1 AND monitor_id=$2 AND organization_id=$3 AND project_id=$4
-FOR UPDATE`, id, scope.MonitorID, scope.OrganizationID, scope.ProjectID))
+WHERE id=$1 AND monitor_id=$2 AND organization_id=$3
+FOR UPDATE`, id, scope.MonitorID, scope.OrganizationID))
 	if err != nil || !found {
 		return incident.Incident{}, found, err
 	}
@@ -459,7 +459,7 @@ func scanIncident(row rowScanner) (incident.Incident, bool, error) {
 	var state string
 	var acknowledgedBy, resolvedTransitionID *string
 	var acknowledgedAt, resolvedAt *time.Time
-	err := row.Scan(&value.ID, &value.OrganizationID, &value.ProjectID, &value.MonitorID,
+	err := row.Scan(&value.ID, &value.OrganizationID, &value.MonitorID,
 		&state, &value.Version, &value.OpenedTransitionID, &acknowledgedBy, &acknowledgedAt,
 		&resolvedTransitionID, &resolvedAt, &value.CreatedAt, &value.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -501,7 +501,7 @@ SELECT EXISTS (SELECT 1 FROM organizations WHERE id=$1)`, organizationID).Scan(&
 		cursorTime, cursorID = &createdAt, &query.Cursor.ID
 	}
 	rows, err := store.pool.Query(ctx, `
-SELECT i.id, i.organization_id, i.project_id, i.monitor_id, i.state, i.version,
+SELECT i.id, i.organization_id, i.monitor_id, i.state, i.version,
        i.opened_transition_id, i.acknowledged_by, i.acknowledged_at,
        i.resolved_transition_id, i.resolved_at, i.created_at, i.updated_at,
        m.name, m.state,
@@ -592,7 +592,7 @@ func scanIncidentInboxItem(row rowScanner) (incident.InboxItem, error) {
 		runAvailable                           bool
 	)
 	if err := row.Scan(
-		&value.Incident.ID, &value.Incident.OrganizationID, &value.Incident.ProjectID,
+		&value.Incident.ID, &value.Incident.OrganizationID,
 		&value.Incident.MonitorID, &state, &value.Incident.Version,
 		&value.Incident.OpenedTransitionID, &acknowledgedBy, &acknowledgedAt,
 		&resolvedTransitionID, &resolvedAt, &value.Incident.CreatedAt, &value.Incident.UpdatedAt,

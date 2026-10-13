@@ -8,19 +8,14 @@ import (
 )
 
 type fakeInventoryStore struct {
-	projectExists bool
-	items         []InventoryItem
-	total         int
-	query         InventoryQuery
-	now           time.Time
-}
-
-func (store *fakeInventoryStore) ProjectExists(context.Context, string, string) (bool, error) {
-	return store.projectExists, nil
+	items []InventoryItem
+	total int
+	query InventoryQuery
+	now   time.Time
 }
 
 func (store *fakeInventoryStore) ListMonitorInventory(
-	_ context.Context, _, _ string, query InventoryQuery, now time.Time,
+	_ context.Context, _ string, query InventoryQuery, now time.Time,
 ) ([]InventoryItem, int, error) {
 	store.query = query
 	store.now = now
@@ -37,10 +32,10 @@ func TestInventoryListPreservesBoundedQueryAndBuildsPage(t *testing.T) {
 		Page: 2, PageSize: 10,
 	}
 	items := []InventoryItem{{Monitor: draftMonitor(0)}}
-	store := &fakeInventoryStore{projectExists: true, items: items, total: 11}
-	page, found, err := NewInventoryService(store, fixedClock{value: now}).List(context.Background(), "org", "project", query)
-	if err != nil || !found {
-		t.Fatalf("List() found/error = %v/%v", found, err)
+	store := &fakeInventoryStore{items: items, total: 11}
+	page, err := NewInventoryService(store, fixedClock{value: now}).List(context.Background(), "org", query)
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
 	}
 	if !reflect.DeepEqual(page.Items, items) || page.Total != 11 || page.Page != 2 || page.PageSize != 10 {
 		t.Fatalf("List() page = %#v", page)
@@ -71,8 +66,8 @@ func TestInventoryListRejectsInvalidQueriesBeforeStore(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			query := valid
 			test.mutate(&query)
-			store := &fakeInventoryStore{projectExists: true}
-			if _, _, err := NewInventoryService(store, fixedClock{value: testTime()}).List(context.Background(), "org", "project", query); err == nil {
+			store := &fakeInventoryStore{}
+			if _, err := NewInventoryService(store, fixedClock{value: testTime()}).List(context.Background(), "org", query); err == nil {
 				t.Fatal("List() unexpectedly accepted invalid query")
 			}
 			if !store.now.IsZero() {
@@ -82,15 +77,11 @@ func TestInventoryListRejectsInvalidQueriesBeforeStore(t *testing.T) {
 	}
 }
 
-func TestInventoryListReturnsEmptySliceAndHidesMissingProject(t *testing.T) {
+func TestInventoryListReturnsEmptySlice(t *testing.T) {
 	t.Parallel()
 	query := InventoryQuery{Sort: InventorySortName, Direction: InventoryDirectionAscending, Page: 1, PageSize: DefaultInventoryPageSize}
-	page, found, err := NewInventoryService(&fakeInventoryStore{projectExists: true}, fixedClock{value: testTime()}).List(context.Background(), "org", "project", query)
-	if err != nil || !found || page.Items == nil || len(page.Items) != 0 {
-		t.Fatalf("empty List() = (%#v, %v, %v)", page, found, err)
-	}
-	_, found, err = NewInventoryService(&fakeInventoryStore{}, fixedClock{value: testTime()}).List(context.Background(), "org", "missing", query)
-	if err != nil || found {
-		t.Fatalf("missing List() found/error = %v/%v", found, err)
+	page, err := NewInventoryService(&fakeInventoryStore{}, fixedClock{value: testTime()}).List(context.Background(), "org", query)
+	if err != nil || page.Items == nil || len(page.Items) != 0 {
+		t.Fatalf("empty List() = (%#v, %v)", page, err)
 	}
 }

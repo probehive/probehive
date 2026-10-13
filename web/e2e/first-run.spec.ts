@@ -13,7 +13,6 @@ const expectMonitorTLS = passingMonitorTarget.startsWith('https://')
 interface CreatedMonitor {
   id: string
   organizationId: string
-  projectId: string
 }
 
 async function unsafeJSON<T>(
@@ -223,7 +222,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   // the real evaluator so the public-state assertion has a proven precondition.
   await expect.poll(async () => page.evaluate(async (scope) => {
     const response = await fetch(
-      `/api/v1/organizations/${scope.organizationId}/projects/${scope.projectId}` +
+      `/api/v1/organizations/${scope.organizationId}` +
       `/monitors/${scope.id}/health`,
     )
     if (!response.ok) return null
@@ -262,7 +261,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   // A scheduled failure plus its confirmation creates an open Incident. Poll the
   // real API for that durable state, then acknowledge it through the browser UI.
   const organizationAPI = `/api/v1/organizations/${createdMonitor.organizationId}`
-  const monitorsAPI = `${organizationAPI}/projects/${createdMonitor.projectId}/monitors`
+  const monitorsAPI = `${organizationAPI}/monitors`
   await page.getByRole('navigation', { name: 'Organization sections' })
     .getByRole('link', { name: 'Integrations' }).click()
   await expect(page).toHaveURL(
@@ -336,7 +335,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   await page.reload()
   await expect.poll(async () => page.evaluate(async (scope) => {
     const response = await fetch(
-      `/api/v1/organizations/${scope.organizationId}/projects/${scope.projectId}` +
+      `/api/v1/organizations/${scope.organizationId}` +
       `/monitors/${scope.id}/incidents?pageSize=1`,
     )
     const body = await response.json() as { items: unknown[] }
@@ -344,7 +343,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
   }, failingMonitor), { timeout: 60_000 }).toBe(1)
   await expect.poll(async () => page.evaluate(async (scope) => {
     const response = await fetch(
-      `/api/v1/organizations/${scope.organizationId}/projects/${scope.projectId}` +
+      `/api/v1/organizations/${scope.organizationId}` +
       `/monitors/${scope.id}/alerts?pageSize=1`,
     )
     const body = await response.json() as { items: unknown[] }
@@ -449,7 +448,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
 
   await expect.poll(async () => page.evaluate(async (scope) => {
     const response = await fetch(
-      '/api/v1/organizations/' + scope.organizationId + '/projects/' + scope.projectId +
+      '/api/v1/organizations/' + scope.organizationId +
       '/monitors/' + scope.id + '/incidents?pageSize=1',
     )
     const body = await response.json() as { items: Array<{ state: string }> }
@@ -458,7 +457,7 @@ test('first run: setup lands on a provisioned Organization, then sign in and add
 
   await expect.poll(async () => page.evaluate(async (scope) => {
     const response = await fetch(
-      `/api/v1/organizations/${scope.organizationId}/projects/${scope.projectId}` +
+      `/api/v1/organizations/${scope.organizationId}` +
       `/monitors/${scope.id}/alerts?pageSize=2`,
     )
     const body = await response.json() as { items: unknown[] }

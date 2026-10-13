@@ -34,11 +34,10 @@ function evidenceLabel(
 
 function runRoute(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   runId: string,
 ): string {
-  return `/organizations/${organizationId}/projects/${projectId}/monitors/${monitorId}/runs/${runId}`
+  return `/organizations/${organizationId}/monitors/${monitorId}/runs/${runId}`
 }
 
 function DetailValue({ children }: { children: ReactNode }) {
@@ -47,18 +46,16 @@ function DetailValue({ children }: { children: ReactNode }) {
 
 export default function MonitorHealthSection({
   organizationId,
-  projectId,
   monitorId,
 }: {
   organizationId: string
-  projectId: string
   monitorId: string
 }) {
   const { t, locale, formatDateTime } = useTranslation()
   const number = new Intl.NumberFormat(locale)
   const query = useQuery({
-    queryKey: ['monitorHealth', organizationId, projectId, monitorId],
-    queryFn: () => getMonitorHealth(organizationId, projectId, monitorId),
+    queryKey: ['monitorHealth', organizationId, monitorId],
+    queryFn: () => getMonitorHealth(organizationId, monitorId),
   })
   const notAvailable = query.error instanceof ApiError && query.error.status === 404
 
@@ -151,7 +148,7 @@ export default function MonitorHealthSection({
                   <DetailValue>
                     <Link
                       className="run-detail-link"
-                      to={runRoute(organizationId, projectId, monitorId, query.data.lastRunId)}
+                      to={runRoute(organizationId, monitorId, query.data.lastRunId)}
                     >
                       <code>{query.data.lastRunId}</code>
                     </Link>
@@ -194,7 +191,6 @@ export default function MonitorHealthSection({
                       className="run-detail-link"
                       to={runRoute(
                         organizationId,
-                        projectId,
                         monitorId,
                         query.data.candidate.triggeringRunId,
                       )}

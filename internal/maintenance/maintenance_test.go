@@ -10,7 +10,6 @@ import (
 
 var testScope = Scope{
 	OrganizationID: "00000000-0000-7000-8000-000000000001",
-	ProjectID:      "00000000-0000-7000-8000-000000000002",
 	MonitorID:      "00000000-0000-7000-8000-000000000003",
 }
 
@@ -25,15 +24,11 @@ func TestWindowRequiresIdentityAndMonitorScope(t *testing.T) {
 		{name: "missing window id", scope: testScope},
 		{
 			name: "missing Organization id", id: windowID,
-			scope: Scope{ProjectID: testScope.ProjectID, MonitorID: testScope.MonitorID},
-		},
-		{
-			name: "missing Project id", id: windowID,
-			scope: Scope{OrganizationID: testScope.OrganizationID, MonitorID: testScope.MonitorID},
+			scope: Scope{MonitorID: testScope.MonitorID},
 		},
 		{
 			name: "missing Monitor id", id: windowID,
-			scope: Scope{OrganizationID: testScope.OrganizationID, ProjectID: testScope.ProjectID},
+			scope: Scope{OrganizationID: testScope.OrganizationID},
 		},
 	}
 

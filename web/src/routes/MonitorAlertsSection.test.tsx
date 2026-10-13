@@ -9,19 +9,17 @@ import { jsonResponse, renderRoutes } from '../test/renderWithProviders.tsx'
 import MonitorAlertsSection from './MonitorAlertsSection.tsx'
 
 const organizationId = '019f8f3d-5bb0-76fc-8fcf-02811ef6b2ee'
-const projectId = '019f8f3d-5bb0-7aa5-b81a-2868fc7c2420'
 const monitorId = '019f8f3d-5bb0-7cf5-b971-3c752c712310'
 const incidentId = '019f8f3d-5bb0-7045-8bc0-ccb1d7765172'
 const olderIncidentId = '019f8f3d-5bb0-7136-9ec1-acde91e22e04'
 const alertsURL =
-  `/api/v1/organizations/${organizationId}/projects/${projectId}/monitors/${monitorId}/alerts`
+  `/api/v1/organizations/${organizationId}/monitors/${monitorId}/alerts`
 const monitorRoute =
-  `/organizations/${organizationId}/projects/${projectId}/monitors/${monitorId}`
+  `/organizations/${organizationId}/monitors/${monitorId}`
 
 const resolvedAlert: AlertResponse = {
   id: '019f8f3d-5bb0-7575-9fd5-28bf4b4fe0c4',
   organizationId,
-  projectId,
   monitorId,
   incidentId,
   incidentVersion: 3,
@@ -87,17 +85,16 @@ function renderSection(locale = 'en') {
   return renderRoutes(
     [
       {
-        path: 'organizations/:organizationId/projects/:projectId/monitors/:monitorId',
+        path: 'organizations/:organizationId/monitors/:monitorId',
         element: (
           <MonitorAlertsSection
             organizationId={organizationId}
-            projectId={projectId}
             monitorId={monitorId}
           />
         ),
       },
       {
-        path: 'organizations/:organizationId/projects/:projectId/monitors/:monitorId/incidents/:incidentId',
+        path: 'organizations/:organizationId/monitors/:monitorId/incidents/:incidentId',
         element: <p>Incident evidence</p>,
       },
     ],

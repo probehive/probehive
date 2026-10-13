@@ -9,12 +9,11 @@ export default function ChangeMonitorIntervalForm({ monitor }: { monitor: Monito
   const { t, translateError, translateProblem } = useTranslation()
   const queryClient = useQueryClient()
   const [intervalSeconds, setIntervalSeconds] = useState(String(monitor.intervalSeconds))
-  const listKey = monitorsQueryKey(monitor.organizationId, monitor.projectId)
-  const detailKey = monitorQueryKey(monitor.organizationId, monitor.projectId, monitor.id)
+  const listKey = monitorsQueryKey(monitor.organizationId)
+  const detailKey = monitorQueryKey(monitor.organizationId, monitor.id)
   const mutation = useMutation<MonitorResponse, unknown, number>({
     mutationFn: (nextInterval) => changeMonitorInterval(
       monitor.organizationId,
-      monitor.projectId,
       monitor.id,
       nextInterval,
     ),

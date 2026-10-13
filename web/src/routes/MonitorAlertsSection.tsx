@@ -16,20 +16,18 @@ const alertPageSize = 25
 
 function alertsQueryKey(
   organizationId: string,
-  projectId: string,
   monitorId: string,
 ) {
-  return ['alerts', organizationId, projectId, monitorId] as const
+  return ['alerts', organizationId, monitorId] as const
 }
 
 function incidentRoute(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   incidentId: string,
 ): string {
   return '/organizations/' + organizationId +
-    '/projects/' + projectId + '/monitors/' + monitorId + '/incidents/' + incidentId
+    '/monitors/' + monitorId + '/incidents/' + incidentId
 }
 
 function kindLabel(
@@ -140,20 +138,18 @@ function DeliveryAudit({ delivery }: { delivery: AlertDeliveryResponse }) {
 
 function AlertDeliveryEvidence({
   organizationId,
-  projectId,
   monitorId,
   alertId,
 }: {
   organizationId: string
-  projectId: string
   monitorId: string
   alertId: string
 }) {
   const { t } = useTranslation()
   const query = useQuery({
-    queryKey: ['alert-deliveries', organizationId, projectId, monitorId, alertId],
+    queryKey: ['alert-deliveries', organizationId, monitorId, alertId],
     queryFn: () => listAlertDeliveries(
-      organizationId, projectId, monitorId, alertId,
+      organizationId, monitorId, alertId,
     ),
   })
 
@@ -177,12 +173,10 @@ function AlertDeliveryEvidence({
 function AlertRow({
   alert,
   organizationId,
-  projectId,
   monitorId,
 }: {
   alert: AlertResponse
   organizationId: string
-  projectId: string
   monitorId: string
 }) {
   const { t, formatDateTime } = useTranslation()
@@ -212,7 +206,6 @@ function AlertRow({
               className="incident-detail-link"
               to={incidentRoute(
                 organizationId,
-                projectId,
                 monitorId,
                 alert.incidentId,
               )}
@@ -232,7 +225,6 @@ function AlertRow({
           <td colSpan={5}>
             <AlertDeliveryEvidence
               organizationId={organizationId}
-              projectId={projectId}
               monitorId={monitorId}
               alertId={alert.id}
             />
@@ -246,12 +238,10 @@ function AlertRow({
 function AlertsTable({
   alerts,
   organizationId,
-  projectId,
   monitorId,
 }: {
   alerts: AlertResponse[]
   organizationId: string
-  projectId: string
   monitorId: string
 }) {
   const { t } = useTranslation()
@@ -273,7 +263,6 @@ function AlertsTable({
               key={alert.id}
               alert={alert}
               organizationId={organizationId}
-              projectId={projectId}
               monitorId={monitorId}
             />
           ))}
@@ -285,17 +274,15 @@ function AlertsTable({
 
 export default function MonitorAlertsSection({
   organizationId,
-  projectId,
   monitorId,
 }: {
   organizationId: string
-  projectId: string
   monitorId: string
 }) {
   const { t } = useTranslation()
   const query = useInfiniteQuery({
-    queryKey: alertsQueryKey(organizationId, projectId, monitorId),
-    queryFn: ({ pageParam }) => listAlerts(organizationId, projectId, monitorId, {
+    queryKey: alertsQueryKey(organizationId, monitorId),
+    queryFn: ({ pageParam }) => listAlerts(organizationId, monitorId, {
       pageSize: alertPageSize,
       cursor: pageParam === '' ? undefined : pageParam,
     }),
@@ -321,7 +308,6 @@ export default function MonitorAlertsSection({
         <AlertsTable
           alerts={alerts}
           organizationId={organizationId}
-          projectId={projectId}
           monitorId={monitorId}
         />
       )}

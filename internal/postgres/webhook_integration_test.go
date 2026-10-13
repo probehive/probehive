@@ -10,7 +10,7 @@ import (
 
 func TestWebhookIntegrationPersistsCiphertextAndRewrapsKeys(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, _ := seedTenant(t, database, 1500)
+	organizationValue := seedTenant(t, database, 1500)
 	oldKey := webhook.WrappingKey{ID: "old", Key: bytes.Repeat([]byte{1}, 32)}
 	oldRing, err := webhook.NewKeyring([]webhook.WrappingKey{oldKey})
 	if err != nil {
@@ -88,7 +88,7 @@ WHERE organization_id=$1 AND integration_id=$2 AND secret_version=1`,
 
 func TestWebhookEnabledLimitSerializesConcurrentChanges(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, _ := seedTenant(t, database, 1510)
+	organizationValue := seedTenant(t, database, 1510)
 	now := testTime()
 	keyring, err := webhook.NewKeyring([]webhook.WrappingKey{{
 		ID: "test", Key: bytes.Repeat([]byte{9}, 32),
@@ -177,7 +177,7 @@ WHERE organization_id=$1 AND enabled`, string(organizationValue.ID)).Scan(&enabl
 
 func TestWebhookRotationStateSurvivesReload(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, _ := seedTenant(t, database, 1520)
+	organizationValue := seedTenant(t, database, 1520)
 	keyring, err := webhook.NewKeyring([]webhook.WrappingKey{{
 		ID: "test", Key: bytes.Repeat([]byte{7}, 32),
 	}})

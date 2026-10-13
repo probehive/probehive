@@ -36,7 +36,6 @@ var (
 type Incident struct {
 	ID                   string
 	OrganizationID       string
-	ProjectID            string
 	MonitorID            string
 	State                State
 	Version              int64
@@ -87,7 +86,6 @@ type HealthTransitionedV1 struct {
 	CausationID      string    `json:"causationId"`
 	TransitionID     string    `json:"transitionId"`
 	MonitorID        string    `json:"monitorId"`
-	ProjectID        string    `json:"projectId"`
 	OldState         string    `json:"oldState"`
 	NewState         string    `json:"newState"`
 	PolicyVersion    string    `json:"policyVersion"`
@@ -102,14 +100,12 @@ type IncidentTransitionedV1 struct {
 	AggregateVersion int64     `json:"aggregateVersion"`
 	CausationID      string    `json:"causationId"`
 	IncidentID       string    `json:"incidentId"`
-	ProjectID        string    `json:"projectId"`
 	MonitorID        string    `json:"monitorId"`
 	Transition       string    `json:"transition"`
 }
 
 type Scope struct {
 	OrganizationID string
-	ProjectID      string
 	MonitorID      string
 }
 
@@ -131,7 +127,7 @@ type Page struct {
 }
 
 func (scope Scope) Validate() error {
-	if scope.OrganizationID == "" || scope.ProjectID == "" || scope.MonitorID == "" {
+	if scope.OrganizationID == "" || scope.MonitorID == "" {
 		return errors.New("an Incident query requires Organization, Project, and Monitor identity")
 	}
 	return nil
@@ -249,7 +245,7 @@ func (service *Service) Acknowledge(ctx context.Context, scope Scope, id, actorI
 
 func validateHealthTransition(event HealthTransitionedV1) error {
 	if event.EventID == "" || event.OrganizationID == "" || event.TransitionID == "" ||
-		event.MonitorID == "" || event.ProjectID == "" || event.PolicyVersion == "" {
+		event.MonitorID == "" || event.PolicyVersion == "" {
 		return ErrPayloadInvalid
 	}
 	if event.AggregateType != "monitorHealth" || event.AggregateID != event.MonitorID ||

@@ -35,11 +35,11 @@ func (store *AlertStore) ProjectIncidentTransition(
 		return nil
 	}
 
-	var projectID, monitorID, timelineKind string
+	var monitorID, timelineKind string
 	var incidentVersion int64
 	var occurredAt time.Time
 	err = transaction.QueryRow(ctx, `
-SELECT i.project_id, i.monitor_id, timeline.incident_version,
+SELECT i.monitor_id, timeline.incident_version,
        timeline.kind, timeline.occurred_at
 FROM incidents AS i
 JOIN incident_timeline_entries AS timeline
@@ -50,17 +50,17 @@ WHERE i.id = $1
   AND timeline.incident_version = $3
   AND timeline.kind IN ('opened', 'resolved')`,
 		event.IncidentID, event.OrganizationID, event.AggregateVersion,
-	).Scan(&projectID, &monitorID, &incidentVersion, &timelineKind, &occurredAt)
+	).Scan(&monitorID, &incidentVersion, &timelineKind, &occurredAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return alert.ErrPayloadInvalid
 	}
 	if err != nil {
 		return fmt.Errorf("load Alert source Incident fact: %w", err)
 	}
-	if projectID != event.ProjectID || monitorID != event.MonitorID ||
+	if monitorID != event.MonitorID ||
 		incidentVersion != event.AggregateVersion || timelineKind != event.Transition ||
 		!occurredAt.Equal(event.OccurredAt) ||
-		value.OrganizationID != event.OrganizationID || value.ProjectID != projectID ||
+		value.OrganizationID != event.OrganizationID ||
 		value.MonitorID != monitorID || value.IncidentID != event.IncidentID ||
 		value.IncidentVersion != incidentVersion ||
 		value.Kind != alert.Kind("incident."+timelineKind) ||
@@ -81,11 +81,11 @@ FOR UPDATE`, event.OrganizationID).Scan(&lockedOrganizationID); errors.Is(err, p
 
 	tag, err := transaction.Exec(ctx, `
 INSERT INTO alerts (
-    id, organization_id, project_id, monitor_id, incident_id,
+    id, organization_id, monitor_id, incident_id,
     incident_version, kind, occurred_at, created_at
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
 ON CONFLICT (organization_id, incident_id, incident_version) DO NOTHING`,
-		value.ID, value.OrganizationID, value.ProjectID, value.MonitorID,
+		value.ID, value.OrganizationID, value.MonitorID,
 		value.IncidentID, value.IncidentVersion, string(value.Kind),
 		value.OccurredAt.UTC(), value.CreatedAt.UTC())
 	if err != nil {
@@ -128,8 +128,8 @@ func (store *AlertStore) ListAlerts(
 	if err := store.pool.QueryRow(ctx, `
 SELECT EXISTS (
     SELECT 1 FROM monitors
-    WHERE id=$1 AND organization_id=$2 AND project_id=$3
-)`, scope.MonitorID, scope.OrganizationID, scope.ProjectID).Scan(&exists); err != nil {
+    WHERE id=$1 AND organization_id=$2
+)`, scope.MonitorID, scope.OrganizationID).Scan(&exists); err != nil {
 		return nil, false, false, fmt.Errorf("check Alert Monitor scope: %w", err)
 	}
 	if !exists {
@@ -143,16 +143,16 @@ SELECT EXISTS (
 		cursorTime, cursorID = &occurredAt, &query.Cursor.ID
 	}
 	rows, err := store.pool.Query(ctx, `
-SELECT id, organization_id, project_id, monitor_id, incident_id,
+SELECT id, organization_id, monitor_id, incident_id,
        incident_version, kind, occurred_at, created_at
 FROM alerts
-WHERE organization_id=$1 AND project_id=$2 AND monitor_id=$3
+WHERE organization_id=$1 AND monitor_id=$2
   AND (
       $4::timestamptz IS NULL
       OR (occurred_at, id) < ($4::timestamptz, $5::uuid)
   )
 ORDER BY occurred_at DESC, id DESC
-LIMIT $6`, scope.OrganizationID, scope.ProjectID, scope.MonitorID,
+LIMIT $5`, scope.OrganizationID, scope.MonitorID,
 		cursorTime, cursorID, query.PageSize+1)
 	if err != nil {
 		return nil, false, false, fmt.Errorf("list Alerts: %w", err)
@@ -164,7 +164,7 @@ LIMIT $6`, scope.OrganizationID, scope.ProjectID, scope.MonitorID,
 		var value alert.Alert
 		var kind string
 		if err := rows.Scan(
-			&value.ID, &value.OrganizationID, &value.ProjectID, &value.MonitorID,
+			&value.ID, &value.OrganizationID, &value.MonitorID,
 			&value.IncidentID, &value.IncidentVersion, &kind,
 			&value.OccurredAt, &value.CreatedAt,
 		); err != nil {

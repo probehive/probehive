@@ -27,7 +27,6 @@ func (server *Server) alertDeliveries(w http.ResponseWriter, r *http.Request) {
 	values, found, err := server.webhooks.ListDeliveryAudit(
 		r.Context(), webhook.DeliveryScope{
 			OrganizationID: monitorValue.OrganizationID,
-			ProjectID:      monitorValue.ProjectID,
 			MonitorID:      string(monitorValue.MonitorID),
 			AlertID:        alertID,
 		},

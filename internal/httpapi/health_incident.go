@@ -47,7 +47,7 @@ func (server *Server) monitorHealthState(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	value, found, err := server.monitorHealth.Get(r.Context(), health.Scope{
-		OrganizationID: scope.OrganizationID, ProjectID: scope.ProjectID, MonitorID: string(scope.MonitorID),
+		OrganizationID: scope.OrganizationID, MonitorID: string(scope.MonitorID),
 	})
 	if err != nil {
 		server.internalError(w, r, "get Monitor health", err)
@@ -80,7 +80,7 @@ func (server *Server) monitorIncidents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	page, found, err := server.incidents.List(r.Context(), incident.Scope{
-		OrganizationID: scope.OrganizationID, ProjectID: scope.ProjectID, MonitorID: string(scope.MonitorID),
+		OrganizationID: scope.OrganizationID, MonitorID: string(scope.MonitorID),
 	}, query)
 	if err != nil {
 		server.internalError(w, r, "list Incidents", err)
@@ -174,7 +174,6 @@ func incidentIdentity(r *http.Request) (incident.Scope, string, bool) {
 	}
 	return incident.Scope{
 		OrganizationID: monitorValue.OrganizationID,
-		ProjectID:      monitorValue.ProjectID,
 		MonitorID:      string(monitorValue.MonitorID),
 	}, id, true
 }
@@ -241,7 +240,7 @@ func decodeIncidentCursor(value string) (incident.Cursor, error) {
 
 func toMonitorHealthResponse(value health.Snapshot) api.MonitorHealthResponse {
 	response := api.MonitorHealthResponse{
-		OrganizationID: value.OrganizationID, ProjectID: value.ProjectID, MonitorID: value.MonitorID,
+		OrganizationID: value.OrganizationID, MonitorID: value.MonitorID,
 		State: string(value.State), StableState: string(value.StableState),
 		PolicyVersion: value.PolicyVersion, Version: value.Version,
 		LastScheduledFor:          optionalInstant(value.LastScheduledFor),
@@ -297,7 +296,7 @@ func toIncidentResponse(value incident.Incident) api.IncidentResponse {
 		}
 	}
 	return api.IncidentResponse{
-		ID: value.ID, OrganizationID: value.OrganizationID, ProjectID: value.ProjectID,
+		ID: value.ID, OrganizationID: value.OrganizationID,
 		MonitorID: value.MonitorID, State: string(value.State), Version: value.Version,
 		OpenedTransitionID:   value.OpenedTransitionID,
 		AcknowledgedBy:       optionalString(value.AcknowledgedBy),
@@ -404,8 +403,8 @@ func toIncidentInboxItemResponse(value incident.InboxItem) api.IncidentInboxItem
 	response := api.IncidentInboxItemResponse{
 		Incident: api.IncidentInboxIncidentResponse{
 			ID: value.Incident.ID, OrganizationID: value.Incident.OrganizationID,
-			ProjectID: value.Incident.ProjectID, MonitorID: value.Incident.MonitorID,
-			State: string(value.Incident.State), Version: value.Incident.Version,
+			MonitorID: value.Incident.MonitorID,
+			State:     string(value.Incident.State), Version: value.Incident.Version,
 			OpenedTransitionID:   value.Incident.OpenedTransitionID,
 			AcknowledgedBy:       optionalString(value.Incident.AcknowledgedBy),
 			AcknowledgedAt:       optionalInstant(value.Incident.AcknowledgedAt),

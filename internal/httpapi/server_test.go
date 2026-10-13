@@ -261,7 +261,6 @@ func TestNonCanonicalPathsReturnProblemDetailsWithoutRedirect(t *testing.T) {
 
 func TestRouteConstraintsPrecedeMethodMatching(t *testing.T) {
 	validOrganization := "00000000-0000-7000-8000-000000000101"
-	validProject := "00000000-0000-7000-8000-000000000102"
 	validMonitor := "00000000-0000-7000-8000-000000000103"
 	tests := []struct {
 		name   string
@@ -272,12 +271,12 @@ func TestRouteConstraintsPrecedeMethodMatching(t *testing.T) {
 		{name: "invalid Organization UUID", method: http.MethodPost, path: "/api/v1/organizations/not-a-uuid", status: http.StatusNotFound},
 		{
 			name: "invalid Monitor UUID", method: http.MethodDelete,
-			path:   "/api/v1/organizations/" + validOrganization + "/projects/" + validProject + "/monitors/not-a-uuid",
+			path:   "/api/v1/organizations/" + validOrganization + "/monitors/not-a-uuid",
 			status: http.StatusNotFound,
 		},
 		{
 			name: "revision outside int32", method: http.MethodPost,
-			path:   "/api/v1/organizations/" + validOrganization + "/projects/" + validProject + "/monitors/" + validMonitor + "/revisions/2147483648",
+			path:   "/api/v1/organizations/" + validOrganization + "/monitors/" + validMonitor + "/revisions/2147483648",
 			status: http.StatusNotFound,
 		},
 		{name: "valid constraint wrong method", method: http.MethodPost, path: "/api/v1/organizations/" + validOrganization, status: http.StatusMethodNotAllowed},
@@ -389,11 +388,10 @@ func TestMonitorCrossScopeIsHiddenAndConcurrencyIsConflict(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	token := environment.bootstrapAdministrator(t)
 	organizationID := "00000000-0000-7000-8000-000000000101"
-	projectID := "00000000-0000-7000-8000-000000000102"
 	monitorID := "00000000-0000-7000-8000-000000000103"
 	createdAt := environment.clock.Now()
 	value, err := monitor.RestoreMonitor(
-		monitor.ID(monitorID), organizationID, projectID, "API", "http",
+		monitor.ID(monitorID), organizationID, "API", "http",
 		monitor.StateDraft, monitor.DefaultIntervalSeconds, 0, createdAt, createdAt, 7,
 	)
 	if err != nil {
@@ -405,7 +403,7 @@ func TestMonitorCrossScopeIsHiddenAndConcurrencyIsConflict(t *testing.T) {
 	wrongOrganization := "00000000-0000-7000-8000-000000000999"
 	crossScope := environment.request(
 		t, environment.client, http.MethodGet,
-		"/api/v1/organizations/"+wrongOrganization+"/projects/"+projectID+"/monitors/"+monitorID,
+		"/api/v1/organizations/"+wrongOrganization+"/monitors/"+monitorID,
 		"", "", "",
 	)
 	assertProblem(t, crossScope, http.StatusNotFound, "Not Found", "")
@@ -415,7 +413,7 @@ func TestMonitorCrossScopeIsHiddenAndConcurrencyIsConflict(t *testing.T) {
 	environment.monitors.mu.Unlock()
 	conflict := environment.request(
 		t, environment.client, http.MethodPut,
-		"/api/v1/organizations/"+organizationID+"/projects/"+projectID+"/monitors/"+monitorID+"/name",
+		"/api/v1/organizations/"+organizationID+"/monitors/"+monitorID+"/name",
 		`{"name":"Renamed"}`, environment.server.URL, token,
 	)
 	assertProblem(t, conflict, http.StatusConflict, monitor.RenameRejectedTitle, monitor.ConcurrentUpdateDetail)
@@ -424,7 +422,6 @@ func TestMonitorCrossScopeIsHiddenAndConcurrencyIsConflict(t *testing.T) {
 func TestRevisionNumberRejectsValuesAboveInt32Range(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	path := "/api/v1/organizations/00000000-0000-7000-8000-000000000101" +
-		"/projects/00000000-0000-7000-8000-000000000102" +
 		"/monitors/00000000-0000-7000-8000-000000000103/revisions/2147483648"
 	response := environment.request(t, environment.client, http.MethodGet, path, "", "", "")
 	assertProblem(t, response, http.StatusNotFound, "Not Found", "")
@@ -473,11 +470,10 @@ func TestChangeMonitorIntervalValidatesAndUpdatesWithoutARevision(t *testing.T) 
 	environment := newTestEnvironment(t, true, 0)
 	token := environment.bootstrapAdministrator(t)
 	organizationID := "00000000-0000-7000-8000-000000000101"
-	projectID := "00000000-0000-7000-8000-000000000102"
 	monitorID := "00000000-0000-7000-8000-000000000103"
 	createdAt := environment.clock.Now()
 	value, err := monitor.RestoreMonitor(
-		monitor.ID(monitorID), organizationID, projectID, "API", "http",
+		monitor.ID(monitorID), organizationID, "API", "http",
 		monitor.StateDraft, monitor.DefaultIntervalSeconds, 0, createdAt, createdAt, 7,
 	)
 	if err != nil {
@@ -485,8 +481,7 @@ func TestChangeMonitorIntervalValidatesAndUpdatesWithoutARevision(t *testing.T) 
 	}
 	environment.monitors.seed(value)
 	environment.grantMembership(t, organizationID, organization.RoleAdministrator)
-	path := "/api/v1/organizations/" + organizationID + "/projects/" + projectID +
-		"/monitors/" + monitorID + "/interval"
+	path := "/api/v1/organizations/" + organizationID + "/monitors/" + monitorID + "/interval"
 
 	accepted := environment.request(
 		t, environment.client, http.MethodPut, path, `{"intervalSeconds":300}`, environment.server.URL, token,

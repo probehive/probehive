@@ -24,7 +24,6 @@ import MonitorInventoryActions from './MonitorInventoryActions'
 
 interface MonitorInventoryPanelProps {
   organizationId: string
-  projectId: string
 }
 
 interface SetupRequest {
@@ -49,7 +48,7 @@ function validValue<T extends string>(value: string | null, values: readonly T[]
   return value && values.includes(value as T) ? value as T : undefined
 }
 
-export default function MonitorInventoryPanel({ organizationId, projectId }: MonitorInventoryPanelProps) {
+export default function MonitorInventoryPanel({ organizationId }: MonitorInventoryPanelProps) {
   const { t, formatDateTime, translateError, translateProblem } = useTranslation()
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -76,25 +75,25 @@ export default function MonitorInventoryPanel({ organizationId, projectId }: Mon
     page: Math.min(1000, Math.max(1, Number.parseInt(searchParams.get('monitorPage') ?? '1', 10) || 1)),
     pageSize,
   }
-  const queryKey = monitorInventoryQueryKey(organizationId, projectId, inventoryQuery)
+  const queryKey = monitorInventoryQueryKey(organizationId, inventoryQuery)
   const query = useQuery({
     queryKey,
-    queryFn: () => listMonitorInventory(organizationId, projectId, inventoryQuery),
+    queryFn: () => listMonitorInventory(organizationId, inventoryQuery),
   })
   const mutation = useMutation<MonitorResponse, unknown, SetupRequest>({
     mutationFn: async (request) => {
       let monitor = setupMonitor
       if (monitor === null) {
-        monitor = await createHTTPMonitor(organizationId, projectId, request.name, request.intervalSeconds)
+        monitor = await createHTTPMonitor(organizationId, request.name, request.intervalSeconds)
         setSetupMonitor(monitor)
       }
       if (monitor.latestRevisionNumber === 0) {
-        const revision = await createHTTPRevision(organizationId, projectId, monitor.id, request.url)
+        const revision = await createHTTPRevision(organizationId, monitor.id, request.url)
         monitor = { ...monitor, latestRevisionNumber: revision.revisionNumber }
         setSetupMonitor(monitor)
       }
       if (monitor.state === 'draft') {
-        monitor = await activateMonitor(organizationId, projectId, monitor.id)
+        monitor = await activateMonitor(organizationId, monitor.id)
         setSetupMonitor(monitor)
       }
       return monitor
@@ -107,7 +106,7 @@ export default function MonitorInventoryPanel({ organizationId, projectId }: Mon
     },
     onSettled: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: monitorsQueryKey(organizationId, projectId) }),
+        queryClient.invalidateQueries({ queryKey: monitorsQueryKey(organizationId) }),
         queryClient.invalidateQueries({ queryKey: organizationOverviewQueryKey(organizationId), exact: true }),
       ])
     },
@@ -177,7 +176,6 @@ export default function MonitorInventoryPanel({ organizationId, projectId }: Mon
     <section className="monitor-section" id="monitors" aria-labelledby="monitors-heading">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">{t('organization.defaultProject')}</p>
           <h2 id="monitors-heading">{t('monitor.heading')}</h2>
         </div>
         <span className="section-count" aria-label={t('monitor.inventory.resultCount')}>{query.data ? query.data.total : '-'}</span>
@@ -204,7 +202,7 @@ export default function MonitorInventoryPanel({ organizationId, projectId }: Mon
                 const health = item.health?.state ?? 'notEvaluated'
                 const run = item.lastRun?.outcome ?? 'notRun'
                 return <tr key={item.monitor.id}>
-                  <th scope="row" data-label={t('monitor.name')}><Link className="monitor-link" to={`/organizations/${organizationId}/projects/${projectId}/monitors/${item.monitor.id}`}>{item.monitor.name}<span aria-hidden="true"> &rarr;</span></Link><small>{item.monitor.checkType} · {t('monitor.intervalValue', { seconds: item.monitor.intervalSeconds })}</small></th>
+                  <th scope="row" data-label={t('monitor.name')}><Link className="monitor-link" to={`/organizations/${organizationId}/monitors/${item.monitor.id}`}>{item.monitor.name}<span aria-hidden="true"> &rarr;</span></Link><small>{item.monitor.checkType} · {t('monitor.intervalValue', { seconds: item.monitor.intervalSeconds })}</small></th>
                   <td data-label={t('monitor.state')}><span className="monitor-state" data-state={item.monitor.state}>{stateLabels[item.monitor.state]}</span></td>
                   <td data-label={t('monitor.inventory.health')}><span className="monitor-fact" data-state={health}>{healthLabels[health]}</span>{item.health && <small>{formatDateTime(item.health.updatedAt)}</small>}</td>
                   <td data-label={t('monitor.inventory.run')}><span className="monitor-fact" data-state={run}>{runLabels[run]}</span>{item.lastRun && <small>{formatDateTime(item.lastRun.scheduledFor)}</small>}</td>

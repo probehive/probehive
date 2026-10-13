@@ -26,8 +26,8 @@ func validSummary() Summary {
 		Health:         HealthCounts{NotEvaluated: 1, Healthy: 1, Down: 1},
 		Incidents:      IncidentCounts{Active: 2, Open: 1, Acknowledged: 1},
 		ActiveIncidents: []ActiveIncident{
-			{ID: "incident-1", ProjectID: "project-1", MonitorID: "monitor-1", MonitorName: "Checkout", State: "open", UpdatedAt: time.Date(2026, 8, 17, 2, 0, 0, 0, time.UTC)},
-			{ID: "incident-2", ProjectID: "project-1", MonitorID: "monitor-2", MonitorName: "API", State: "acknowledged", UpdatedAt: time.Date(2026, 8, 17, 1, 0, 0, 0, time.UTC)},
+			{ID: "incident-1", MonitorID: "monitor-1", MonitorName: "Checkout", State: "open", UpdatedAt: time.Date(2026, 8, 17, 2, 0, 0, 0, time.UTC)},
+			{ID: "incident-2", MonitorID: "monitor-2", MonitorName: "API", State: "acknowledged", UpdatedAt: time.Date(2026, 8, 17, 1, 0, 0, 0, time.UTC)},
 		},
 		Integrations: IntegrationCounts{Total: 2, Enabled: 1},
 		StatusPage:   StatusPageState{Configured: true, Published: true},

@@ -5,7 +5,6 @@ export type AlertKind = 'incident.opened' | 'incident.resolved'
 export interface AlertResponse {
   id: string
   organizationId: string
-  projectId: string
   monitorId: string
   incidentId: string
   incidentVersion: number
@@ -59,17 +58,14 @@ interface ListAlertsOptions {
 
 function alertsPath(
   organizationId: string,
-  projectId: string,
   monitorId: string,
 ): string {
   return '/api/v1/organizations/' + encodeURIComponent(organizationId) +
-    '/projects/' + encodeURIComponent(projectId) +
-    '/monitors/' + encodeURIComponent(monitorId) + '/alerts'
+        '/monitors/' + encodeURIComponent(monitorId) + '/alerts'
 }
 
 export function listAlerts(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   options: ListAlertsOptions = {},
 ): Promise<AlertPageResponse> {
@@ -80,18 +76,17 @@ export function listAlerts(
     query.set('cursor', options.cursor)
   }
   return getJson<AlertPageResponse>(
-    alertsPath(organizationId, projectId, monitorId) + '?' + query.toString(),
+    alertsPath(organizationId, monitorId) + '?' + query.toString(),
   )
 }
 
 export function listAlertDeliveries(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   alertId: string,
 ): Promise<AlertDeliveryPageResponse> {
   return getJson<AlertDeliveryPageResponse>(
-    alertsPath(organizationId, projectId, monitorId) + '/' +
+    alertsPath(organizationId, monitorId) + '/' +
       encodeURIComponent(alertId) + '/deliveries',
   )
 }

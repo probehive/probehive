@@ -54,7 +54,6 @@ func (server *Server) monitorAlerts(w http.ResponseWriter, r *http.Request) {
 	}
 	page, found, err := server.alerts.List(r.Context(), alert.Scope{
 		OrganizationID: monitorValue.OrganizationID,
-		ProjectID:      monitorValue.ProjectID,
 		MonitorID:      string(monitorValue.MonitorID),
 	}, query)
 	if err != nil {
@@ -143,7 +142,7 @@ func decodeAlertCursor(value string) (alert.Cursor, error) {
 
 func toAlertResponse(value alert.Alert) api.AlertResponse {
 	return api.AlertResponse{
-		ID: value.ID, OrganizationID: value.OrganizationID, ProjectID: value.ProjectID,
+		ID: value.ID, OrganizationID: value.OrganizationID,
 		MonitorID: value.MonitorID, IncidentID: value.IncidentID,
 		IncidentVersion: value.IncidentVersion, Kind: string(value.Kind),
 		OccurredAt: value.OccurredAt, CreatedAt: value.CreatedAt,

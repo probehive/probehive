@@ -54,7 +54,6 @@ type DeliveryRoute struct {
 	OrganizationID     string
 	AlertID            string
 	AlertKind          string
-	ProjectID          string
 	MonitorID          string
 	IncidentID         string
 	IncidentVersion    int64
@@ -104,13 +103,12 @@ type DeliveryAudit struct {
 
 type DeliveryScope struct {
 	OrganizationID string
-	ProjectID      string
 	MonitorID      string
 	AlertID        string
 }
 
 func (scope DeliveryScope) Validate() error {
-	if scope.OrganizationID == "" || scope.ProjectID == "" ||
+	if scope.OrganizationID == "" ||
 		scope.MonitorID == "" || scope.AlertID == "" {
 		return errors.New("Webhook delivery audit requires complete scope")
 	}
@@ -248,7 +246,6 @@ type webhookPayload struct {
 	AlertID         string    `json:"alertId"`
 	AlertKind       string    `json:"alertKind"`
 	OrganizationID  string    `json:"organizationId"`
-	ProjectID       string    `json:"projectId"`
 	MonitorID       string    `json:"monitorId"`
 	IncidentID      string    `json:"incidentId"`
 	IncidentVersion int64     `json:"incidentVersion"`
@@ -260,7 +257,7 @@ func signedPayload(
 	claim DeliveryClaim, now time.Time, secret []byte,
 ) ([]byte, string, int64, error) {
 	if claim.DeliveryID == "" || claim.OrganizationID == "" || claim.AlertID == "" ||
-		claim.ProjectID == "" || claim.MonitorID == "" || claim.IncidentID == "" ||
+		claim.MonitorID == "" || claim.IncidentID == "" ||
 		claim.IntegrationID == "" || claim.Sequence < 1 || claim.SecretVersion < 1 ||
 		claim.IntegrationVersion < 1 || claim.IncidentVersion < 1 ||
 		!isUTC(claim.OccurredAt) || !isUTC(claim.RoutedAt) ||
@@ -270,7 +267,7 @@ func signedPayload(
 	payload, err := json.Marshal(webhookPayload{
 		SchemaVersion: "v1", DeliveryID: claim.DeliveryID, AlertID: claim.AlertID,
 		AlertKind: claim.AlertKind, OrganizationID: claim.OrganizationID,
-		ProjectID: claim.ProjectID, MonitorID: claim.MonitorID,
+		MonitorID:  claim.MonitorID,
 		IncidentID: claim.IncidentID, IncidentVersion: claim.IncidentVersion,
 		OccurredAt: claim.OccurredAt.UTC(), Attempt: claim.Sequence,
 	})

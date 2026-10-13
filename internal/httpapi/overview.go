@@ -73,7 +73,7 @@ func toOrganizationOverviewResponse(
 		preview := make([]api.OrganizationOverviewActiveIncident, len(value.ActiveIncidents))
 		for index, incident := range value.ActiveIncidents {
 			preview[index] = api.OrganizationOverviewActiveIncident{
-				ID: incident.ID, ProjectID: incident.ProjectID, MonitorID: incident.MonitorID,
+				ID: incident.ID, MonitorID: incident.MonitorID,
 				MonitorName: incident.MonitorName, State: incident.State, UpdatedAt: incident.UpdatedAt,
 			}
 		}

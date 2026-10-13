@@ -23,17 +23,6 @@ export default function OrganizationSettingsPage() {
         <dd>{formatDateTime(organization.createdAt)}</dd>
       </dl>
       <RenameOrganizationForm organization={organization} />
-      <section className="project-summary" aria-labelledby="default-project-heading">
-        <h3 id="default-project-heading">{t('organization.defaultProject')}</h3>
-        <dl className="detail-grid">
-          <dt>{t('organization.name')}</dt>
-          <dd>{organization.defaultProject.name}</dd>
-          <dt>{t('organization.identifier')}</dt>
-          <dd>
-            <code>{organization.defaultProject.id}</code>
-          </dd>
-        </dl>
-      </section>
     </section>
   )
 }

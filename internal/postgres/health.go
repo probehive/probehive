@@ -39,13 +39,13 @@ func (store *HealthStore) ProcessRunRecorded(
 		return nil
 	}
 
-	var projectID, monitorState, runMonitorID, location, kind, outcome string
+	var monitorState, runMonitorID, location, kind, outcome string
 	var revisionNumber, latestRevisionNumber int
 	var scheduledFor time.Time
 	var finishedAt *time.Time
 	var failureCode, candidateID *string
 	err = transaction.QueryRow(ctx, `
-SELECT m.project_id, m.latest_revision_number, m.state,
+SELECT m.latest_revision_number, m.state,
        r.monitor_id, r.revision_number, r.location, r.scheduled_for,
        r.kind, r.outcome, r.finished_at, o.failure_code, r.confirmation_candidate_id
 FROM runs AS r
@@ -55,7 +55,7 @@ LEFT JOIN observations AS o
 WHERE r.id = $1 AND r.scheduled_for = $2 AND r.organization_id = $3
 FOR UPDATE OF m`,
 		event.RunID, event.ScheduledFor.UTC(), event.OrganizationID).Scan(
-		&projectID, &latestRevisionNumber, &monitorState,
+		&latestRevisionNumber, &monitorState,
 		&runMonitorID, &revisionNumber, &location, &scheduledFor,
 		&kind, &outcome, &finishedAt, &failureCode, &candidateID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -76,12 +76,12 @@ FOR UPDATE OF m`,
 		return commitHealth(ctx, transaction)
 	}
 
-	current, found, err := loadHealthForUpdate(ctx, transaction, event.OrganizationID, projectID, event.MonitorID)
+	current, found, err := loadHealthForUpdate(ctx, transaction, event.OrganizationID, event.MonitorID)
 	if err != nil {
 		return err
 	}
 	if !found {
-		current, err = health.Initial(event.OrganizationID, projectID, event.MonitorID, now)
+		current, err = health.Initial(event.OrganizationID, event.MonitorID, now)
 		if err != nil {
 			return err
 		}
@@ -118,15 +118,15 @@ WHERE id = $3 AND organization_id = $4 AND state = 'pending'`,
 		candidate := decision.CandidateCreated
 		if _, err := transaction.Exec(ctx, `
 INSERT INTO health_candidates (
-    id, organization_id, project_id, monitor_id, source_revision_number,
+    id, organization_id, monitor_id, source_revision_number,
     direction, expected_evidence, state, triggering_run_id,
     triggering_scheduled_for, triggering_event_id, requested_at
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
 ON CONFLICT (
     organization_id, monitor_id, source_revision_number, direction,
     triggering_run_id, triggering_scheduled_for
 ) DO NOTHING`,
-			candidate.ID, candidate.OrganizationID, candidate.ProjectID, candidate.MonitorID,
+			candidate.ID, candidate.OrganizationID, candidate.MonitorID,
 			candidate.SourceRevisionNumber, string(candidate.Direction),
 			string(candidate.ExpectedEvidence), string(candidate.State),
 			candidate.TriggeringRunID, candidate.TriggeringScheduledFor.UTC(),
@@ -152,7 +152,7 @@ ON CONFLICT (
 }
 
 func loadHealthForUpdate(
-	ctx context.Context, transaction pgx.Tx, organizationID, projectID, monitorID string,
+	ctx context.Context, transaction pgx.Tx, organizationID, monitorID string,
 ) (health.Snapshot, bool, error) {
 	var value health.Snapshot
 	var state, stableState, policyVersion string
@@ -167,8 +167,8 @@ SELECT state, stable_state, policy_version, version, source_revision_number,
        failing_count, location_fault_count, indeterminate_count, missing_count,
        transitioned_at, updated_at
 FROM monitor_health
-WHERE monitor_id = $1 AND organization_id = $2 AND project_id = $3
-FOR UPDATE`, monitorID, organizationID, projectID).Scan(
+WHERE monitor_id = $1 AND organization_id = $2
+FOR UPDATE`, monitorID, organizationID).Scan(
 		&state, &stableState, &policyVersion, &value.Version, &sourceRevision,
 		&lastScheduled, &lastDeterminate, &lastRunID, &lastRunScheduled, &candidateID,
 		&value.Counts.Configured, &value.Counts.Eligible, &value.Counts.Responding,
@@ -181,7 +181,7 @@ FOR UPDATE`, monitorID, organizationID, projectID).Scan(
 	if err != nil {
 		return health.Snapshot{}, false, fmt.Errorf("load Monitor health: %w", err)
 	}
-	value.OrganizationID, value.ProjectID, value.MonitorID = organizationID, projectID, monitorID
+	value.OrganizationID, value.MonitorID = organizationID, monitorID
 	value.State, value.StableState, value.PolicyVersion = health.State(state), health.State(stableState), policyVersion
 	if sourceRevision != nil {
 		value.SourceRevisionNumber = *sourceRevision
@@ -216,11 +216,11 @@ func loadHealthCandidate(ctx context.Context, transaction pgx.Tx, organizationID
 	var value health.Candidate
 	var direction, expected, state string
 	err := transaction.QueryRow(ctx, `
-SELECT id, organization_id, project_id, monitor_id, source_revision_number,
+SELECT id, organization_id, monitor_id, source_revision_number,
        direction, expected_evidence, state, triggering_run_id,
        triggering_scheduled_for, triggering_event_id, requested_at
 FROM health_candidates WHERE id = $1 AND organization_id = $2`, id, organizationID).Scan(
-		&value.ID, &value.OrganizationID, &value.ProjectID, &value.MonitorID,
+		&value.ID, &value.OrganizationID, &value.MonitorID,
 		&value.SourceRevisionNumber, &direction, &expected, &state,
 		&value.TriggeringRunID, &value.TriggeringScheduledFor,
 		&value.TriggeringEventID, &value.RequestedAt)
@@ -243,13 +243,13 @@ func upsertHealth(ctx context.Context, transaction pgx.Tx, value health.Snapshot
 	}
 	_, err := transaction.Exec(ctx, `
 INSERT INTO monitor_health (
-    monitor_id, organization_id, project_id, state, stable_state, policy_version,
+    monitor_id, organization_id, state, stable_state, policy_version,
     version, source_revision_number, last_scheduled_for, last_determinate_finished_at,
     last_run_id, last_run_scheduled_for, candidate_id,
     configured_count, eligible_count, responding_count, passing_count, failing_count,
     location_fault_count, indeterminate_count, missing_count, transitioned_at, updated_at
-) VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8,0),$9,$10,NULLIF($11::text,'')::uuid,$12,$13,
-          $14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+) VALUES ($1,$2,$3,$4,$5,$6,NULLIF($7,0),$8,$9,NULLIF($10::text,'')::uuid,$11,$12,
+          $13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
 ON CONFLICT (monitor_id) DO UPDATE SET
     state=EXCLUDED.state, stable_state=EXCLUDED.stable_state,
     policy_version=EXCLUDED.policy_version, version=EXCLUDED.version,
@@ -263,7 +263,7 @@ ON CONFLICT (monitor_id) DO UPDATE SET
     location_fault_count=EXCLUDED.location_fault_count,
     indeterminate_count=EXCLUDED.indeterminate_count, missing_count=EXCLUDED.missing_count,
     transitioned_at=EXCLUDED.transitioned_at, updated_at=EXCLUDED.updated_at`,
-		value.MonitorID, value.OrganizationID, value.ProjectID, string(value.State),
+		value.MonitorID, value.OrganizationID, string(value.State),
 		string(value.StableState), value.PolicyVersion, value.Version, value.SourceRevisionNumber,
 		nullTime(value.LastScheduledFor), nullTime(value.LastDeterminateFinishedAt),
 		value.LastRunID, nullTime(value.LastRunScheduledFor), candidateID,
@@ -306,13 +306,13 @@ func insertHealthTransition(
 	value := decision.Snapshot
 	if _, err := transaction.Exec(ctx, `
 INSERT INTO health_transitions (
-    id, organization_id, project_id, monitor_id, version, old_state, new_state,
+    id, organization_id, monitor_id, version, old_state, new_state,
     policy_version, source_revision_number, causal_run_id, causal_run_scheduled_for,
     configured_count, eligible_count, responding_count, passing_count, failing_count,
     location_fault_count, indeterminate_count, missing_count, occurred_at
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,0),$10,$11,
-          $12,$13,$14,$15,$16,$17,$18,$19,$20)`,
-		ids.TransitionID, value.OrganizationID, value.ProjectID, value.MonitorID,
+) VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8,0),$9,$10,
+          $11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+		ids.TransitionID, value.OrganizationID, value.MonitorID,
 		value.Version, string(decision.PreviousState), string(value.State), value.PolicyVersion,
 		value.SourceRevisionNumber, source.RunID, source.ScheduledFor.UTC(),
 		value.Counts.Configured, value.Counts.Eligible, value.Counts.Responding,
@@ -324,7 +324,7 @@ INSERT INTO health_transitions (
 		EventID: ids.TransitionEventID, OrganizationID: value.OrganizationID, OccurredAt: now,
 		AggregateType: "monitorHealth", AggregateID: value.MonitorID,
 		AggregateVersion: value.Version, CausationID: source.EventID,
-		TransitionID: ids.TransitionID, MonitorID: value.MonitorID, ProjectID: value.ProjectID,
+		TransitionID: ids.TransitionID, MonitorID: value.MonitorID,
 		OldState: string(decision.PreviousState), NewState: string(value.State),
 		PolicyVersion: value.PolicyVersion,
 	}
@@ -371,20 +371,20 @@ func (store *HealthStore) GetHealth(ctx context.Context, scope health.Scope) (he
 	var createdAt time.Time
 	err = transaction.QueryRow(ctx, `
 SELECT created_at FROM monitors
-WHERE id = $1 AND organization_id = $2 AND project_id = $3`,
-		scope.MonitorID, scope.OrganizationID, scope.ProjectID).Scan(&createdAt)
+WHERE id = $1 AND organization_id = $2`,
+		scope.MonitorID, scope.OrganizationID).Scan(&createdAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return health.Snapshot{}, false, nil
 	}
 	if err != nil {
 		return health.Snapshot{}, false, fmt.Errorf("check Monitor health scope: %w", err)
 	}
-	value, found, err := loadHealthForUpdate(ctx, transaction, scope.OrganizationID, scope.ProjectID, scope.MonitorID)
+	value, found, err := loadHealthForUpdate(ctx, transaction, scope.OrganizationID, scope.MonitorID)
 	if err != nil {
 		return health.Snapshot{}, false, err
 	}
 	if !found {
-		value, err = health.Initial(scope.OrganizationID, scope.ProjectID, scope.MonitorID, createdAt.UTC())
+		value, err = health.Initial(scope.OrganizationID, scope.MonitorID, createdAt.UTC())
 		if err != nil {
 			return health.Snapshot{}, false, err
 		}
@@ -401,7 +401,7 @@ func (store *HealthStore) ListStaleHealth(
 		return nil, errors.New("stale health query requires positive bounded settings")
 	}
 	rows, err := store.pool.Query(ctx, `
-SELECT h.organization_id, h.project_id, h.monitor_id, h.version
+SELECT h.organization_id, h.monitor_id, h.version
 FROM monitor_health AS h
 JOIN monitors AS m ON m.id=h.monitor_id AND m.organization_id=h.organization_id
 WHERE m.state='active' AND h.state <> 'unknown'
@@ -417,7 +417,7 @@ LIMIT $3`, now.UTC(), (2 * executionCeiling).Microseconds(), limit)
 	values := make([]health.StaleTarget, 0, limit)
 	for rows.Next() {
 		var value health.StaleTarget
-		if err := rows.Scan(&value.OrganizationID, &value.ProjectID, &value.MonitorID, &value.Version); err != nil {
+		if err := rows.Scan(&value.OrganizationID, &value.MonitorID, &value.Version); err != nil {
 			return nil, fmt.Errorf("scan stale Monitor health: %w", err)
 		}
 		values = append(values, value)
@@ -438,7 +438,7 @@ func (store *HealthStore) MarkHealthStale(
 	}
 	defer func() { _ = transaction.Rollback(ctx) }()
 	current, found, err := loadHealthForUpdate(
-		ctx, transaction, target.OrganizationID, target.ProjectID, target.MonitorID)
+		ctx, transaction, target.OrganizationID, target.MonitorID)
 	if err != nil {
 		return err
 	}
@@ -449,8 +449,8 @@ func (store *HealthStore) MarkHealthStale(
 	var intervalSeconds int
 	if err := transaction.QueryRow(ctx, `
 SELECT state, interval_seconds FROM monitors
-WHERE id=$1 AND organization_id=$2 AND project_id=$3
-FOR UPDATE`, target.MonitorID, target.OrganizationID, target.ProjectID).Scan(
+WHERE id=$1 AND organization_id=$2
+FOR UPDATE`, target.MonitorID, target.OrganizationID).Scan(
 		&monitorState, &intervalSeconds); err != nil {
 		return fmt.Errorf("load Monitor for stale health transition: %w", err)
 	}
@@ -484,13 +484,13 @@ WHERE id=$2 AND organization_id=$3 AND state='pending'`,
 	value := decision.Snapshot
 	if _, err := transaction.Exec(ctx, `
 INSERT INTO health_transitions (
-    id, organization_id, project_id, monitor_id, version, old_state, new_state,
+    id, organization_id, monitor_id, version, old_state, new_state,
     policy_version, source_revision_number, causal_run_id, causal_run_scheduled_for,
     configured_count, eligible_count, responding_count, passing_count, failing_count,
     location_fault_count, indeterminate_count, missing_count, occurred_at
-) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULLIF($9,0),NULL,NULL,
-          $10,$11,$12,$13,$14,$15,$16,$17,$18)`,
-		transitionID, value.OrganizationID, value.ProjectID, value.MonitorID,
+) VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8,0),NULL,NULL,
+          $9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+		transitionID, value.OrganizationID, value.MonitorID,
 		value.Version, string(decision.PreviousState), string(value.State), value.PolicyVersion,
 		value.SourceRevisionNumber, value.Counts.Configured, value.Counts.Eligible,
 		value.Counts.Responding, value.Counts.Passing, value.Counts.Failing,
@@ -502,8 +502,8 @@ INSERT INTO health_transitions (
 		EventID: eventID, OrganizationID: value.OrganizationID, OccurredAt: now,
 		AggregateType: "monitorHealth", AggregateID: value.MonitorID,
 		AggregateVersion: value.Version, TransitionID: transitionID,
-		MonitorID: value.MonitorID, ProjectID: value.ProjectID,
-		OldState: string(decision.PreviousState), NewState: string(value.State),
+		MonitorID: value.MonitorID,
+		OldState:  string(decision.PreviousState), NewState: string(value.State),
 		PolicyVersion: value.PolicyVersion,
 	}
 	payload, err := json.Marshal(event)

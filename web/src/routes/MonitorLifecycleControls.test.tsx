@@ -11,7 +11,6 @@ import { monitorQueryKey, monitorsQueryKey } from './monitorQueries'
 const monitor: MonitorResponse = {
   id: '019f8f3d-5bb0-7cf5-b971-3c752c712310',
   organizationId: '019f8f3d-5bb0-76fc-8fcf-02811ef6b2ee',
-  projectId: '019f8f3d-5bb0-7aa5-b81a-2868fc7c2420',
   name: 'Homepage',
   checkType: 'http',
   state: 'active',
@@ -22,7 +21,7 @@ const monitor: MonitorResponse = {
 }
 
 const stateURL =
-  `/api/v1/organizations/${monitor.organizationId}/projects/${monitor.projectId}` +
+  `/api/v1/organizations/${monitor.organizationId}` +
   `/monitors/${monitor.id}/state`
 
 afterEach(() => {
@@ -41,8 +40,8 @@ test('pauses an active Monitor and synchronizes detail and inventory query state
   }
   const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse(200, paused))
   const { queryClient } = renderControls()
-  const listKey = monitorsQueryKey(monitor.organizationId, monitor.projectId)
-  const detailKey = monitorQueryKey(monitor.organizationId, monitor.projectId, monitor.id)
+  const listKey = monitorsQueryKey(monitor.organizationId, )
+  const detailKey = monitorQueryKey(monitor.organizationId, monitor.id)
   queryClient.setQueryData(listKey, [monitor])
   queryClient.setQueryData(detailKey, monitor)
 

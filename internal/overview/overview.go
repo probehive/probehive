@@ -43,7 +43,6 @@ type StatusPageState struct {
 
 type ActiveIncident struct {
 	ID          string
-	ProjectID   string
 	MonitorID   string
 	MonitorName string
 	State       string
@@ -120,7 +119,7 @@ func (value Summary) validate() error {
 		return errors.New("Organization overview active Incident preview is inconsistent")
 	}
 	for _, incident := range value.ActiveIncidents {
-		if incident.ID == "" || incident.ProjectID == "" || incident.MonitorID == "" || incident.MonitorName == "" ||
+		if incident.ID == "" || incident.MonitorID == "" || incident.MonitorName == "" ||
 			(incident.State != "open" && incident.State != "acknowledged") || !isUTC(incident.UpdatedAt) {
 			return errors.New("Organization overview contains an invalid active Incident")
 		}

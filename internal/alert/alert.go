@@ -23,7 +23,6 @@ var (
 type Alert struct {
 	ID              string
 	OrganizationID  string
-	ProjectID       string
 	MonitorID       string
 	IncidentID      string
 	IncidentVersion int64
@@ -41,20 +40,18 @@ type IncidentTransitionedV1 struct {
 	AggregateVersion int64     `json:"aggregateVersion"`
 	CausationID      string    `json:"causationId"`
 	IncidentID       string    `json:"incidentId"`
-	ProjectID        string    `json:"projectId"`
 	MonitorID        string    `json:"monitorId"`
 	Transition       string    `json:"transition"`
 }
 
 type Scope struct {
 	OrganizationID string
-	ProjectID      string
 	MonitorID      string
 }
 
 func (scope Scope) Validate() error {
-	if scope.OrganizationID == "" || scope.ProjectID == "" || scope.MonitorID == "" {
-		return errors.New("an Alert query requires Organization, Project, and Monitor identity")
+	if scope.OrganizationID == "" || scope.MonitorID == "" {
+		return errors.New("an Alert query requires Organization and Monitor identity")
 	}
 	return nil
 }
@@ -120,7 +117,7 @@ func (service *Service) HandleIncidentTransition(
 		return err
 	}
 	value := Alert{
-		ID: id, OrganizationID: event.OrganizationID, ProjectID: event.ProjectID,
+		ID: id, OrganizationID: event.OrganizationID,
 		MonitorID: event.MonitorID, IncidentID: event.IncidentID,
 		IncidentVersion: event.AggregateVersion, Kind: kind,
 		OccurredAt: event.OccurredAt.UTC(), CreatedAt: now,
@@ -154,7 +151,7 @@ func (service *Service) List(ctx context.Context, scope Scope, query ListQuery) 
 
 func validateIncidentTransition(event IncidentTransitionedV1) (Kind, error) {
 	if event.EventID == "" || event.OrganizationID == "" || event.IncidentID == "" ||
-		event.ProjectID == "" || event.MonitorID == "" || event.CausationID == "" {
+		event.MonitorID == "" || event.CausationID == "" {
 		return "", ErrPayloadInvalid
 	}
 	if event.AggregateType != "incident" || event.AggregateID != event.IncidentID ||

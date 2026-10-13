@@ -19,40 +19,36 @@ const incidentPageSize = 25
 
 function incidentsQueryKey(
   organizationId: string,
-  projectId: string,
   monitorId: string,
 ) {
-  return ['incidents', organizationId, projectId, monitorId] as const
+  return ['incidents', organizationId, monitorId] as const
 }
 
 function incidentQueryKey(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   incidentId: string,
 ) {
-  return [...incidentsQueryKey(organizationId, projectId, monitorId), incidentId] as const
+  return [...incidentsQueryKey(organizationId, monitorId), incidentId] as const
 }
 
 function incidentRoute(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   incidentId?: string,
 ): string {
   const monitorRoute = '/organizations/' + organizationId +
-    '/projects/' + projectId + '/monitors/' + monitorId
+    '/monitors/' + monitorId
   return incidentId === undefined ? monitorRoute : monitorRoute + '/incidents/' + incidentId
 }
 
 function runRoute(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   runId: string,
 ): string {
   return '/organizations/' + organizationId +
-    '/projects/' + projectId + '/monitors/' + monitorId + '/runs/' + runId
+    '/monitors/' + monitorId + '/runs/' + runId
 }
 
 function stateLabel(
@@ -109,13 +105,11 @@ function EvidenceCounts({ counts }: { counts: HealthCountsResponse }) {
 function IncidentsTable({
   incidents,
   organizationId,
-  projectId,
   monitorId,
   selectedIncidentId,
 }: {
   incidents: IncidentResponse[]
   organizationId: string
-  projectId: string
   monitorId: string
   selectedIncidentId?: string
 }) {
@@ -142,7 +136,7 @@ function IncidentsTable({
               <td>
                 <Link
                   className="incident-detail-link"
-                  to={incidentRoute(organizationId, projectId, monitorId, incident.id)}
+                  to={incidentRoute(organizationId, monitorId, incident.id)}
                   aria-current={incident.id === selectedIncidentId ? 'page' : undefined}
                   aria-label={t('incident.view')}
                   title={t('incident.view')}
@@ -164,12 +158,10 @@ function IncidentsTable({
 function TimelineEntry({
   entry,
   organizationId,
-  projectId,
   monitorId,
 }: {
   entry: IncidentTimelineResponse
   organizationId: string
-  projectId: string
   monitorId: string
 }) {
   const { t, locale, formatDateTime } = useTranslation()
@@ -222,7 +214,7 @@ function TimelineEntry({
             <DetailValue>
               <Link
                 className="run-detail-link"
-                to={runRoute(organizationId, projectId, monitorId, entry.causalRunId)}
+                to={runRoute(organizationId, monitorId, entry.causalRunId)}
               >
                 <code>{entry.causalRunId}</code>
               </Link>
@@ -252,26 +244,24 @@ function TimelineEntry({
 
 function IncidentDetails({
   organizationId,
-  projectId,
   monitorId,
   incidentId,
 }: {
   organizationId: string
-  projectId: string
   monitorId: string
   incidentId: string
 }) {
   const { t, locale, formatDateTime, translateProblem } = useTranslation()
   const number = new Intl.NumberFormat(locale)
   const queryClient = useQueryClient()
-  const listQueryKey = incidentsQueryKey(organizationId, projectId, monitorId)
-  const detailQueryKey = incidentQueryKey(organizationId, projectId, monitorId, incidentId)
+  const listQueryKey = incidentsQueryKey(organizationId, monitorId)
+  const detailQueryKey = incidentQueryKey(organizationId, monitorId, incidentId)
   const query = useQuery({
     queryKey: detailQueryKey,
-    queryFn: () => getIncident(organizationId, projectId, monitorId, incidentId),
+    queryFn: () => getIncident(organizationId, monitorId, incidentId),
   })
   const acknowledgement = useMutation({
-    mutationFn: () => acknowledgeIncident(organizationId, projectId, monitorId, incidentId),
+    mutationFn: () => acknowledgeIncident(organizationId, monitorId, incidentId),
     onSuccess: async (value) => {
       queryClient.setQueryData(detailQueryKey, value)
       await queryClient.invalidateQueries({ queryKey: listQueryKey, exact: true })
@@ -292,7 +282,7 @@ function IncidentDetails({
   return (
     <section className="incident-detail-section" aria-labelledby="incident-detail-heading">
       <p>
-        <Link to={incidentRoute(organizationId, projectId, monitorId)}>
+        <Link to={incidentRoute(organizationId, monitorId)}>
           {t('incident.detail.backToList')}
         </Link>
       </p>
@@ -388,7 +378,6 @@ function IncidentDetails({
                   key={entry.id}
                   entry={entry}
                   organizationId={organizationId}
-                  projectId={projectId}
                   monitorId={monitorId}
                 />
               ))}
@@ -402,19 +391,17 @@ function IncidentDetails({
 
 export default function MonitorIncidentsSection({
   organizationId,
-  projectId,
   monitorId,
   incidentId,
 }: {
   organizationId: string
-  projectId: string
   monitorId: string
   incidentId?: string
 }) {
   const { t } = useTranslation()
   const query = useInfiniteQuery({
-    queryKey: incidentsQueryKey(organizationId, projectId, monitorId),
-    queryFn: ({ pageParam }) => listIncidents(organizationId, projectId, monitorId, {
+    queryKey: incidentsQueryKey(organizationId, monitorId),
+    queryFn: ({ pageParam }) => listIncidents(organizationId, monitorId, {
       pageSize: incidentPageSize,
       cursor: pageParam === '' ? undefined : pageParam,
     }),
@@ -435,7 +422,6 @@ export default function MonitorIncidentsSection({
         <IncidentsTable
           incidents={incidents}
           organizationId={organizationId}
-          projectId={projectId}
           monitorId={monitorId}
           selectedIncidentId={incidentId}
         />
@@ -454,7 +440,6 @@ export default function MonitorIncidentsSection({
         <IncidentDetails
           key={incidentId}
           organizationId={organizationId}
-          projectId={projectId}
           monitorId={monitorId}
           incidentId={incidentId}
         />

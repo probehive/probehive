@@ -13,12 +13,12 @@ import (
 
 func TestStatusPageDraftPersistsOrderAndEnforcesTenantAvailability(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 100)
-	otherOrganization, otherProject := seedTenant(t, database, 200)
+	organizationValue := seedTenant(t, database, 100)
+	otherOrganization := seedTenant(t, database, 200)
 	now := testTime()
-	first := seedMonitor(t, database, 110, organizationValue, project, now)
-	second := seedMonitor(t, database, 111, organizationValue, project, now)
-	other := seedMonitor(t, database, 210, otherOrganization, otherProject, now)
+	first := seedMonitor(t, database, 110, organizationValue, now)
+	second := seedMonitor(t, database, 111, organizationValue, now)
+	other := seedMonitor(t, database, 210, otherOrganization, now)
 
 	store := database.StatusPages()
 	draft, err := statuspage.RestoreDraft(
@@ -88,7 +88,6 @@ func TestStatusPageDraftPersistsOrderAndEnforcesTenantAvailability(t *testing.T)
 
 	archived, monitorFound, err := database.Monitors().FindMonitor(t.Context(), monitor.Scope{
 		OrganizationID: string(organizationValue.ID),
-		ProjectID:      string(project.ID),
 		MonitorID:      first.ID,
 	})
 	if err != nil || !monitorFound {
@@ -116,9 +115,9 @@ func TestStatusPageDraftPersistsOrderAndEnforcesTenantAvailability(t *testing.T)
 
 func TestConcurrentStatusPageDraftCreationAllowsOnlyOneDraft(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 300)
+	organizationValue := seedTenant(t, database, 300)
 	now := testTime()
-	monitorValue := seedMonitor(t, database, 310, organizationValue, project, now)
+	monitorValue := seedMonitor(t, database, 310, organizationValue, now)
 	drafts := make([]statuspage.Draft, 2)
 	for index := range drafts {
 		draft, err := statuspage.RestoreDraft(
@@ -170,9 +169,9 @@ func TestConcurrentStatusPageDraftCreationAllowsOnlyOneDraft(t *testing.T) {
 
 func TestConcurrentStatusPagePublicationActivatesOnlyOneCapability(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 350)
+	organizationValue := seedTenant(t, database, 350)
 	now := testTime()
-	monitorValue := seedMonitor(t, database, 360, organizationValue, project, now)
+	monitorValue := seedMonitor(t, database, 360, organizationValue, now)
 	draft, err := statuspage.RestoreDraft(
 		statuspage.ID(testUUID(370)), string(organizationValue.ID), "Service Status", 1,
 		now, now, []statuspage.Component{{
@@ -226,9 +225,9 @@ func TestConcurrentStatusPagePublicationActivatesOnlyOneCapability(t *testing.T)
 
 func TestStatusPagePublicationProjectsCurrentStateAndRevokesImmediately(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 400)
+	organizationValue := seedTenant(t, database, 400)
 	now := testTime()
-	monitorValue := seedMonitor(t, database, 410, organizationValue, project, now)
+	monitorValue := seedMonitor(t, database, 410, organizationValue, now)
 	draft, err := statuspage.RestoreDraft(
 		statuspage.ID(testUUID(420)), string(organizationValue.ID), "Service Status", 1,
 		now, now, []statuspage.Component{{
@@ -271,19 +270,19 @@ UPDATE monitors SET state = 'active', latest_revision_number = 1 WHERE id = $1 A
 
 	if _, err = database.pool.Exec(t.Context(), `
 INSERT INTO monitor_health (
-    monitor_id, organization_id, project_id, state, stable_state, policy_version,
+    monitor_id, organization_id, state, stable_state, policy_version,
     version, source_revision_number, last_scheduled_for, last_determinate_finished_at,
     last_run_id, last_run_scheduled_for, candidate_id,
     configured_count, eligible_count, responding_count, passing_count, failing_count,
     location_fault_count, indeterminate_count, missing_count, transitioned_at, updated_at
-) VALUES ($1,$2,$3,'down','down','phase1.v1',1,1,$4,$4,NULL,NULL,NULL,1,1,1,0,1,0,0,0,$4,$4)`,
-		string(monitorValue.ID), string(organizationValue.ID), string(project.ID), now.Add(time.Minute)); err != nil {
+) VALUES ($1,$2,'down','down','phase1.v1',1,1,$3,$3,NULL,NULL,NULL,1,1,1,0,1,0,0,0,$3,$3)`,
+		string(monitorValue.ID), string(organizationValue.ID), now.Add(time.Minute)); err != nil {
 		t.Fatalf("seed health: %v", err)
 	}
 	window, err := maintenance.NewWindow(
 		maintenance.ID(testUUID(422)), maintenance.Scope{
-			OrganizationID: string(organizationValue.ID), ProjectID: string(project.ID),
-			MonitorID: string(monitorValue.ID),
+			OrganizationID: string(organizationValue.ID),
+			MonitorID:      string(monitorValue.ID),
 		}, now.Add(2*time.Minute), now.Add(10*time.Minute), now,
 	)
 	if err != nil {

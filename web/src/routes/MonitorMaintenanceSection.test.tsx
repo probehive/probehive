@@ -8,16 +8,14 @@ import { jsonResponse, renderWithProviders } from '../test/renderWithProviders'
 import MonitorMaintenanceSection from './MonitorMaintenanceSection'
 
 const organizationId = '019f8f3d-5bb0-76fc-8fcf-02811ef6b2ee'
-const projectId = '019f8f3d-5bb0-7aa5-b81a-2868fc7c2420'
 const monitorId = '019f8f3d-5bb0-7cf5-b971-3c752c712310'
 const collection =
-  '/api/v1/organizations/' + organizationId + '/projects/' + projectId +
+  '/api/v1/organizations/' + organizationId +
   '/monitors/' + monitorId + '/maintenance-windows'
 
 const upcoming: MaintenanceWindowResponse = {
   id: '019f8f3d-5bb0-7a10-9000-000000000001',
   organizationId,
-  projectId,
   monitorId,
   startsAt: '2099-08-10T13:00:00Z',
   endsAt: '2099-08-10T14:00:00Z',
@@ -34,7 +32,6 @@ function renderSection() {
   return renderWithProviders(
     <MonitorMaintenanceSection
       organizationId={organizationId}
-      projectId={projectId}
       monitorId={monitorId}
     />,
     '',

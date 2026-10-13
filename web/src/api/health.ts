@@ -28,7 +28,6 @@ export interface HealthCandidateResponse {
 
 export interface MonitorHealthResponse {
   organizationId: string
-  projectId: string
   monitorId: string
   state: HealthState
   stableState: StableHealthState
@@ -47,10 +46,9 @@ export interface MonitorHealthResponse {
 
 export function getMonitorHealth(
   organizationId: string,
-  projectId: string,
   monitorId: string,
 ): Promise<MonitorHealthResponse> {
   return getJson<MonitorHealthResponse>(
-    `/api/v1/organizations/${encodeURIComponent(organizationId)}/projects/${encodeURIComponent(projectId)}/monitors/${encodeURIComponent(monitorId)}/health`,
+    `/api/v1/organizations/${encodeURIComponent(organizationId)}/monitors/${encodeURIComponent(monitorId)}/health`,
   )
 }

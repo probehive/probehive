@@ -17,7 +17,6 @@ import { monitorsQueryKey } from './monitorQueries'
 
 interface MonitorsPanelProps {
   organizationId: string
-  projectId: string
 }
 
 interface SetupRequest {
@@ -37,17 +36,17 @@ function validationMessages(
   return (error.problem.errors?.[field] ?? []).map(translateError)
 }
 
-export default function MonitorsPanel({ organizationId, projectId }: MonitorsPanelProps) {
+export default function MonitorsPanel({ organizationId }: MonitorsPanelProps) {
   const { t, formatDateTime, translateError, translateProblem } = useTranslation()
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
   const [url, setURL] = useState('')
   const [intervalSeconds, setIntervalSeconds] = useState('60')
   const [setupMonitor, setSetupMonitor] = useState<MonitorResponse | null>(null)
-  const queryKey = monitorsQueryKey(organizationId, projectId)
+  const queryKey = monitorsQueryKey(organizationId)
   const query = useQuery({
     queryKey,
-    queryFn: () => listMonitors(organizationId, projectId),
+    queryFn: () => listMonitors(organizationId),
   })
   const mutation = useMutation<MonitorResponse, unknown, SetupRequest>({
     mutationFn: async (request) => {
@@ -55,7 +54,6 @@ export default function MonitorsPanel({ organizationId, projectId }: MonitorsPan
       if (monitor === null) {
         monitor = await createHTTPMonitor(
           organizationId,
-          projectId,
           request.name,
           request.intervalSeconds,
         )
@@ -64,7 +62,6 @@ export default function MonitorsPanel({ organizationId, projectId }: MonitorsPan
       if (monitor.latestRevisionNumber === 0) {
         const revision = await createHTTPRevision(
           organizationId,
-          projectId,
           monitor.id,
           request.url,
         )
@@ -72,7 +69,7 @@ export default function MonitorsPanel({ organizationId, projectId }: MonitorsPan
         setSetupMonitor(monitor)
       }
       if (monitor.state === 'draft') {
-        monitor = await activateMonitor(organizationId, projectId, monitor.id)
+        monitor = await activateMonitor(organizationId, monitor.id)
         setSetupMonitor(monitor)
       }
       return monitor
@@ -138,7 +135,6 @@ export default function MonitorsPanel({ organizationId, projectId }: MonitorsPan
     <section className="monitor-section" id="monitors" aria-labelledby="monitors-heading">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">{t('organization.defaultProject')}</p>
           <h2 id="monitors-heading">{t('monitor.heading')}</h2>
         </div>
         <span className="section-count" aria-label={t('monitor.heading')}>
@@ -171,7 +167,7 @@ export default function MonitorsPanel({ organizationId, projectId }: MonitorsPan
                   <th scope="row">
                     <Link
                       className="monitor-link"
-                      to={`/organizations/${organizationId}/projects/${projectId}/monitors/${monitor.id}`}
+                      to={`/organizations/${organizationId}/monitors/${monitor.id}`}
                     >
                       {monitor.name}
                       <span aria-hidden="true"> &rarr;</span>

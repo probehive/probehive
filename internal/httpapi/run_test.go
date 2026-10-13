@@ -33,7 +33,6 @@ func newMemoryRunStore(monitors *memoryMonitorStore) *memoryRunStore {
 func (store *memoryRunStore) MonitorExists(ctx context.Context, scope run.Scope) (bool, error) {
 	_, found, err := store.monitors.FindMonitor(ctx, monitor.Scope{
 		OrganizationID: scope.OrganizationID,
-		ProjectID:      scope.ProjectID,
 		MonitorID:      monitor.ID(scope.MonitorID),
 	})
 	return found, err
@@ -125,21 +124,20 @@ func memoryObservationKey(organizationID string, id run.ID, scheduledFor time.Ti
 	return organizationID + "/" + string(id) + "/" + scheduledFor.UTC().Format(time.RFC3339Nano)
 }
 
-func seedRunQueryMonitor(t *testing.T, environment *testEnvironment) (string, string, string) {
+func seedRunQueryMonitor(t *testing.T, environment *testEnvironment) (string, string) {
 	t.Helper()
 	const organizationID = "00000000-0000-7000-8000-000000000002"
-	const projectID = "00000000-0000-7000-8000-000000000003"
 	const monitorID = "00000000-0000-7000-8000-000000000010"
 	now := environment.clock.Now()
 	value, err := monitor.RestoreMonitor(
-		monitor.ID(monitorID), organizationID, projectID, "Checkout", "http",
+		monitor.ID(monitorID), organizationID, "Checkout", "http",
 		monitor.StateActive, 60, 1, now, now, 1,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	environment.monitors.seed(value)
-	return organizationID, projectID, monitorID
+	return organizationID, monitorID
 }
 
 func completedHTTPRun(
@@ -171,7 +169,7 @@ func completedHTTPRun(
 func TestRunQueryAPIListsPagesFiltersAndReturnsObservation(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	environment.bootstrapAdministrator(t)
-	organizationID, projectID, monitorID := seedRunQueryMonitor(t, environment)
+	organizationID, monitorID := seedRunQueryMonitor(t, environment)
 	now := environment.clock.Now()
 
 	first := completedHTTPRun(
@@ -212,8 +210,7 @@ func TestRunQueryAPIListsPagesFiltersAndReturnsObservation(t *testing.T) {
 	environment.runs.seed(second, nil)
 	environment.runs.seed(skipped, nil)
 
-	base := "/api/v1/organizations/" + organizationID + "/projects/" + projectID +
-		"/monitors/" + monitorID + "/runs"
+	base := "/api/v1/organizations/" + organizationID + "/monitors/" + monitorID + "/runs"
 	notBefore := url.QueryEscape(now.Add(-time.Hour).Format(time.RFC3339))
 	response := environment.request(
 		t, environment.client, http.MethodGet,
@@ -304,7 +301,7 @@ func TestRunQueryAPIListsPagesFiltersAndReturnsObservation(t *testing.T) {
 func TestRunQueryAPIValidatesParametersAndFullScope(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	environment.bootstrapAdministrator(t)
-	organizationID, projectID, monitorID := seedRunQueryMonitor(t, environment)
+	organizationID, monitorID := seedRunQueryMonitor(t, environment)
 	environment.grantMembership(t, organizationID, organization.RoleViewer)
 	now := environment.clock.Now()
 	value := completedHTTPRun(
@@ -315,8 +312,7 @@ func TestRunQueryAPIValidatesParametersAndFullScope(t *testing.T) {
 		RunID: value.ID, ScheduledFor: now, OrganizationID: organizationID,
 	})
 
-	base := "/api/v1/organizations/" + organizationID + "/projects/" + projectID +
-		"/monitors/" + monitorID + "/runs"
+	base := "/api/v1/organizations/" + organizationID + "/monitors/" + monitorID + "/runs"
 	validTime := url.QueryEscape(now.Add(-time.Hour).Format(time.RFC3339))
 	cases := []struct {
 		query string
@@ -352,18 +348,17 @@ func TestRunQueryAPIValidatesParametersAndFullScope(t *testing.T) {
 		t.Fatalf("Viewer Run read = %d, body %s", viewerRead.StatusCode, viewerRead.Body)
 	}
 
-	wrongProject := environment.request(
+	wrongOrganization := environment.request(
 		t, environment.client, http.MethodGet,
-		"/api/v1/organizations/"+organizationID+
-			"/projects/00000000-0000-7000-8000-000000000099/monitors/"+
+		"/api/v1/organizations/00000000-0000-7000-8000-000000000099/monitors/"+
 			monitorID+"/runs/"+string(value.ID),
 		"", "", "",
 	)
-	assertProblem(t, wrongProject, http.StatusNotFound, "Not Found", "")
+	assertProblem(t, wrongOrganization, http.StatusNotFound, "Not Found", "")
 
 	wrongMonitor := environment.request(
 		t, environment.client, http.MethodGet,
-		"/api/v1/organizations/"+organizationID+"/projects/"+projectID+
+		"/api/v1/organizations/"+organizationID+
 			"/monitors/00000000-0000-7000-8000-000000000099/runs/"+string(value.ID),
 		"", "", "",
 	)
@@ -416,14 +411,13 @@ func TestManualRunAPIExecutesWithWriteAuthorization(t *testing.T) {
 		config.ManualRuns = manualRuns
 	})
 	token := environment.bootstrapAdministrator(t)
-	organizationID, projectID, monitorID := seedRunQueryMonitor(t, environment)
+	organizationID, monitorID := seedRunQueryMonitor(t, environment)
 	environment.grantMembership(t, organizationID, organization.RoleAdministrator)
 	manualRuns.value = completedManualHTTPRun(
 		t, "00000000-0000-7000-8000-000000000020",
 		organizationID, monitorID, environment.clock.Now(),
 	)
-	base := "/api/v1/organizations/" + organizationID + "/projects/" + projectID +
-		"/monitors/" + monitorID + "/runs"
+	base := "/api/v1/organizations/" + organizationID + "/monitors/" + monitorID + "/runs"
 
 	response := environment.request(
 		t, environment.client, http.MethodPost, base, "",
@@ -445,7 +439,7 @@ func TestManualRunAPIExecutesWithWriteAuthorization(t *testing.T) {
 		t.Fatalf("manual Run response = %#v", value)
 	}
 	if len(manualRuns.scopes) != 1 || manualRuns.scopes[0] != (run.Scope{
-		OrganizationID: organizationID, ProjectID: projectID, MonitorID: monitorID,
+		OrganizationID: organizationID, MonitorID: monitorID,
 	}) {
 		t.Fatalf("manual Run scopes = %#v", manualRuns.scopes)
 	}
@@ -509,12 +503,11 @@ func TestManualRunAPIMappingsAndAvailability(t *testing.T) {
 			}
 			environment := newTestEnvironment(t, true, 0, configure)
 			token := environment.bootstrapAdministrator(t)
-			organizationID, projectID, monitorID := seedRunQueryMonitor(t, environment)
+			organizationID, monitorID := seedRunQueryMonitor(t, environment)
 			environment.grantMembership(t, organizationID, organization.RoleAdministrator)
 			response := environment.request(
 				t, environment.client, http.MethodPost,
-				"/api/v1/organizations/"+organizationID+"/projects/"+projectID+
-					"/monitors/"+monitorID+"/runs",
+				"/api/v1/organizations/"+organizationID+"/monitors/"+monitorID+"/runs",
 				"", environment.server.URL, token,
 			)
 			problem := decodeProblem(t, response)

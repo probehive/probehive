@@ -20,25 +20,14 @@ func TestNormalizeDisplayNameUsesUTF16LengthAndUnicodeTrim(t *testing.T) {
 	}
 }
 
-func TestDomainConstructorsEnforceUTCAndProjectInvariants(t *testing.T) {
+func TestDomainConstructorsEnforceUTCInvariants(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 7, 24, 1, 2, 3, 0, time.UTC)
-	organization, err := NewOrganization("org", "Acme", now)
-	if err != nil {
+	if _, err := NewOrganization("org", "Acme", now); err != nil {
 		t.Fatal(err)
-	}
-	project, err := NewDefaultProject("project", organization.ID, now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if project.Name != DefaultProjectName || !project.IsDefault || project.CreatedAt != organization.CreatedAt {
-		t.Fatalf("unexpected default Project: %#v", project)
 	}
 	nonUTC := now.In(time.FixedZone("offset", 3600))
-	if _, err = NewOrganization("org", "Acme", nonUTC); err == nil {
+	if _, err := NewOrganization("org", "Acme", nonUTC); err == nil {
 		t.Fatal("NewOrganization accepted a non-UTC timestamp")
-	}
-	if _, err = NewDefaultProject("project", "org", nonUTC); err == nil {
-		t.Fatal("NewDefaultProject accepted a non-UTC timestamp")
 	}
 }

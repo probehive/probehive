@@ -107,8 +107,7 @@ func TestMembershipGovernsOrganizationAccess(t *testing.T) {
 	}
 	viewerWrite := environment.request(
 		t, environment.client, http.MethodPost,
-		"/api/v1/organizations/"+bootstrapOrganization+
-			"/projects/00000000-0000-7000-8000-000000000003/monitors",
+		"/api/v1/organizations/"+bootstrapOrganization+"/monitors",
 		`{"name":"Checkout","checkType":"http"}`, environment.server.URL, token,
 	)
 	assertProblem(t, viewerWrite, http.StatusForbidden, "Forbidden", "")
@@ -161,12 +160,10 @@ func TestOriginNullIsRejectedAndMissingOriginSucceeds(t *testing.T) {
 func TestOrganizationCreateAndGetExactWireShape(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	token := environment.bootstrapAdministrator(t)
-	// Setup consumes 0001 for the administrator and 0002/0003 for the bootstrap
-	// Organization and its default Project, so this one starts at 0004.
-	const organizationID = "00000000-0000-7000-8000-000000000004"
-	const projectID = "00000000-0000-7000-8000-000000000005"
-	wantBody := `{"id":"` + organizationID + `","displayName":"Acme","createdAt":"2026-07-24T00:00:00Z","defaultProject":{"id":"` +
-		projectID + `","organizationId":"` + organizationID + `","name":"Default","isDefault":true,"createdAt":"2026-07-24T00:00:00Z"}}` + "\n"
+	// Setup consumes 0001 for the administrator and 0002 for the bootstrap
+	// Organization, so this one starts at 0003.
+	const organizationID = "00000000-0000-7000-8000-000000000003"
+	wantBody := `{"id":"` + organizationID + `","displayName":"Acme","createdAt":"2026-07-24T00:00:00Z"}` + "\n"
 
 	created := environment.request(
 		t, environment.client, http.MethodPost, "/api/v1/organizations",
@@ -185,11 +182,8 @@ func TestOrganizationCreateAndGetExactWireShape(t *testing.T) {
 
 	environment.organizations.mu.Lock()
 	defer environment.organizations.mu.Unlock()
-	if len(environment.organizations.byID) != 2 || len(environment.organizations.projects) != 2 {
-		t.Fatalf(
-			"creation left %d Organizations and %d Projects",
-			len(environment.organizations.byID), len(environment.organizations.projects),
-		)
+	if len(environment.organizations.byID) != 2 {
+		t.Fatalf("creation left %d Organizations", len(environment.organizations.byID))
 	}
 }
 
@@ -295,11 +289,8 @@ func TestSetupProvisionsBootstrapOrganizationAndListsIt(t *testing.T) {
 
 	const userID = "00000000-0000-7000-8000-000000000001"
 	const organizationID = "00000000-0000-7000-8000-000000000002"
-	const projectID = "00000000-0000-7000-8000-000000000003"
 	wantOrganization := `{"id":"` + organizationID + `","displayName":"Default",` +
-		`"createdAt":"2026-07-24T00:00:00Z","defaultProject":{"id":"` + projectID +
-		`","organizationId":"` + organizationID + `","name":"Default","isDefault":true,` +
-		`"createdAt":"2026-07-24T00:00:00Z"}}`
+		`"createdAt":"2026-07-24T00:00:00Z"}`
 	wantSetup := `{"user":{"id":"` + userID + `","email":"admin@example.test","displayName":"Admin",` +
 		`"role":"Administrator","createdAt":"2026-07-24T00:00:00Z"},"organization":` + wantOrganization + "}\n"
 	assertExactJSON(t, response, http.StatusCreated, wantSetup)
@@ -324,7 +315,6 @@ func TestOrganizationListIsEmptyArrayAndRequiresAdministrator(t *testing.T) {
 	environment.bootstrapAdministrator(t)
 	environment.organizations.mu.Lock()
 	clear(environment.organizations.byID)
-	clear(environment.organizations.projects)
 	environment.organizations.mu.Unlock()
 
 	empty := environment.request(t, environment.client, http.MethodGet, "/api/v1/organizations", "", "", "")
@@ -338,8 +328,8 @@ func TestUserAdministrationCreatesTeammatesAndSharesOrganizations(t *testing.T) 
 
 	token := environment.bootstrapAdministrator(t)
 	const bootstrapOrganization = "00000000-0000-7000-8000-000000000002"
-	// Setup consumes 0001-0003, so the created user takes 0004.
-	const teammateID = "00000000-0000-7000-8000-000000000004"
+	// Setup consumes 0001-0002, so the created user takes 0003.
+	const teammateID = "00000000-0000-7000-8000-000000000003"
 
 	created := environment.request(
 		t, environment.client, http.MethodPost, "/api/v1/users",

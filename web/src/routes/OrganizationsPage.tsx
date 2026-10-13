@@ -54,7 +54,6 @@ export default function OrganizationsPage() {
                     <span className="organization-card-arrow" aria-hidden="true">&rarr;</span>
                   </Link>
                   <div className="organization-card-meta">
-                    <span>{organization.defaultProject.name}</span>
                   </div>
                 </li>
               ))}

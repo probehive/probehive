@@ -50,8 +50,8 @@ afterEach(() => {
 })
 
 function mockWorkspaceRoutes() {
-  const inventoryURL = `/api/v1/organizations/${organization.id}/projects/${organization.defaultProject.id}/monitor-inventory`
-  const monitorURL = `/api/v1/organizations/${organization.id}/projects/${organization.defaultProject.id}/monitors`
+  const inventoryURL = `/api/v1/organizations/${organization.id}/monitor-inventory`
+  const monitorURL = `/api/v1/organizations/${organization.id}/${organization.defaultProject.id}/monitors`
   const incidentsURL = `/api/v1/organizations/${organization.id}/incidents`
   const integrationsURL = `/api/v1/organizations/${organization.id}/webhook-integrations`
   return {
@@ -150,7 +150,6 @@ test('renders consolidated organization settings on the settings route', async (
   renderWorkspace(`/organizations/${organization.id}/settings`)
 
   expect(await screen.findByRole('region', { name: 'Organization settings' })).toBeInTheDocument()
-  expect(screen.getByText('Default')).toBeInTheDocument()
   expect(within(workspaceNavigation()).getByRole('link', { name: 'Settings' }))
     .toHaveAttribute('aria-current', 'page')
 })

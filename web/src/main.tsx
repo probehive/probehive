@@ -55,17 +55,17 @@ const router = createBrowserRouter([
             ],
           },
           {
-            path: 'organizations/:organizationId/projects/:projectId/monitors/:monitorId',
+            path: 'organizations/:organizationId/monitors/:monitorId',
             element: <MonitorPage />,
           },
           {
             path:
-              'organizations/:organizationId/projects/:projectId/monitors/:monitorId/incidents/:incidentId',
+              'organizations/:organizationId/monitors/:monitorId/incidents/:incidentId',
             element: <MonitorPage />,
           },
           {
             path:
-              'organizations/:organizationId/projects/:projectId/monitors/:monitorId/runs/:runId',
+              'organizations/:organizationId/monitors/:monitorId/runs/:runId',
             element: <MonitorPage />,
           },
         ],

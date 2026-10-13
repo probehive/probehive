@@ -34,10 +34,9 @@ function utcInstant(value: string): string | null {
 
 function maintenanceQueryKey(
   organizationId: string,
-  projectId: string,
   monitorId: string,
 ) {
-  return ['maintenance-windows', organizationId, projectId, monitorId] as const
+  return ['maintenance-windows', organizationId, monitorId] as const
 }
 
 function statusLabel(
@@ -58,20 +57,18 @@ function statusLabel(
 
 export default function MonitorMaintenanceSection({
   organizationId,
-  projectId,
   monitorId,
 }: {
   organizationId: string
-  projectId: string
   monitorId: string
 }) {
   const { t, formatDateTime, translateError, translateProblem } = useTranslation()
   const queryClient = useQueryClient()
   const [bounds, setBounds] = useState(defaultBounds)
-  const queryKey = maintenanceQueryKey(organizationId, projectId, monitorId)
+  const queryKey = maintenanceQueryKey(organizationId, monitorId)
   const query = useQuery({
     queryKey,
-    queryFn: () => listMaintenanceWindows(organizationId, projectId, monitorId),
+    queryFn: () => listMaintenanceWindows(organizationId, monitorId),
   })
   const createMutation = useMutation<
     MaintenanceWindowResponse,
@@ -80,7 +77,6 @@ export default function MonitorMaintenanceSection({
   >({
     mutationFn: (value) => createMaintenanceWindow(
       organizationId,
-      projectId,
       monitorId,
       value.startsAt,
       value.endsAt,
@@ -97,7 +93,6 @@ export default function MonitorMaintenanceSection({
   const cancelMutation = useMutation<MaintenanceWindowResponse, unknown, string>({
     mutationFn: (id) => cancelMaintenanceWindow(
       organizationId,
-      projectId,
       monitorId,
       id,
     ),

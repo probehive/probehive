@@ -9,7 +9,6 @@ import { jsonResponse, renderRoutes } from '../test/renderWithProviders.tsx'
 import MonitorIncidentsSection from './MonitorIncidentsSection.tsx'
 
 const organizationId = '019f8f3d-5bb0-76fc-8fcf-02811ef6b2ee'
-const projectId = '019f8f3d-5bb0-7aa5-b81a-2868fc7c2420'
 const monitorId = '019f8f3d-5bb0-7cf5-b971-3c752c712310'
 const incidentId = '019f8f3d-5bb0-7045-8bc0-ccb1d7765172'
 const olderIncidentId = '019f8f3d-5bb0-7136-9ec1-acde91e22e04'
@@ -17,14 +16,13 @@ const openingRunId = '019f8f3d-5bb0-7de2-817b-71874054d7d1'
 const recoveryRunId = '019f8f3d-5bb0-72d1-88db-d4f04113dadd'
 const actorUserId = '019f8f3d-5bb0-766f-a272-acde6122f2d5'
 const incidentsURL =
-  `/api/v1/organizations/${organizationId}/projects/${projectId}/monitors/${monitorId}/incidents`
+  `/api/v1/organizations/${organizationId}/monitors/${monitorId}/incidents`
 const monitorRoute =
-  `/organizations/${organizationId}/projects/${projectId}/monitors/${monitorId}`
+  `/organizations/${organizationId}/monitors/${monitorId}`
 
 const incident: IncidentResponse = {
   id: incidentId,
   organizationId,
-  projectId,
   monitorId,
   state: 'resolved',
   version: 3,
@@ -122,7 +120,6 @@ function IncidentSectionRoute() {
   return (
     <MonitorIncidentsSection
       organizationId={organizationId}
-      projectId={projectId}
       monitorId={monitorId}
       incidentId={selectedIncidentId}
     />
@@ -132,9 +129,9 @@ function IncidentSectionRoute() {
 function renderSection(initialPath = monitorRoute) {
   return renderRoutes(
     [
-      { path: 'organizations/:organizationId/projects/:projectId/monitors/:monitorId', element: <IncidentSectionRoute /> },
-      { path: 'organizations/:organizationId/projects/:projectId/monitors/:monitorId/incidents/:incidentId', element: <IncidentSectionRoute /> },
-      { path: 'organizations/:organizationId/projects/:projectId/monitors/:monitorId/runs/:runId', element: <p>Run evidence</p> },
+      { path: 'organizations/:organizationId/monitors/:monitorId', element: <IncidentSectionRoute /> },
+      { path: 'organizations/:organizationId/monitors/:monitorId/incidents/:incidentId', element: <IncidentSectionRoute /> },
+      { path: 'organizations/:organizationId/monitors/:monitorId/runs/:runId', element: <p>Run evidence</p> },
     ],
     initialPath,
   )

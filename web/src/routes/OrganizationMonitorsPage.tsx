@@ -8,7 +8,6 @@ export default function OrganizationMonitorsPage() {
   return (
     <MonitorInventoryPanel
       organizationId={organization.id}
-      projectId={organization.defaultProject.id}
     />
   )
 }

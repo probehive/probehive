@@ -2,7 +2,6 @@ package organization
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -31,8 +30,6 @@ func (generator *sequenceUUIDs) NewUUIDv7(at time.Time) (string, error) {
 type fakeStore struct {
 	byID               Organization
 	byIDFound          bool
-	defaultProject     Project
-	defaultFound       bool
 	listed             []Details
 	listErr            error
 	renamedTo          []string
@@ -47,21 +44,12 @@ type fakeStore struct {
 	userIDErr          error
 	organizationIDs    []ID
 	created            []Details
-	defaultCalls       int
 	lastContextValue   any
 }
 
 func (store *fakeStore) FindByID(ctx context.Context, _ ID) (Organization, bool, error) {
 	store.lastContextValue = ctx.Value(contextKey{})
 	return store.byID, store.byIDFound, nil
-}
-func (store *fakeStore) FindDefaultProject(ctx context.Context, _ ID) (Project, bool, error) {
-	store.lastContextValue = ctx.Value(contextKey{})
-	store.defaultCalls++
-	return store.defaultProject, store.defaultFound, nil
-}
-func (*fakeStore) FindProject(context.Context, ID, ProjectID) (Project, bool, error) {
-	return Project{}, false, nil
 }
 func (store *fakeStore) ListForMember(ctx context.Context, _ string) ([]Details, error) {
 	store.lastContextValue = ctx.Value(contextKey{})
@@ -84,9 +72,9 @@ func (store *fakeStore) ListUserIDs(ctx context.Context) ([]string, error) {
 	store.lastContextValue = ctx.Value(contextKey{})
 	return store.userIDs, store.userIDErr
 }
-func (store *fakeStore) Create(ctx context.Context, organization Organization, project Project, memberships []Membership) error {
+func (store *fakeStore) Create(ctx context.Context, organization Organization, memberships []Membership) error {
 	store.lastContextValue = ctx.Value(contextKey{})
-	store.created = append(store.created, Details{Organization: organization, DefaultProject: project})
+	store.created = append(store.created, Details{Organization: organization})
 	store.createdMemberships = append(store.createdMemberships, memberships...)
 	return store.createErr
 }
@@ -123,7 +111,7 @@ func TestProvisionRejectsInvalidFieldsAndMissingCreatorBeforeIO(t *testing.T) {
 	}
 }
 
-func TestProvisionCreatesOrganizationProjectAndTeamMembershipsAtOneUTCInstant(t *testing.T) {
+func TestProvisionCreatesOrganizationAndTeamMembershipsAtOneUTCInstant(t *testing.T) {
 	t.Parallel()
 	local := time.Date(2026, 7, 24, 9, 0, 0, 0, time.FixedZone("CST", 8*3600))
 	store := &fakeStore{userIDs: []string{"creator", "teammate"}}
@@ -138,12 +126,12 @@ func TestProvisionCreatesOrganizationProjectAndTeamMembershipsAtOneUTCInstant(t 
 		t.Fatalf("result = %#v, creates = %d", result, len(store.created))
 	}
 	wantTime := local.UTC()
-	if result.Details.Organization.ID != "org-id" || result.Details.DefaultProject.ID != "project-id" ||
-		result.Details.Organization.DisplayName != "Acme" || result.Details.DefaultProject.OrganizationID != "org-id" ||
-		result.Details.Organization.CreatedAt != wantTime || result.Details.DefaultProject.CreatedAt != wantTime {
+	if result.Details.Organization.ID != "org-id" ||
+		result.Details.Organization.DisplayName != "Acme" ||
+		result.Details.Organization.CreatedAt != wantTime {
 		t.Fatalf("unexpected details: %#v", result.Details)
 	}
-	if !reflect.DeepEqual(generator.times, []time.Time{wantTime, wantTime}) {
+	if !reflect.DeepEqual(generator.times, []time.Time{wantTime}) {
 		t.Fatalf("UUID timestamps = %#v", generator.times)
 	}
 	if store.lastContextValue != "kept" {
@@ -186,8 +174,8 @@ func TestGetDistinguishesNotFoundAndBrokenInvariant(t *testing.T) {
 	}
 	existing, _ := NewOrganization("org", "Acme", now)
 	service = NewService(&fakeStore{byID: existing, byIDFound: true}, fixedClock{now}, &sequenceUUIDs{})
-	if _, _, err := service.Get(context.Background(), existing.ID); !errors.Is(err, ErrDefaultProjectMissing) {
-		t.Fatalf("error = %v, want ErrDefaultProjectMissing", err)
+	if _, found, err := service.Get(context.Background(), existing.ID); err != nil || !found {
+		t.Fatalf("Get = found %v, error %v", found, err)
 	}
 }
 
@@ -217,10 +205,8 @@ func TestRenameValidatesBeforeTouchingTheStore(t *testing.T) {
 
 	now := time.Date(2026, 7, 27, 0, 0, 0, 0, time.UTC)
 	existing, _ := NewOrganization("org", "Renamed", now)
-	project, _ := NewDefaultProject("project", existing.ID, now)
 	store = &fakeStore{
 		renameFound: true, byID: existing, byIDFound: true,
-		defaultProject: project, defaultFound: true,
 	}
 	renamed, err := NewService(store, fixedClock{now}, &sequenceUUIDs{}).
 		Rename(context.Background(), "org", "  Renamed  ")

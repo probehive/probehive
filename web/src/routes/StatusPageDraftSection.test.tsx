@@ -9,15 +9,13 @@ import { jsonResponse, renderWithProviders } from '../test/renderWithProviders'
 import StatusPageDraftSection from './StatusPageDraftSection'
 
 const organizationId = '019f8f3d-5bb0-76fc-8fcf-02811ef6b2ee'
-const projectId = '019f8f3d-5bb0-7aa5-b81a-2868fc7c2420'
 const draftURL = `/api/v1/organizations/${organizationId}/status-page/draft`
-const monitorsURL = `/api/v1/organizations/${organizationId}/projects/${projectId}/monitors`
+const monitorsURL = `/api/v1/organizations/${organizationId}/monitors`
 
 const monitors: MonitorResponse[] = [
   {
     id: '019f8f3d-5bb0-7000-8000-000000000001',
     organizationId,
-    projectId,
     name: 'API Internal Name',
     checkType: 'http',
     state: 'active',
@@ -29,7 +27,6 @@ const monitors: MonitorResponse[] = [
   {
     id: '019f8f3d-5bb0-7000-8000-000000000002',
     organizationId,
-    projectId,
     name: 'Website Internal Name',
     checkType: 'http',
     state: 'paused',
@@ -41,7 +38,6 @@ const monitors: MonitorResponse[] = [
   {
     id: '019f8f3d-5bb0-7000-8000-000000000003',
     organizationId,
-    projectId,
     name: 'Archived',
     checkType: 'http',
     state: 'archived',
@@ -58,7 +54,7 @@ afterEach(() => {
 
 function renderSection() {
   return renderWithProviders(
-    <StatusPageDraftSection organizationId={organizationId} projectId={projectId} />,
+    <StatusPageDraftSection organizationId={organizationId} />,
     '',
     '/',
   )

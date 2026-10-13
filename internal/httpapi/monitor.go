@@ -31,7 +31,7 @@ func (server *Server) writeMonitors(
 }
 
 func (server *Server) monitorsRoot(w http.ResponseWriter, r *http.Request) {
-	organizationID, projectID, ok := projectScope(r)
+	organizationID, ok := organizationScope(r)
 	if !ok {
 		writeStatusProblem(w, http.StatusNotFound)
 		return
@@ -41,13 +41,9 @@ func (server *Server) monitorsRoot(w http.ResponseWriter, r *http.Request) {
 		if _, ok := server.readMonitors(w, r, organizationID); !ok {
 			return
 		}
-		values, found, err := server.monitors.List(r.Context(), organizationID, projectID)
+		values, err := server.monitors.List(r.Context(), organizationID)
 		if err != nil {
 			server.internalError(w, r, "list Monitors", err)
-			return
-		}
-		if !found {
-			writeStatusProblem(w, http.StatusNotFound)
 			return
 		}
 		responses := make([]api.MonitorResponse, len(values))
@@ -64,8 +60,8 @@ func (server *Server) monitorsRoot(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		result, err := server.monitors.Create(r.Context(), monitor.CreateCommand{
-			OrganizationID: organizationID, ProjectID: projectID,
-			Name: valueOrEmpty(request.Name), CheckType: valueOrEmpty(request.CheckType),
+			OrganizationID: organizationID,
+			Name:           valueOrEmpty(request.Name), CheckType: valueOrEmpty(request.CheckType),
 			IntervalSeconds: intervalOrDefault(request.IntervalSeconds),
 		})
 		if err != nil {
@@ -75,10 +71,8 @@ func (server *Server) monitorsRoot(w http.ResponseWriter, r *http.Request) {
 		switch result.Kind {
 		case monitor.CreateCreated:
 			response := toMonitorResponse(result.Monitor)
-			w.Header().Set("Location", monitorPath(organizationID, projectID, response.ID))
+			w.Header().Set("Location", monitorPath(organizationID, response.ID))
 			writeJSON(w, http.StatusCreated, response)
-		case monitor.CreateProjectNotFound:
-			writeStatusProblem(w, http.StatusNotFound)
 		case monitor.CreateInvalid:
 			writeValidationProblem(w, monitorFailurePairs(result.Failures))
 		default:
@@ -252,7 +246,7 @@ func (server *Server) monitorRevisions(w http.ResponseWriter, r *http.Request) {
 		switch result.Kind {
 		case monitor.RevisionCreated:
 			response := toMonitorRevisionResponse(result.Revision)
-			w.Header().Set("Location", monitorPath(scope.OrganizationID, scope.ProjectID, string(scope.MonitorID))+"/revisions/"+strconv.Itoa(response.RevisionNumber))
+			w.Header().Set("Location", monitorPath(scope.OrganizationID, string(scope.MonitorID))+"/revisions/"+strconv.Itoa(response.RevisionNumber))
 			writeJSON(w, http.StatusCreated, response)
 		case monitor.RevisionMonitorNotFound:
 			writeStatusProblem(w, http.StatusNotFound)
@@ -298,27 +292,26 @@ func (server *Server) monitorRevisionItem(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, toMonitorRevisionResponse(value))
 }
 
-func projectScope(r *http.Request) (string, string, bool) {
-	organizationID, organizationOK := canonicalUUID(r.PathValue("organizationId"))
-	projectID, projectOK := canonicalUUID(r.PathValue("projectId"))
-	return organizationID, projectID, organizationOK && projectOK
+func organizationScope(r *http.Request) (string, bool) {
+	organizationID, ok := canonicalUUID(r.PathValue("organizationId"))
+	return organizationID, ok
 }
 
 func monitorScope(r *http.Request) (monitor.Scope, bool) {
-	organizationID, projectID, projectOK := projectScope(r)
+	organizationID, organizationOK := organizationScope(r)
 	monitorID, monitorOK := canonicalUUID(r.PathValue("monitorId"))
 	return monitor.Scope{
-		OrganizationID: organizationID, ProjectID: projectID, MonitorID: monitor.ID(monitorID),
-	}, projectOK && monitorOK
+		OrganizationID: organizationID, MonitorID: monitor.ID(monitorID),
+	}, organizationOK && monitorOK
 }
 
-func monitorPath(organizationID, projectID, monitorID string) string {
-	return "/api/v1/organizations/" + organizationID + "/projects/" + projectID + "/monitors/" + monitorID
+func monitorPath(organizationID, monitorID string) string {
+	return "/api/v1/organizations/" + organizationID + "/monitors/" + monitorID
 }
 
 func toMonitorResponse(value monitor.Monitor) api.MonitorResponse {
 	return api.MonitorResponse{
-		ID: string(value.ID), OrganizationID: value.OrganizationID, ProjectID: value.ProjectID,
+		ID: string(value.ID), OrganizationID: value.OrganizationID,
 		Name: value.Name, CheckType: value.CheckType, State: string(value.State),
 		IntervalSeconds:      value.IntervalSeconds,
 		LatestRevisionNumber: value.LatestRevisionNumber,

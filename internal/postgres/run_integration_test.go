@@ -283,7 +283,7 @@ func TestRenewLeaseRequiresTheCurrentHolder(t *testing.T) {
 func TestRunQueriesDenyWrongOrganization(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	store, slot, now := seedRunSlot(t, database, 180)
-	otherOrganization, _ := seedTenant(t, database, 195)
+	otherOrganization := seedTenant(t, database, 195)
 
 	claimed := mustClaim(t, run.ID(testUUID(301)), slot, run.KindScheduled, "worker-a", now.Add(time.Minute))
 	if _, err := store.ClaimSlot(t.Context(), claimed, now); err != nil {
@@ -434,8 +434,8 @@ func TestEnsurePartitionsIsIdempotentAndRequiredForInserts(t *testing.T) {
 
 func TestInsertWithoutAPartitionFails(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 210)
-	monitorValue := seedMonitor(t, database, 215, organizationValue, project, testTime())
+	organizationValue := seedTenant(t, database, 210)
+	monitorValue := seedMonitor(t, database, 215, organizationValue, testTime())
 
 	// No partition covers this instant, because EnsurePartitions was never called.
 	_, err := database.pool.Exec(t.Context(), `
@@ -583,18 +583,11 @@ func TestListRunsForMonitorIsNewestFirstAndBounded(t *testing.T) {
 	}
 }
 
-func TestScopedRunQueryServicePaginatesFiltersAndHidesWrongProject(t *testing.T) {
+func TestScopedRunQueryServicePaginatesFiltersAndHidesWrongOrganization(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	store, slot, now := seedRunSlot(t, database, 240)
-	var projectID string
-	if err := database.pool.QueryRow(
-		t.Context(), "SELECT project_id FROM monitors WHERE id = $1", slot.MonitorID,
-	).Scan(&projectID); err != nil {
-		t.Fatalf("load seeded Project id: %v", err)
-	}
 	scope := run.Scope{
 		OrganizationID: slot.OrganizationID,
-		ProjectID:      projectID,
 		MonitorID:      slot.MonitorID,
 	}
 	service := run.NewQueryService(store)
@@ -668,18 +661,18 @@ func TestScopedRunQueryServicePaginatesFiltersAndHidesWrongProject(t *testing.T)
 		t.Fatalf("GetObservation() = %#v, found %v, err %v", observation, found, err)
 	}
 
-	wrongProject := scope
-	wrongProject.ProjectID = testUUID(999)
-	if _, found, err := service.List(t.Context(), wrongProject, run.ListQuery{
+	wrongOrganization := scope
+	wrongOrganization.OrganizationID = testUUID(999)
+	if _, found, err := service.List(t.Context(), wrongOrganization, run.ListQuery{
 		NotBefore: slot.ScheduledFor, PageSize: 10,
 	}); err != nil || found {
-		t.Fatalf("wrong-Project List() = found %v, err %v", found, err)
+		t.Fatalf("wrong-Organization List() = found %v, err %v", found, err)
 	}
-	if _, found, err := service.Get(t.Context(), wrongProject, values[2].ID); err != nil || found {
-		t.Fatalf("wrong-Project Get() = found %v, err %v", found, err)
+	if _, found, err := service.Get(t.Context(), wrongOrganization, values[2].ID); err != nil || found {
+		t.Fatalf("wrong-Organization Get() = found %v, err %v", found, err)
 	}
 	if _, found, err := service.GetObservation(
-		t.Context(), wrongProject, values[2].ID,
+		t.Context(), wrongOrganization, values[2].ID,
 	); err != nil || found {
 		t.Fatalf("wrong-Project GetObservation() = found %v, err %v", found, err)
 	}
@@ -689,8 +682,8 @@ func TestScopedRunQueryServicePaginatesFiltersAndHidesWrongProject(t *testing.T)
 // in, and the slot identity the tests contend over.
 func seedRunSlot(t *testing.T, database *DB, offset int) (*RunStore, run.Slot, time.Time) {
 	t.Helper()
-	organizationValue, project := seedTenant(t, database, offset)
-	monitorValue := seedMonitor(t, database, offset+5, organizationValue, project, testTime())
+	organizationValue := seedTenant(t, database, offset)
+	monitorValue := seedMonitor(t, database, offset+5, organizationValue, testTime())
 
 	store := database.Runs()
 	scheduledFor := time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC)
@@ -775,20 +768,20 @@ func countRows(t *testing.T, database *DB, query string) int {
 func TestListSchedulableReturnsActiveMonitorsWithTheirLatestRevision(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	store := database.Runs()
-	organizationValue, project := seedTenant(t, database, 400)
+	organizationValue := seedTenant(t, database, 400)
 
 	// Active with two revisions: the latest one is what a new Run executes.
-	active := seedMonitor(t, database, 410, organizationValue, project, testTime())
+	active := seedMonitor(t, database, 410, organizationValue, testTime())
 	active = appendTestRevision(t, database, active, 1, `{"url":"https://one.example.test"}`)
 	active = appendTestRevision(t, database, active, 2, `{"url":"https://two.example.test"}`)
 	activateMonitor(t, database, &active)
 
 	// A Draft Monitor has configuration but has never been activated.
-	draft := seedMonitor(t, database, 420, organizationValue, project, testTime())
+	draft := seedMonitor(t, database, 420, organizationValue, testTime())
 	appendTestRevision(t, database, draft, 1, `{"url":"https://draft.example.test"}`)
 
 	// A Paused Monitor is deliberately not running.
-	paused := seedMonitor(t, database, 430, organizationValue, project, testTime())
+	paused := seedMonitor(t, database, 430, organizationValue, testTime())
 	paused = appendTestRevision(t, database, paused, 1, `{"url":"https://paused.example.test"}`)
 	activateMonitor(t, database, &paused)
 	transitionMonitor(t, database, &paused, monitor.StatePaused)
@@ -835,7 +828,6 @@ func TestListSchedulableReturnsActiveMonitorsWithTheirLatestRevision(t *testing.
 		t.Run("manual "+testCase.name, func(t *testing.T) {
 			target, found, err := store.LoadManualTarget(t.Context(), run.Scope{
 				OrganizationID: string(organizationValue.ID),
-				ProjectID:      string(project.ID),
 				MonitorID:      string(testCase.monitorID),
 			})
 			if err != nil || !found {
@@ -848,16 +840,14 @@ func TestListSchedulableReturnsActiveMonitorsWithTheirLatestRevision(t *testing.
 		})
 	}
 
-	unconfigured := seedMonitor(t, database, 435, organizationValue, project, testTime())
+	unconfigured := seedMonitor(t, database, 435, organizationValue, testTime())
 	for name, scope := range map[string]run.Scope{
 		"unconfigured": {
 			OrganizationID: string(organizationValue.ID),
-			ProjectID:      string(project.ID),
 			MonitorID:      string(unconfigured.ID),
 		},
-		"wrong Project": {
-			OrganizationID: string(organizationValue.ID),
-			ProjectID:      testUUID(999),
+		"wrong Organization": {
+			OrganizationID: testUUID(999),
 			MonitorID:      string(draft.ID),
 		},
 	} {
@@ -873,9 +863,9 @@ func TestListSchedulableReturnsActiveMonitorsWithTheirLatestRevision(t *testing.
 // leaves the revision counter alone.
 func TestMonitorIntervalRoundTripsAndChangesWithoutARevision(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 440)
+	organizationValue := seedTenant(t, database, 440)
 	created, err := monitor.NewMonitor(
-		monitor.ID(testUUID(450)), string(organizationValue.ID), string(project.ID),
+		monitor.ID(testUUID(450)), string(organizationValue.ID),
 		"Interval Monitor", "http", 300, testTime(),
 	)
 	if err != nil {
@@ -886,7 +876,7 @@ func TestMonitorIntervalRoundTripsAndChangesWithoutARevision(t *testing.T) {
 	}
 
 	stored, found, err := database.Monitors().FindMonitor(t.Context(), monitor.Scope{
-		OrganizationID: string(organizationValue.ID), ProjectID: string(project.ID), MonitorID: created.ID,
+		OrganizationID: string(organizationValue.ID), MonitorID: created.ID,
 	})
 	if err != nil || !found {
 		t.Fatalf("FindMonitor() = found %v (err %v), want the Monitor", found, err)
@@ -903,7 +893,7 @@ func TestMonitorIntervalRoundTripsAndChangesWithoutARevision(t *testing.T) {
 		t.Fatalf("UpdateMonitor() error = %v", err)
 	}
 	reread, _, err := database.Monitors().FindMonitor(t.Context(), monitor.Scope{
-		OrganizationID: string(organizationValue.ID), ProjectID: string(project.ID), MonitorID: created.ID,
+		OrganizationID: string(organizationValue.ID), MonitorID: created.ID,
 	})
 	if err != nil {
 		t.Fatalf("FindMonitor() error = %v", err)
@@ -918,14 +908,14 @@ func TestMonitorIntervalRoundTripsAndChangesWithoutARevision(t *testing.T) {
 // second, whatever the application validator did.
 func TestMonitorIntervalCheckConstraint(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 460)
+	organizationValue := seedTenant(t, database, 460)
 	for _, seconds := range []int{29, 0, -1, 86401} {
 		_, err := database.pool.Exec(t.Context(), `
 INSERT INTO monitors (
-    id, organization_id, project_id, name, check_type, state, interval_seconds,
+    id, organization_id, name, check_type, state, interval_seconds,
     latest_revision_number, created_at, updated_at
-) VALUES ($1, $2, $3, 'Bad Interval', 'http', 'draft', $4, 0, $5, $5)`,
-			testUUID(470+seconds), string(organizationValue.ID), string(project.ID), seconds, testTime())
+) VALUES ($1, $2, 'Bad Interval', 'http', 'draft', $3, 0, $4, $4)`,
+			testUUID(470+seconds), string(organizationValue.ID), seconds, testTime())
 		requireConstraint(t, err, checkViolation, "ck_monitors_interval_seconds")
 	}
 }
@@ -981,7 +971,7 @@ func transitionMonitor(t *testing.T, database *DB, value *monitor.Monitor, targe
 func reloadMonitor(t *testing.T, database *DB, value monitor.Monitor) monitor.Monitor {
 	t.Helper()
 	stored, found, err := database.Monitors().FindMonitor(t.Context(), monitor.Scope{
-		OrganizationID: value.OrganizationID, ProjectID: value.ProjectID, MonitorID: value.ID,
+		OrganizationID: value.OrganizationID, MonitorID: value.ID,
 	})
 	if err != nil || !found {
 		t.Fatalf("reload Monitor = found %v (err %v)", found, err)

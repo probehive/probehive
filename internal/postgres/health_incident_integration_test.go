@@ -17,8 +17,8 @@ import (
 
 func TestHealthConfirmationAndIncidentLifecycle(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 1200)
-	monitorValue := seedMonitor(t, database, 1205, organizationValue, project, testTime())
+	organizationValue := seedTenant(t, database, 1200)
+	monitorValue := seedMonitor(t, database, 1205, organizationValue, testTime())
 	monitorValue = appendTestRevision(
 		t, database, monitorValue, 1, "{\"url\":\"https://health.example.test\"}")
 	activateMonitor(t, database, &monitorValue)
@@ -71,7 +71,6 @@ func TestHealthConfirmationAndIncidentLifecycle(t *testing.T) {
 	}
 	scope := health.Scope{
 		OrganizationID: string(organizationValue.ID),
-		ProjectID:      string(project.ID),
 		MonitorID:      string(monitorValue.ID),
 	}
 	degraded, found, err := database.Health().GetHealth(t.Context(), scope)
@@ -141,7 +140,6 @@ func TestHealthConfirmationAndIncidentLifecycle(t *testing.T) {
 
 	incidentScope := incident.Scope{
 		OrganizationID: scope.OrganizationID,
-		ProjectID:      scope.ProjectID,
 		MonitorID:      scope.MonitorID,
 	}
 	opened, found, err := incidentStore.GetIncident(t.Context(), incidentScope, incidentID)
@@ -174,7 +172,7 @@ func TestHealthConfirmationAndIncidentLifecycle(t *testing.T) {
 		t.Fatalf("redelivered opened Alert event error = %v", err)
 	}
 	alertScope := alert.Scope{
-		OrganizationID: scope.OrganizationID, ProjectID: scope.ProjectID, MonitorID: scope.MonitorID,
+		OrganizationID: scope.OrganizationID, MonitorID: scope.MonitorID,
 	}
 	alertPage, found, err := alertService.List(
 		t.Context(), alertScope, alert.ListQuery{PageSize: 50},
@@ -323,7 +321,6 @@ WHERE delivery_id=$1 AND sequence=1`, deliveryID).Scan(
 	audits, found, err := deliveryStore.ListAudit(
 		t.Context(), webhook.DeliveryScope{
 			OrganizationID: string(organizationValue.ID),
-			ProjectID:      string(project.ID),
 			MonitorID:      string(monitorValue.ID),
 			AlertID:        routedAlertID,
 		},
@@ -346,7 +343,6 @@ WHERE delivery_id=$1 AND sequence=1`, deliveryID).Scan(
 	_, wrongScopeFound, err := deliveryStore.ListAudit(
 		t.Context(), webhook.DeliveryScope{
 			OrganizationID: string(organizationValue.ID),
-			ProjectID:      testUUID(1299),
 			MonitorID:      string(monitorValue.ID),
 			AlertID:        routedAlertID,
 		},
@@ -390,7 +386,6 @@ WHERE delivery_id=$1 AND sequence=1`, deliveryID).Scan(
 	maintenanceResult, err := maintenanceService.Create(t.Context(), maintenance.CreateCommand{
 		Scope: maintenance.Scope{
 			OrganizationID: scope.OrganizationID,
-			ProjectID:      scope.ProjectID,
 			MonitorID:      scope.MonitorID,
 		},
 		StartsAt: maintenanceStartsAt,
@@ -530,7 +525,6 @@ SELECT count(*) FROM webhook_deliveries WHERE organization_id=$1`,
 	resolvedAudits, found, err := deliveryStore.ListAudit(
 		t.Context(), webhook.DeliveryScope{
 			OrganizationID: string(organizationValue.ID),
-			ProjectID:      string(project.ID),
 			MonitorID:      string(monitorValue.ID),
 			AlertID:        testUUID(1244),
 		},

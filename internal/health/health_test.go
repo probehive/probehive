@@ -196,7 +196,7 @@ func TestStaleness(t *testing.T) {
 
 func initialSnapshot(t *testing.T, now time.Time) Snapshot {
 	t.Helper()
-	value, err := Initial("organization", "project", "monitor", now)
+	value, err := Initial("organization", "monitor", now)
 	if err != nil {
 		t.Fatal(err)
 	}

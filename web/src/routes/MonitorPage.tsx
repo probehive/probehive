@@ -79,11 +79,10 @@ function formatDuration(microseconds: number, locale: string): string {
 
 function runRoute(
   organizationId: string,
-  projectId: string,
   monitorId: string,
   runId?: string,
 ): string {
-  const monitorRoute = `/organizations/${organizationId}/projects/${projectId}/monitors/${monitorId}`
+  const monitorRoute = `/organizations/${organizationId}/monitors/${monitorId}`
   return runId === undefined ? monitorRoute : `${monitorRoute}/runs/${runId}`
 }
 
@@ -100,13 +99,11 @@ function Outcome({ run }: { run: Pick<RunResponse, 'outcome' | 'leaseExpiresAt'>
 function RunsTable({
   runs,
   organizationId,
-  projectId,
   monitorId,
   selectedRunId,
 }: {
   runs: RunResponse[]
   organizationId: string
-  projectId: string
   monitorId: string
   selectedRunId?: string
 }) {
@@ -135,7 +132,7 @@ function RunsTable({
               <td>
                 <Link
                   className="run-detail-link"
-                  to={runRoute(organizationId, projectId, monitorId, run.id)}
+                  to={runRoute(organizationId, monitorId, run.id)}
                   aria-current={run.id === selectedRunId ? 'page' : undefined}
                   aria-label={t('run.view')}
                   title={t('run.view')}
@@ -252,32 +249,30 @@ function ObservationDetails({ observation }: { observation: ObservationResponse 
 
 function RunDetails({
   organizationId,
-  projectId,
   monitorId,
   runId,
 }: {
   organizationId: string
-  projectId: string
   monitorId: string
   runId: string
 }) {
   const { t, formatDateTime } = useTranslation()
   const query = useQuery({
-    queryKey: ['runs', organizationId, projectId, monitorId, runId],
-    queryFn: () => getRun(organizationId, projectId, monitorId, runId),
+    queryKey: ['runs', organizationId, monitorId, runId],
+    queryFn: () => getRun(organizationId, monitorId, runId),
   })
   const expectsObservation =
     query.data !== undefined && query.data.outcome !== null && query.data.outcome !== 'skipped'
   const observation = useQuery({
-    queryKey: ['observations', organizationId, projectId, monitorId, runId],
-    queryFn: () => getObservation(organizationId, projectId, monitorId, runId),
+    queryKey: ['observations', organizationId, monitorId, runId],
+    queryFn: () => getObservation(organizationId, monitorId, runId),
     enabled: expectsObservation,
   })
 
   return (
     <section className="run-detail-section" aria-labelledby="run-detail-heading">
       <p>
-        <Link to={runRoute(organizationId, projectId, monitorId)}>{t('run.backToList')}</Link>
+        <Link to={runRoute(organizationId, monitorId)}>{t('run.backToList')}</Link>
       </p>
       <h2 id="run-detail-heading">{t('run.detail.heading')}</h2>
       {query.isPending && <p>{t('run.detail.loading')}</p>}
@@ -362,17 +357,17 @@ function RunDetails({
 }
 
 export default function MonitorPage() {
-  const { organizationId = '', projectId = '', monitorId = '', runId, incidentId } =
-    useParams<'organizationId' | 'projectId' | 'monitorId' | 'runId' | 'incidentId'>()
+  const { organizationId = '', monitorId = '', runId, incidentId } =
+    useParams<'organizationId' | 'monitorId' | 'runId' | 'incidentId'>()
   const { t, formatDateTime } = useTranslation()
   const notBefore = runsNotBefore()
   const monitor = useQuery({
-    queryKey: monitorQueryKey(organizationId, projectId, monitorId),
-    queryFn: () => getMonitor(organizationId, projectId, monitorId),
+    queryKey: monitorQueryKey(organizationId, monitorId),
+    queryFn: () => getMonitor(organizationId, monitorId),
   })
   const runs = useInfiniteQuery({
-    queryKey: ['runs', organizationId, projectId, monitorId, notBefore],
-    queryFn: ({ pageParam }) => listRuns(organizationId, projectId, monitorId, {
+    queryKey: ['runs', organizationId, monitorId, notBefore],
+    queryFn: ({ pageParam }) => listRuns(organizationId, monitorId, {
       notBefore,
       pageSize: runPageSize,
       cursor: pageParam === '' ? undefined : pageParam,
@@ -427,23 +422,20 @@ export default function MonitorPage() {
       <ChangeMonitorIntervalForm monitor={monitor.data} />
       <ChangeMonitorTargetForm monitor={monitor.data} />
 
-      <MonitorMaintenanceSection organizationId={organizationId} projectId={projectId} monitorId={monitorId} />
+      <MonitorMaintenanceSection organizationId={organizationId} monitorId={monitorId} />
       <MonitorHealthSection
         organizationId={organizationId}
-        projectId={projectId}
         monitorId={monitorId}
       />
 
       <MonitorIncidentsSection
         organizationId={organizationId}
-        projectId={projectId}
         monitorId={monitorId}
         incidentId={incidentId}
       />
 
       <MonitorAlertsSection
         organizationId={organizationId}
-        projectId={projectId}
         monitorId={monitorId}
       />
 
@@ -462,7 +454,6 @@ export default function MonitorPage() {
           <RunsTable
             runs={allRuns}
             organizationId={organizationId}
-            projectId={projectId}
             monitorId={monitorId}
             selectedRunId={runId}
           />
@@ -482,7 +473,6 @@ export default function MonitorPage() {
       {runId && (
         <RunDetails
           organizationId={organizationId}
-          projectId={projectId}
           monitorId={monitorId}
           runId={runId}
         />

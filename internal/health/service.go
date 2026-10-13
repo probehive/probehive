@@ -63,7 +63,6 @@ type HealthTransitionedV1 struct {
 	CausationID      string    `json:"causationId,omitempty"`
 	TransitionID     string    `json:"transitionId"`
 	MonitorID        string    `json:"monitorId"`
-	ProjectID        string    `json:"projectId"`
 	OldState         string    `json:"oldState"`
 	NewState         string    `json:"newState"`
 	PolicyVersion    string    `json:"policyVersion"`
@@ -78,19 +77,17 @@ type ProcessIDs struct {
 
 type Scope struct {
 	OrganizationID string
-	ProjectID      string
 	MonitorID      string
 }
 
 type StaleTarget struct {
 	OrganizationID string
-	ProjectID      string
 	MonitorID      string
 	Version        int64
 }
 
 func (scope Scope) validate() error {
-	if scope.OrganizationID == "" || scope.ProjectID == "" || scope.MonitorID == "" {
+	if scope.OrganizationID == "" || scope.MonitorID == "" {
 		return errors.New("a health query requires Organization, Project, and Monitor identity")
 	}
 	return nil

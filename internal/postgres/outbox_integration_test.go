@@ -7,7 +7,7 @@ import (
 
 func TestOutboxClaimAcceptsNullGapFirstSeenAt(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, _ := seedTenant(t, database, 1300)
+	organizationValue := seedTenant(t, database, 1300)
 	now := testTime().Add(time.Hour)
 	entryID := testUUID(1302)
 

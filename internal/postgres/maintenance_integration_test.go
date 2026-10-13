@@ -10,13 +10,12 @@ import (
 func TestMaintenanceWindowPersistenceIsTenantIsolatedAndRestartVisible(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	now := testTime()
-	organizationA, projectA := seedTenant(t, database, 200)
-	organizationB, projectB := seedTenant(t, database, 210)
-	monitorA := seedMonitor(t, database, 220, organizationA, projectA, now)
+	organizationA := seedTenant(t, database, 200)
+	organizationB := seedTenant(t, database, 210)
+	monitorA := seedMonitor(t, database, 220, organizationA, now)
 
 	scopeA := maintenance.Scope{
 		OrganizationID: string(organizationA.ID),
-		ProjectID:      string(projectA.ID),
 		MonitorID:      string(monitorA.ID),
 	}
 	service := maintenance.NewService(
@@ -47,12 +46,10 @@ func TestMaintenanceWindowPersistenceIsTenantIsolatedAndRestartVisible(t *testin
 	wrongScopes := []maintenance.Scope{
 		{
 			OrganizationID: string(organizationB.ID),
-			ProjectID:      string(projectB.ID),
 			MonitorID:      string(monitorA.ID),
 		},
 		{
 			OrganizationID: string(organizationA.ID),
-			ProjectID:      string(projectB.ID),
 			MonitorID:      string(monitorA.ID),
 		},
 	}
@@ -81,11 +78,10 @@ func TestMaintenanceWindowPersistenceIsTenantIsolatedAndRestartVisible(t *testin
 func TestConcurrentMaintenanceCreationAllowsOnlyOneOverlap(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	now := testTime()
-	organizationValue, project := seedTenant(t, database, 230)
-	monitorValue := seedMonitor(t, database, 240, organizationValue, project, now)
+	organizationValue := seedTenant(t, database, 230)
+	monitorValue := seedMonitor(t, database, 240, organizationValue, now)
 	scope := maintenance.Scope{
 		OrganizationID: string(organizationValue.ID),
-		ProjectID:      string(project.ID),
 		MonitorID:      string(monitorValue.ID),
 	}
 	services := []*maintenance.Service{

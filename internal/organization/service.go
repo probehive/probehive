@@ -20,10 +20,8 @@ type UUIDGenerator interface {
 // Store is the persistence port owned by the Organization feature.
 type Store interface {
 	FindByID(context.Context, ID) (Organization, bool, error)
-	FindDefaultProject(context.Context, ID) (Project, bool, error)
-	FindProject(context.Context, ID, ProjectID) (Project, bool, error)
-	// ListForMember returns the Organizations a user belongs to, with their default
-	// Projects, in creation order using the Organization id as a tie-breaker.
+	// ListForMember returns the Organizations a user belongs to, in creation order
+	// using the Organization id as a tie-breaker.
 	ListForMember(context.Context, string) ([]Details, error)
 	FindMembership(context.Context, ID, string) (Membership, bool, error)
 	// UpdateDisplayName renames one Organization and reports whether it existed.
@@ -34,10 +32,9 @@ type Store interface {
 	// team, so provisioning and user creation both rely on it to keep memberships
 	// complete.
 	ListUserIDs(context.Context) ([]string, error)
-	// Create inserts the Organization, its default Project, and the initial
-	// memberships in one transaction, so no path can produce an Organization
-	// without a member.
-	Create(context.Context, Organization, Project, []Membership) error
+	// Create inserts the Organization and its initial memberships in one
+	// transaction, so no path can produce an Organization without a member.
+	Create(context.Context, Organization, []Membership) error
 	// CreateMemberships inserts memberships that do not exist yet.
 	CreateMemberships(context.Context, []Membership) error
 }
@@ -99,15 +96,7 @@ func (service *Service) Provision(ctx context.Context, command ProvisionCommand)
 	if err != nil {
 		return ProvisionResult{}, fmt.Errorf("generate Organization id: %w", err)
 	}
-	projectID, err := service.uuids.NewUUIDv7(now)
-	if err != nil {
-		return ProvisionResult{}, fmt.Errorf("generate default Project id: %w", err)
-	}
 	created, err := NewOrganization(ID(organizationID), displayName, now)
-	if err != nil {
-		return ProvisionResult{}, err
-	}
-	project, err := NewDefaultProject(ProjectID(projectID), created.ID, now)
 	if err != nil {
 		return ProvisionResult{}, err
 	}
@@ -115,10 +104,10 @@ func (service *Service) Provision(ctx context.Context, command ProvisionCommand)
 	if err != nil {
 		return ProvisionResult{}, err
 	}
-	if err = service.store.Create(ctx, created, project, memberships); err != nil {
+	if err = service.store.Create(ctx, created, memberships); err != nil {
 		return ProvisionResult{}, err
 	}
-	return ProvisionResult{Kind: ProvisionCreated, Details: Details{Organization: created, DefaultProject: project}}, nil
+	return ProvisionResult{Kind: ProvisionCreated, Details: Details{Organization: created}}, nil
 }
 
 func (service *Service) membershipsForNewOrganization(
@@ -203,14 +192,7 @@ func (service *Service) Get(ctx context.Context, id ID) (Details, bool, error) {
 	if err != nil || !found {
 		return Details{}, found, err
 	}
-	project, found, err := service.store.FindDefaultProject(ctx, value.ID)
-	if err != nil {
-		return Details{}, false, err
-	}
-	if !found {
-		return Details{}, false, fmt.Errorf("%w: %s", ErrDefaultProjectMissing, value.ID)
-	}
-	return Details{Organization: value, DefaultProject: project}, true, nil
+	return Details{Organization: value}, true, nil
 }
 
 // Membership resolves a user's membership of one Organization. Absence is the caller's

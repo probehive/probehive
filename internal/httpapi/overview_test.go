@@ -14,7 +14,7 @@ import (
 func TestOrganizationOverviewReturnsBoundedPermissionAwareSummary(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	environment.bootstrapAdministrator(t)
-	organizationID, projectID := onlyOrganizationScope(t, environment)
+	organizationID := onlyOrganizationScope(t, environment)
 	environment.overview.seed(overview.Summary{
 		OrganizationID: organizationID,
 		Monitors:       overview.MonitorCounts{Total: 6, Draft: 1, Active: 3, Paused: 1, Archived: 1},
@@ -22,13 +22,13 @@ func TestOrganizationOverviewReturnsBoundedPermissionAwareSummary(t *testing.T) 
 		Incidents:      overview.IncidentCounts{Active: 2, Open: 1, Acknowledged: 1},
 		ActiveIncidents: []overview.ActiveIncident{
 			{
-				ID: "00000000-0000-7000-8000-000000000101", ProjectID: projectID,
+				ID:          "00000000-0000-7000-8000-000000000101",
 				MonitorID:   "00000000-0000-7000-8000-000000000201",
 				MonitorName: "Checkout", State: "open",
 				UpdatedAt: time.Date(2026, 8, 17, 2, 0, 0, 0, time.UTC),
 			},
 			{
-				ID: "00000000-0000-7000-8000-000000000102", ProjectID: projectID,
+				ID:          "00000000-0000-7000-8000-000000000102",
 				MonitorID:   "00000000-0000-7000-8000-000000000202",
 				MonitorName: "API", State: "acknowledged",
 				UpdatedAt: time.Date(2026, 8, 17, 1, 0, 0, 0, time.UTC),
@@ -89,7 +89,7 @@ func TestOrganizationOverviewReturnsBoundedPermissionAwareSummary(t *testing.T) 
 func TestOrganizationOverviewPreservesAuthenticationAndTenantNonDisclosure(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	environment.bootstrapAdministrator(t)
-	organizationID, _ := onlyOrganizationScope(t, environment)
+	organizationID := onlyOrganizationScope(t, environment)
 	path := "/api/v1/organizations/" + organizationID + "/overview"
 
 	anonymous := environment.request(t, &http.Client{}, http.MethodGet, path, "", "", "")
@@ -106,7 +106,7 @@ func TestOrganizationOverviewPreservesAuthenticationAndTenantNonDisclosure(t *te
 	assertProblem(t, wrongMethod, http.StatusMethodNotAllowed, "Method Not Allowed", "")
 }
 
-func onlyOrganizationScope(t *testing.T, environment *testEnvironment) (string, string) {
+func onlyOrganizationScope(t *testing.T, environment *testEnvironment) string {
 	t.Helper()
 	environment.organizations.mu.Lock()
 	defer environment.organizations.mu.Unlock()
@@ -114,12 +114,7 @@ func onlyOrganizationScope(t *testing.T, environment *testEnvironment) (string, 
 		t.Fatalf("Organization count = %d, want 1", len(environment.organizations.byID))
 	}
 	for organizationID := range environment.organizations.byID {
-		for projectID, project := range environment.organizations.projects {
-			if project.OrganizationID == organizationID && project.IsDefault {
-				return string(organizationID), string(projectID)
-			}
-		}
+		return string(organizationID)
 	}
-	t.Fatal("bootstrapped Organization has no default Project")
-	return "", ""
+	return ""
 }

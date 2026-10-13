@@ -15,7 +15,7 @@ import (
 func TestAlertDeliveryAuditEnforcesScopeAndOmitsSensitiveMaterial(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	environment.bootstrapAdministrator(t)
-	organizationID, projectID, monitorID := seedRunQueryMonitor(t, environment)
+	organizationID, monitorID := seedRunQueryMonitor(t, environment)
 	alertID := "00000000-0000-7000-8000-000000000220"
 	deliveryID := "00000000-0000-7000-8000-000000000221"
 	integrationID := "00000000-0000-7000-8000-000000000222"
@@ -27,7 +27,6 @@ func TestAlertDeliveryAuditEnforcesScopeAndOmitsSensitiveMaterial(t *testing.T) 
 	firstStatus, secondStatus := http.StatusServiceUnavailable, http.StatusNoContent
 	scope := webhook.DeliveryScope{
 		OrganizationID: organizationID,
-		ProjectID:      projectID,
 		MonitorID:      monitorID,
 		AlertID:        alertID,
 	}
@@ -60,8 +59,7 @@ func TestAlertDeliveryAuditEnforcesScopeAndOmitsSensitiveMaterial(t *testing.T) 
 		MaintenanceWindowID: maintenanceWindowID,
 	}})
 
-	path := "/api/v1/organizations/" + organizationID + "/projects/" + projectID +
-		"/monitors/" + monitorID + "/alerts/" + alertID + "/deliveries"
+	path := "/api/v1/organizations/" + organizationID + "/monitors/" + monitorID + "/alerts/" + alertID + "/deliveries"
 	response := environment.request(
 		t, environment.client, http.MethodGet, path, "", "", "",
 	)
@@ -101,8 +99,7 @@ func TestAlertDeliveryAuditEnforcesScopeAndOmitsSensitiveMaterial(t *testing.T) 
 	}
 	wrongProject := environment.request(
 		t, environment.client, http.MethodGet,
-		"/api/v1/organizations/"+organizationID+
-			"/projects/00000000-0000-7000-8000-000000000299/monitors/"+
+		"/api/v1/organizations/00000000-0000-7000-8000-000000000299/monitors/"+
 			monitorID+"/alerts/"+alertID+"/deliveries",
 		"", "", "",
 	)
@@ -121,9 +118,8 @@ func TestAlertDeliveryAuditEnforcesScopeAndOmitsSensitiveMaterial(t *testing.T) 
 func TestAlertDeliveryAuditRejectsInvalidIdentityAndMethod(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	environment.bootstrapAdministrator(t)
-	organizationID, projectID, monitorID := seedRunQueryMonitor(t, environment)
-	root := "/api/v1/organizations/" + organizationID + "/projects/" + projectID +
-		"/monitors/" + monitorID + "/alerts/"
+	organizationID, monitorID := seedRunQueryMonitor(t, environment)
+	root := "/api/v1/organizations/" + organizationID + "/monitors/" + monitorID + "/alerts/"
 	invalid := environment.request(
 		t, environment.client, http.MethodGet, root+"invalid/deliveries", "", "", "",
 	)

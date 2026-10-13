@@ -9,8 +9,6 @@ import (
 )
 
 const (
-	// DefaultProjectName is the source name assigned transactionally at provisioning.
-	DefaultProjectName = "Default"
 	// BootstrapDisplayName is the display name of the Organization first-administrator
 	// setup provisions. Setup accepts no Organization input; renaming is a separate
 	// operation.
@@ -36,9 +34,6 @@ var (
 // ID identifies an Organization.
 type ID string
 
-// ProjectID identifies a Project.
-type ProjectID string
-
 // Organization is the tenant root. It carries no caller-chosen identifier: the
 // generated id is the only stable key, and every route, reference, and foreign
 // key uses it.
@@ -62,33 +57,9 @@ func NewOrganization(id ID, displayName string, createdAt time.Time) (Organizati
 	return Organization{ID: id, DisplayName: displayName, CreatedAt: createdAt}, nil
 }
 
-// Project is an administrative owner of Monitors within an Organization.
-type Project struct {
-	ID             ProjectID
-	OrganizationID ID
-	Name           string
-	IsDefault      bool
-	CreatedAt      time.Time
-}
-
-// NewDefaultProject creates the required default Project.
-func NewDefaultProject(id ProjectID, organizationID ID, createdAt time.Time) (Project, error) {
-	if id == "" || organizationID == "" {
-		return Project{}, errors.New("a Project requires ids")
-	}
-	if !isUTC(createdAt) {
-		return Project{}, errors.New("persisted timestamps must be UTC")
-	}
-	return Project{
-		ID: id, OrganizationID: organizationID, Name: DefaultProjectName,
-		IsDefault: true, CreatedAt: createdAt,
-	}, nil
-}
-
-// Details contains an Organization and its required default Project.
+// Details contains an Organization on its own; Monitors hang directly off it.
 type Details struct {
-	Organization   Organization
-	DefaultProject Project
+	Organization Organization
 }
 
 // ValidationFailure is one field-level use-case validation failure. Code is the

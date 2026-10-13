@@ -150,7 +150,7 @@ func TestOlderMigrationSetRejectsUpgradedSchema(t *testing.T) {
 	}
 }
 
-func TestOrganizationListJoinsDefaultProjectsInCreationOrder(t *testing.T) {
+func TestOrganizationListReturnsMembershipsInCreationOrder(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	store := database.Organizations()
 	creator := seedAdministrator(t, database)
@@ -173,19 +173,13 @@ func TestOrganizationListJoinsDefaultProjectsInCreationOrder(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewOrganization() error = %v", err)
 		}
-		project, err := organization.NewDefaultProject(
-			organization.ProjectID(testUUID(index*2+2)), value.ID, seed.createdAt,
-		)
-		if err != nil {
-			t.Fatalf("NewDefaultProject() error = %v", err)
-		}
 		membership, err := organization.NewMembership(
 			value.ID, creator, organization.RoleAdministrator, seed.createdAt,
 		)
 		if err != nil {
 			t.Fatalf("NewMembership() error = %v", err)
 		}
-		if err := store.Create(t.Context(), value, project, []organization.Membership{membership}); err != nil {
+		if err := store.Create(t.Context(), value, []organization.Membership{membership}); err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
 	}
@@ -204,31 +198,6 @@ func TestOrganizationListJoinsDefaultProjectsInCreationOrder(t *testing.T) {
 		if listed[index].Organization.DisplayName != want {
 			t.Fatalf("List()[%d].DisplayName = %q, want %q", index, listed[index].Organization.DisplayName, want)
 		}
-		project := listed[index].DefaultProject
-		if !project.IsDefault || project.OrganizationID != listed[index].Organization.ID {
-			t.Fatalf("List()[%d] default Project = %#v", index, project)
-		}
-		if project.CreatedAt.Location() != time.UTC {
-			t.Fatalf("List()[%d] default Project timestamp is not UTC: %v", index, project.CreatedAt)
-		}
-	}
-
-	// A non-default Project must not add a second row for its Organization.
-	extra, err := organization.NewDefaultProject(organization.ProjectID(testUUID(99)), listed[0].Organization.ID, base)
-	if err != nil {
-		t.Fatalf("NewDefaultProject() error = %v", err)
-	}
-	if _, err := database.pool.Exec(t.Context(), `
-INSERT INTO projects (id, organization_id, name, is_default, created_at)
-VALUES ($1, $2, 'Secondary', false, $3)`, string(extra.ID), string(extra.OrganizationID), base); err != nil {
-		t.Fatalf("insert non-default Project: %v", err)
-	}
-	after, err := store.ListForMember(t.Context(), creator)
-	if err != nil {
-		t.Fatalf("ListForMember() after extra Project error = %v", err)
-	}
-	if len(after) != 3 {
-		t.Fatalf("ListForMember() returned %d Organizations after a non-default Project, want 3", len(after))
 	}
 
 	// Membership is the filter: a user who belongs to nothing sees nothing, even
@@ -281,7 +250,7 @@ ON CONFLICT ON CONSTRAINT pk_users DO NOTHING`, testUUID(901), testTime()); err 
 
 func TestCreateMembershipsIsRepeatablePerOrganizationAndUser(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, _ := seedTenant(t, database, 80)
+	organizationValue := seedTenant(t, database, 80)
 	now := testTime()
 	membership, err := organization.NewMembership(
 		organizationValue.ID, testUUID(901), organization.RoleAdministrator, now,
@@ -308,88 +277,42 @@ WHERE organization_id = $1 AND user_id = $2`,
 	}
 }
 
-func TestDefaultProjectPartialUniqueIndex(t *testing.T) {
+func TestOrganizationProvisioningLeavesNoPartialStateWhenTheInsertCollides(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, _ := seedTenant(t, database, 80)
-	now := testTime().Add(time.Minute)
-
-	_, err := database.pool.Exec(t.Context(), `
-INSERT INTO projects (id, organization_id, name, is_default, created_at)
-VALUES ($1, $2, $3, $4, $5)`,
-		testUUID(82), string(organizationValue.ID), "Second Default", true, now)
-	requireConstraint(t, err, uniqueViolation, "ux_projects_organization_default")
-
-	if _, err := database.pool.Exec(t.Context(), `
-INSERT INTO projects (id, organization_id, name, is_default, created_at)
-VALUES ($1, $2, $3, $4, $5)`,
-		testUUID(83), string(organizationValue.ID), "Additional Project", false, now); err != nil {
-		t.Fatalf("insert non-default Project: %v", err)
-	}
-
-	var projectCount, defaultCount int
-	if err := database.pool.QueryRow(t.Context(), `
-SELECT count(*), count(*) FILTER (WHERE is_default)
-FROM projects
-WHERE organization_id = $1`, string(organizationValue.ID)).Scan(&projectCount, &defaultCount); err != nil {
-		t.Fatalf("count Projects by default status: %v", err)
-	}
-	if projectCount != 2 || defaultCount != 1 {
-		t.Fatalf("persisted Projects/defaults = %d/%d, want 2/1", projectCount, defaultCount)
-	}
-}
-
-func TestOrganizationProvisioningRollsBackWhenDefaultProjectInsertFails(t *testing.T) {
-	database := newIntegrationDatabase(t, true)
-	_, existingProject := seedTenant(t, database, 90)
+	existing := seedTenant(t, database, 90)
 	now := testTime()
-	candidateID := organization.ID(testUUID(92))
 	service := organization.NewService(
 		database.Organizations(),
 		fixedClock{now},
-		&sequenceUUIDs{values: []string{string(candidateID), string(existingProject.ID)}},
+		&sequenceUUIDs{values: []string{string(existing.ID)}},
 	)
 
 	_, err := service.Provision(t.Context(), organization.ProvisionCommand{
 		DisplayName: "Rollback Tenant", CreatorUserID: seedAdministrator(t, database),
 	})
-	requireConstraint(t, err, uniqueViolation, "pk_projects")
+	requireConstraint(t, err, uniqueViolation, "pk_organizations")
 
-	_, found, err := database.Organizations().FindByID(t.Context(), candidateID)
-	if err != nil || found {
-		t.Fatalf("FindByID() after rollback found/error = %v/%v, want false/nil", found, err)
-	}
-
-	var organizationCount, projectCount int
+	var organizationCount, membershipCount int
 	if err := database.pool.QueryRow(t.Context(), "SELECT count(*) FROM organizations").Scan(&organizationCount); err != nil {
 		t.Fatalf("count Organizations after rollback: %v", err)
 	}
-	if err := database.pool.QueryRow(t.Context(), "SELECT count(*) FROM projects").Scan(&projectCount); err != nil {
-		t.Fatalf("count Projects after rollback: %v", err)
+	if err := database.pool.QueryRow(t.Context(), "SELECT count(*) FROM organization_members").Scan(&membershipCount); err != nil {
+		t.Fatalf("count memberships after rollback: %v", err)
 	}
-	if organizationCount != 1 || projectCount != 1 {
-		t.Fatalf("persisted Organizations/Projects after rollback = %d/%d, want 1/1", organizationCount, projectCount)
+	if organizationCount != 1 || membershipCount != 1 {
+		t.Fatalf("persisted Organizations/memberships after collision = %d/%d, want 1/1", organizationCount, membershipCount)
 	}
 }
 
 func TestCompositeTenantForeignKeysRejectCrossTenantRows(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationA, projectA := seedTenant(t, database, 10)
-	organizationB, projectB := seedTenant(t, database, 20)
+	organizationA := seedTenant(t, database, 10)
+	organizationB := seedTenant(t, database, 20)
 	now := testTime()
 
-	wrongProject, err := monitor.NewMonitor(
-		monitor.ID(testUUID(30)), string(organizationA.ID), string(projectB.ID), "Wrong Project", "http",
-		monitor.DefaultIntervalSeconds, now,
-	)
-	if err != nil {
-		t.Fatalf("NewMonitor() error = %v", err)
-	}
-	err = database.Monitors().CreateMonitor(t.Context(), wrongProject)
-	requireConstraint(t, err, foreignKeyViolation, "fk_monitors_projects")
-
-	monitorA := seedMonitor(t, database, 31, organizationA, projectA, now)
-	_ = seedMonitor(t, database, 32, organizationB, projectB, now)
-	_, err = database.pool.Exec(t.Context(), `
+	monitorA := seedMonitor(t, database, 31, organizationA, now)
+	_ = seedMonitor(t, database, 32, organizationB, now)
+	_, err := database.pool.Exec(t.Context(), `
 INSERT INTO monitor_revisions (
     id, monitor_id, organization_id, revision_number, check_type,
     check_schema_version, check_configuration, created_at
@@ -662,13 +585,13 @@ SELECT selector_hash, request_token_hash FROM antiforgery_tokens`).Scan(&storedS
 
 func TestMonitorOrderingXminAndRevisionRace(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationValue, project := seedTenant(t, database, 60)
+	organizationValue := seedTenant(t, database, 60)
 	now := testTime()
-	second := seedMonitor(t, database, 62, organizationValue, project, now)
-	first := seedMonitor(t, database, 61, organizationValue, project, now)
+	second := seedMonitor(t, database, 62, organizationValue, now)
+	first := seedMonitor(t, database, 61, organizationValue, now)
 
 	store := database.Monitors()
-	listed, err := store.ListMonitors(t.Context(), string(organizationValue.ID), string(project.ID))
+	listed, err := store.ListMonitors(t.Context(), string(organizationValue.ID))
 	if err != nil {
 		t.Fatalf("ListMonitors() error = %v", err)
 	}
@@ -676,14 +599,14 @@ func TestMonitorOrderingXminAndRevisionRace(t *testing.T) {
 		t.Fatalf("ListMonitors() order = %#v, want UUID tie-break order", monitorIDs(listed))
 	}
 	_, found, err := store.FindMonitor(t.Context(), monitor.Scope{
-		OrganizationID: testUUID(999), ProjectID: string(project.ID), MonitorID: first.ID,
+		OrganizationID: testUUID(999), MonitorID: first.ID,
 	})
 	if err != nil || found {
 		t.Fatalf("cross-tenant FindMonitor() found/error = %v/%v, want false/nil", found, err)
 	}
 
 	loaded, found, err := store.FindMonitor(t.Context(), monitor.Scope{
-		OrganizationID: string(organizationValue.ID), ProjectID: string(project.ID), MonitorID: first.ID,
+		OrganizationID: string(organizationValue.ID), MonitorID: first.ID,
 	})
 	if err != nil || !found {
 		t.Fatalf("FindMonitor() found/error = %v/%v, want true/nil", found, err)
@@ -703,7 +626,7 @@ func TestMonitorOrderingXminAndRevisionRace(t *testing.T) {
 	}
 
 	scope := monitor.Scope{
-		OrganizationID: string(organizationValue.ID), ProjectID: string(project.ID), MonitorID: second.ID,
+		OrganizationID: string(organizationValue.ID), MonitorID: second.ID,
 	}
 	left, found, err := store.FindMonitor(t.Context(), scope)
 	if err != nil || !found {
@@ -759,9 +682,9 @@ func TestMonitorOrderingXminAndRevisionRace(t *testing.T) {
 		t.Fatalf("Monitor after revision race found/error/latest = %v/%v/%d", found, err, current.LatestRevisionNumber)
 	}
 
-	backstop := seedMonitor(t, database, 63, organizationValue, project, now.Add(4*time.Minute))
+	backstop := seedMonitor(t, database, 63, organizationValue, now.Add(4*time.Minute))
 	backstopScope := monitor.Scope{
-		OrganizationID: string(organizationValue.ID), ProjectID: string(project.ID), MonitorID: backstop.ID,
+		OrganizationID: string(organizationValue.ID), MonitorID: backstop.ID,
 	}
 	backstopLoaded, found, err := store.FindMonitor(t.Context(), backstopScope)
 	if err != nil || !found {
@@ -801,14 +724,13 @@ INSERT INTO monitor_revisions (
 
 func TestRevisionQueriesDenyWrongOrganization(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
-	organizationA, projectA := seedTenant(t, database, 110)
-	organizationB, _ := seedTenant(t, database, 120)
+	organizationA := seedTenant(t, database, 110)
+	organizationB := seedTenant(t, database, 120)
 	now := testTime()
-	created := seedMonitor(t, database, 130, organizationA, projectA, now)
+	created := seedMonitor(t, database, 130, organizationA, now)
 	store := database.Monitors()
 	scope := monitor.Scope{
 		OrganizationID: string(organizationA.ID),
-		ProjectID:      string(projectA.ID),
 		MonitorID:      created.ID,
 	}
 	persisted, found, err := store.FindMonitor(t.Context(), scope)
@@ -957,7 +879,7 @@ ON CONFLICT ON CONSTRAINT pk_users DO NOTHING`, id, testTime()); err != nil {
 	return id
 }
 
-func seedTenant(t *testing.T, database *DB, offset int) (organization.Organization, organization.Project) {
+func seedTenant(t *testing.T, database *DB, offset int) organization.Organization {
 	t.Helper()
 	now := testTime()
 	creator := seedAdministrator(t, database)
@@ -967,22 +889,16 @@ func seedTenant(t *testing.T, database *DB, offset int) (organization.Organizati
 	if err != nil {
 		t.Fatalf("NewOrganization() error = %v", err)
 	}
-	project, err := organization.NewDefaultProject(
-		organization.ProjectID(testUUID(offset+1)), organizationValue.ID, now,
-	)
-	if err != nil {
-		t.Fatalf("NewDefaultProject() error = %v", err)
-	}
 	membership, err := organization.NewMembership(
 		organizationValue.ID, creator, organization.RoleAdministrator, now,
 	)
 	if err != nil {
 		t.Fatalf("NewMembership() error = %v", err)
 	}
-	if err := database.Organizations().Create(t.Context(), organizationValue, project, []organization.Membership{membership}); err != nil {
+	if err := database.Organizations().Create(t.Context(), organizationValue, []organization.Membership{membership}); err != nil {
 		t.Fatalf("OrganizationStore.Create() error = %v", err)
 	}
-	return organizationValue, project
+	return organizationValue
 }
 
 func seedMonitor(
@@ -990,12 +906,11 @@ func seedMonitor(
 	database *DB,
 	id int,
 	organizationValue organization.Organization,
-	project organization.Project,
 	createdAt time.Time,
 ) monitor.Monitor {
 	t.Helper()
 	value, err := monitor.NewMonitor(
-		monitor.ID(testUUID(id)), string(organizationValue.ID), string(project.ID),
+		monitor.ID(testUUID(id)), string(organizationValue.ID),
 		fmt.Sprintf("Monitor %d", id), "http", monitor.DefaultIntervalSeconds, createdAt,
 	)
 	if err != nil {

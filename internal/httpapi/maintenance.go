@@ -155,7 +155,6 @@ func maintenanceScope(r *http.Request) (maintenance.Scope, bool) {
 	monitorValue, ok := monitorScope(r)
 	return maintenance.Scope{
 		OrganizationID: monitorValue.OrganizationID,
-		ProjectID:      monitorValue.ProjectID,
 		MonitorID:      string(monitorValue.MonitorID),
 	}, ok
 }
@@ -167,7 +166,7 @@ func maintenanceWindowScope(r *http.Request) (maintenance.Scope, maintenance.ID,
 }
 
 func maintenanceWindowPath(scope maintenance.Scope, id string) string {
-	return monitorPath(scope.OrganizationID, scope.ProjectID, scope.MonitorID) +
+	return monitorPath(scope.OrganizationID, scope.MonitorID) +
 		"/maintenance-windows/" + id
 }
 
@@ -183,8 +182,8 @@ func toMaintenanceWindowResponse(
 ) api.MaintenanceWindowResponse {
 	return api.MaintenanceWindowResponse{
 		ID: string(value.ID), OrganizationID: value.OrganizationID,
-		ProjectID: value.ProjectID, MonitorID: value.MonitorID,
-		StartsAt: value.StartsAt, EndsAt: value.EndsAt, Status: string(value.Status(now)),
+		MonitorID: value.MonitorID,
+		StartsAt:  value.StartsAt, EndsAt: value.EndsAt, Status: string(value.Status(now)),
 		CreatedAt: value.CreatedAt, CancelledAt: value.CancelledAt,
 	}
 }

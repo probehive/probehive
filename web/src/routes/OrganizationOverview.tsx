@@ -23,8 +23,7 @@ function incidentPath(
 ): string {
   return (
     '/organizations/' + encodeURIComponent(organizationId) +
-    '/projects/' + encodeURIComponent(incident.projectId) +
-    '/monitors/' + encodeURIComponent(incident.monitorId) +
+        '/monitors/' + encodeURIComponent(incident.monitorId) +
     '/incidents/' + encodeURIComponent(incident.id)
   )
 }

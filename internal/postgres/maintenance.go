@@ -37,9 +37,9 @@ func (store *MaintenanceStore) CreateWindow(ctx context.Context, value maintenan
 	err = transaction.QueryRow(ctx, `
 SELECT id
 FROM monitors
-WHERE id = $1 AND organization_id = $2 AND project_id = $3
+WHERE id = $1 AND organization_id = $2
 FOR UPDATE`,
-		value.MonitorID, value.OrganizationID, value.ProjectID,
+		value.MonitorID, value.OrganizationID,
 	).Scan(&monitorID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return maintenance.ErrMonitorNotFound
@@ -90,8 +90,8 @@ func (store *MaintenanceStore) ListWindows(
 SELECT EXISTS (
     SELECT 1
     FROM monitors
-    WHERE id = $1 AND organization_id = $2 AND project_id = $3
-)`, scope.MonitorID, scope.OrganizationID, scope.ProjectID).Scan(&monitorExists); err != nil {
+    WHERE id = $1 AND organization_id = $2
+)`, scope.MonitorID, scope.OrganizationID).Scan(&monitorExists); err != nil {
 		return nil, false, fmt.Errorf("check maintenance Monitor scope: %w", err)
 	}
 	if !monitorExists {
@@ -99,7 +99,7 @@ SELECT EXISTS (
 	}
 
 	rows, err := store.pool.Query(ctx, `
-SELECT maintenance_window.id, maintenance_window.organization_id, monitor.project_id, maintenance_window.monitor_id,
+SELECT maintenance_window.id, maintenance_window.organization_id, maintenance_window.monitor_id,
        maintenance_window.starts_at, maintenance_window.ends_at, maintenance_window.created_at, maintenance_window.cancelled_at,
        (maintenance_window.xmin::text)::bigint
 FROM maintenance_windows AS maintenance_window
@@ -108,10 +108,9 @@ JOIN monitors AS monitor
  AND monitor.organization_id = maintenance_window.organization_id
 WHERE maintenance_window.organization_id = $1
   AND maintenance_window.monitor_id = $2
-  AND monitor.project_id = $3
-  AND maintenance_window.ends_at > $4
+  AND maintenance_window.ends_at > $3
 ORDER BY maintenance_window.starts_at, maintenance_window.id`,
-		scope.OrganizationID, scope.MonitorID, scope.ProjectID, endsAfter.UTC())
+		scope.OrganizationID, scope.MonitorID, endsAfter.UTC())
 	if err != nil {
 		return nil, false, fmt.Errorf("list maintenance windows: %w", err)
 	}
@@ -135,7 +134,7 @@ func (store *MaintenanceStore) FindWindow(
 	ctx context.Context, scope maintenance.Scope, id maintenance.ID,
 ) (maintenance.Window, bool, error) {
 	return scanMaintenanceWindow(store.pool.QueryRow(ctx, `
-SELECT maintenance_window.id, maintenance_window.organization_id, monitor.project_id, maintenance_window.monitor_id,
+SELECT maintenance_window.id, maintenance_window.organization_id, maintenance_window.monitor_id,
        maintenance_window.starts_at, maintenance_window.ends_at, maintenance_window.created_at, maintenance_window.cancelled_at,
        (maintenance_window.xmin::text)::bigint
 FROM maintenance_windows AS maintenance_window
@@ -144,9 +143,8 @@ JOIN monitors AS monitor
  AND monitor.organization_id = maintenance_window.organization_id
 WHERE maintenance_window.id = $1
   AND maintenance_window.organization_id = $2
-  AND maintenance_window.monitor_id = $3
-  AND monitor.project_id = $4`,
-		string(id), scope.OrganizationID, scope.MonitorID, scope.ProjectID))
+  AND maintenance_window.monitor_id = $3`,
+		string(id), scope.OrganizationID, scope.MonitorID))
 }
 
 func (store *MaintenanceStore) CancelWindow(
@@ -164,10 +162,9 @@ WHERE maintenance_window.id = $2
       FROM monitors AS monitor
       WHERE monitor.id = maintenance_window.monitor_id
         AND monitor.organization_id = maintenance_window.organization_id
-        AND monitor.project_id = $6
   )`,
 		value.CancelledAt, string(value.ID), value.OrganizationID, value.MonitorID,
-		uint64(expectedVersion), value.ProjectID)
+		uint64(expectedVersion))
 	if err != nil {
 		return fmt.Errorf("cancel maintenance window: %w", err)
 	}
@@ -181,7 +178,6 @@ func scanMaintenanceWindow(row rowScanner) (maintenance.Window, bool, error) {
 	var (
 		id             string
 		organizationID string
-		projectID      string
 		monitorID      string
 		startsAt       time.Time
 		endsAt         time.Time
@@ -190,7 +186,7 @@ func scanMaintenanceWindow(row rowScanner) (maintenance.Window, bool, error) {
 		version        uint64
 	)
 	if err := row.Scan(
-		&id, &organizationID, &projectID, &monitorID,
+		&id, &organizationID, &monitorID,
 		&startsAt, &endsAt, &createdAt, &cancelledAt, &version,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -211,7 +207,6 @@ func scanMaintenanceWindow(row rowScanner) (maintenance.Window, bool, error) {
 		maintenance.ID(id),
 		maintenance.Scope{
 			OrganizationID: organizationID,
-			ProjectID:      projectID,
 			MonitorID:      monitorID,
 		},
 		startsAt.UTC(), endsAt.UTC(), createdAt.UTC(), cancelledAt, uint32(version),

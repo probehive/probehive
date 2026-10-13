@@ -44,7 +44,6 @@ func validIncidentTransition(now time.Time) IncidentTransitionedV1 {
 		AggregateID: "00000000-0000-7000-8000-000000000003", AggregateVersion: 2,
 		CausationID: "00000000-0000-7000-8000-000000000004",
 		IncidentID:  "00000000-0000-7000-8000-000000000003",
-		ProjectID:   "00000000-0000-7000-8000-000000000005",
 		MonitorID:   "00000000-0000-7000-8000-000000000006",
 		Transition:  "resolved",
 	}
@@ -123,7 +122,7 @@ func TestListRejectsUnscopedAndUnboundedQueries(t *testing.T) {
 	if _, _, err := service.List(t.Context(), Scope{}, ListQuery{PageSize: 50}); err == nil {
 		t.Fatal("unscoped Alert query succeeded")
 	}
-	scope := Scope{OrganizationID: "org", ProjectID: "project", MonitorID: "monitor"}
+	scope := Scope{OrganizationID: "org", MonitorID: "monitor"}
 	if _, _, err := service.List(t.Context(), scope, ListQuery{PageSize: 101}); err == nil {
 		t.Fatal("oversized Alert query succeeded")
 	}

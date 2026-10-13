@@ -136,11 +136,6 @@ func toOrganizationResponse(details organization.Details) api.OrganizationRespon
 	return api.OrganizationResponse{
 		ID:          string(details.Organization.ID),
 		DisplayName: details.Organization.DisplayName, CreatedAt: details.Organization.CreatedAt,
-		DefaultProject: api.ProjectResponse{
-			ID: string(details.DefaultProject.ID), OrganizationID: string(details.DefaultProject.OrganizationID),
-			Name: details.DefaultProject.Name, IsDefault: details.DefaultProject.IsDefault,
-			CreatedAt: details.DefaultProject.CreatedAt,
-		},
 	}
 }
 

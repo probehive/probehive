@@ -151,7 +151,6 @@ export const en = {
   'organization.identifier': 'Identifier',
   'organization.created': 'Created',
   'organization.eyebrow': 'Organization',
-  'organization.defaultProject': 'Default Project',
   'organization.name': 'Name',
   'organization.navigation': 'Organization sections',
   'organization.tab.overview': 'Overview',

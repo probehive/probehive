@@ -28,36 +28,24 @@ func (database *DB) Monitors() *MonitorStore {
 	return &MonitorStore{pool: database.pool}
 }
 
-// ProjectExists checks Project ownership with explicit Organization scope.
-func (store *MonitorStore) ProjectExists(ctx context.Context, organizationID, projectID string) (bool, error) {
-	var exists bool
-	if err := store.pool.QueryRow(ctx, `
-SELECT EXISTS (
-    SELECT 1 FROM projects WHERE id = $1 AND organization_id = $2
-)`, projectID, organizationID).Scan(&exists); err != nil {
-		return false, fmt.Errorf("check Project scope: %w", err)
-	}
-	return exists, nil
-}
-
 // FindMonitor loads a Monitor only through its complete tenant scope.
 func (store *MonitorStore) FindMonitor(ctx context.Context, scope monitor.Scope) (monitor.Monitor, bool, error) {
 	return scanMonitor(store.pool.QueryRow(ctx, `
-SELECT id, organization_id, project_id, name, check_type, state, interval_seconds,
+SELECT id, organization_id, name, check_type, state, interval_seconds,
        latest_revision_number, created_at, updated_at, (xmin::text)::bigint
 FROM monitors
-WHERE id = $1 AND project_id = $2 AND organization_id = $3`,
-		string(scope.MonitorID), scope.ProjectID, scope.OrganizationID))
+WHERE id = $1 AND organization_id = $2`,
+		string(scope.MonitorID), scope.OrganizationID))
 }
 
 // ListMonitors returns creation order with UUID as a deterministic tie-breaker.
-func (store *MonitorStore) ListMonitors(ctx context.Context, organizationID, projectID string) ([]monitor.Monitor, error) {
+func (store *MonitorStore) ListMonitors(ctx context.Context, organizationID string) ([]monitor.Monitor, error) {
 	rows, err := store.pool.Query(ctx, `
-SELECT id, organization_id, project_id, name, check_type, state, interval_seconds,
+SELECT id, organization_id, name, check_type, state, interval_seconds,
        latest_revision_number, created_at, updated_at, (xmin::text)::bigint
 FROM monitors
-WHERE project_id = $1 AND organization_id = $2
-ORDER BY created_at, id`, projectID, organizationID)
+WHERE organization_id = $1
+ORDER BY created_at, id`, organizationID)
 	if err != nil {
 		return nil, fmt.Errorf("list Monitors: %w", err)
 	}
@@ -81,10 +69,10 @@ ORDER BY created_at, id`, projectID, organizationID)
 func (store *MonitorStore) CreateMonitor(ctx context.Context, value monitor.Monitor) error {
 	if _, err := store.pool.Exec(ctx, `
 INSERT INTO monitors (
-    id, organization_id, project_id, name, check_type, state, interval_seconds,
+    id, organization_id, name, check_type, state, interval_seconds,
     latest_revision_number, created_at, updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-		string(value.ID), value.OrganizationID, value.ProjectID, value.Name, value.CheckType,
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		string(value.ID), value.OrganizationID, value.Name, value.CheckType,
 		string(value.State), value.IntervalSeconds, value.LatestRevisionNumber,
 		value.CreatedAt.UTC(), value.UpdatedAt.UTC()); err != nil {
 		return fmt.Errorf("insert Monitor: %w", err)
@@ -97,10 +85,10 @@ func (store *MonitorStore) UpdateMonitor(ctx context.Context, value monitor.Moni
 	result, err := store.pool.Exec(ctx, `
 UPDATE monitors
 SET name = $1, state = $2, interval_seconds = $3, latest_revision_number = $4, updated_at = $5
-WHERE id = $6 AND organization_id = $7 AND project_id = $8
-  AND (xmin::text)::bigint = $9`,
+WHERE id = $6 AND organization_id = $7
+  AND (xmin::text)::bigint = $8`,
 		value.Name, string(value.State), value.IntervalSeconds, value.LatestRevisionNumber,
-		value.UpdatedAt.UTC(), string(value.ID), value.OrganizationID, value.ProjectID,
+		value.UpdatedAt.UTC(), string(value.ID), value.OrganizationID,
 		uint64(expectedVersion))
 	if err != nil {
 		return fmt.Errorf("update Monitor: %w", err)
@@ -127,10 +115,10 @@ func (store *MonitorStore) AppendRevision(
 	result, err := transaction.Exec(ctx, `
 UPDATE monitors
 SET latest_revision_number = $1, updated_at = $2
-WHERE id = $3 AND organization_id = $4 AND project_id = $5
-  AND (xmin::text)::bigint = $6`,
+WHERE id = $3 AND organization_id = $4
+  AND (xmin::text)::bigint = $5`,
 		value.LatestRevisionNumber, value.UpdatedAt.UTC(), string(value.ID),
-		value.OrganizationID, value.ProjectID, uint64(expectedVersion))
+		value.OrganizationID, uint64(expectedVersion))
 	if err != nil {
 		return fmt.Errorf("advance Monitor revision counter: %w", err)
 	}
@@ -202,7 +190,6 @@ func scanMonitor(row rowScanner) (monitor.Monitor, bool, error) {
 	var (
 		id                   string
 		organizationID       string
-		projectID            string
 		name                 string
 		checkType            string
 		state                string
@@ -213,7 +200,7 @@ func scanMonitor(row rowScanner) (monitor.Monitor, bool, error) {
 		version              uint64
 	)
 	if err := row.Scan(
-		&id, &organizationID, &projectID, &name, &checkType, &state, &intervalSeconds,
+		&id, &organizationID, &name, &checkType, &state, &intervalSeconds,
 		&latestRevisionNumber, &createdAt, &updatedAt, &version,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -225,7 +212,7 @@ func scanMonitor(row rowScanner) (monitor.Monitor, bool, error) {
 		return monitor.Monitor{}, false, fmt.Errorf("restore Monitor: xmin %d exceeds uint32", version)
 	}
 	value, err := monitor.RestoreMonitor(
-		monitor.ID(id), organizationID, projectID, name, checkType, monitor.State(state),
+		monitor.ID(id), organizationID, name, checkType, monitor.State(state),
 		intervalSeconds, latestRevisionNumber, createdAt.UTC(), updatedAt.UTC(), uint32(version),
 	)
 	if err != nil {

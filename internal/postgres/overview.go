@@ -88,7 +88,7 @@ WHERE organization.id = $1`, organizationID).Scan(
 	}
 
 	rows, err := transaction.Query(ctx, `
-SELECT incident.id, incident.project_id, incident.monitor_id, monitor.name,
+SELECT incident.id, incident.monitor_id, monitor.name,
        incident.state, incident.updated_at
 FROM incidents AS incident
 JOIN monitors AS monitor
@@ -104,7 +104,7 @@ LIMIT $2`, organizationID, incidentLimit)
 	for rows.Next() {
 		var incident overview.ActiveIncident
 		if err := rows.Scan(
-			&incident.ID, &incident.ProjectID, &incident.MonitorID, &incident.MonitorName,
+			&incident.ID, &incident.MonitorID, &incident.MonitorName,
 			&incident.State, &incident.UpdatedAt,
 		); err != nil {
 			return overview.Summary{}, false, fmt.Errorf("scan Organization overview Incident: %w", err)

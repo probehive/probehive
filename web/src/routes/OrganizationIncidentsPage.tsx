@@ -54,8 +54,7 @@ function validFilter(value: string | null): InboxFilter {
 
 function monitorPath(item: IncidentInboxItemResponse): string {
   return '/organizations/' + encodeURIComponent(item.incident.organizationId) +
-    '/projects/' + encodeURIComponent(item.incident.projectId) +
-    '/monitors/' + encodeURIComponent(item.incident.monitorId)
+        '/monitors/' + encodeURIComponent(item.incident.monitorId)
 }
 
 function incidentPath(item: IncidentInboxItemResponse): string {

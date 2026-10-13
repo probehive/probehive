@@ -15,8 +15,8 @@ import (
 func TestMaintenanceAPIValidatesAuthorizesListsAndCancels(t *testing.T) {
 	environment := newTestEnvironment(t, true, 0)
 	antiforgery := environment.bootstrapAdministrator(t)
-	organizationID, projectID, monitorID := seedRunQueryMonitor(t, environment)
-	collection := monitorPath(organizationID, projectID, monitorID) + "/maintenance-windows"
+	organizationID, monitorID := seedRunQueryMonitor(t, environment)
+	collection := monitorPath(organizationID, monitorID) + "/maintenance-windows"
 	now := environment.clock.Now()
 	startsAt := now.Add(time.Hour)
 	endsAt := now.Add(2 * time.Hour)
@@ -73,7 +73,7 @@ func TestMaintenanceAPIValidatesAuthorizesListsAndCancels(t *testing.T) {
 	if err := json.Unmarshal(createdResponse.Body, &created); err != nil {
 		t.Fatal(err)
 	}
-	if created.OrganizationID != organizationID || created.ProjectID != projectID ||
+	if created.OrganizationID != organizationID ||
 		created.MonitorID != monitorID || created.Status != string(maintenance.StatusUpcoming) ||
 		created.CancelledAt != nil || !created.StartsAt.Equal(startsAt) || !created.EndsAt.Equal(endsAt) {
 		t.Fatalf("created response = %#v", created)
@@ -117,9 +117,8 @@ func TestMaintenanceAPIValidatesAuthorizesListsAndCancels(t *testing.T) {
 		t.Fatalf("Viewer cancel status = %d, want 403", viewerCancel.StatusCode)
 	}
 
-	wrongScope := monitorPath(
-		organizationID, "00000000-0000-7000-8000-000000000099", monitorID,
-	) + "/maintenance-windows/" + created.ID
+	wrongScope := "/api/v1/organizations/" + organizationID +
+		"/monitors/00000000-0000-7000-8000-000000000099/maintenance-windows/" + created.ID
 	if response := environment.request(
 		t, environment.client, http.MethodGet, wrongScope, "", "", "",
 	); response.StatusCode != http.StatusNotFound {

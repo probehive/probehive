@@ -35,7 +35,7 @@ func TestDeliveryExecutorEmitsDeterministicSignedRequest(t *testing.T) {
 		t.Fatalf("Execute() = %#v", result)
 	}
 	wantBody := fmt.Sprintf(
-		`{"schemaVersion":"v1","deliveryId":"00000000-0000-7000-8000-000000000010","alertId":"00000000-0000-7000-8000-000000000011","alertKind":"incident.opened","organizationId":"00000000-0000-7000-8000-000000000012","projectId":"00000000-0000-7000-8000-000000000013","monitorId":"00000000-0000-7000-8000-000000000014","incidentId":"00000000-0000-7000-8000-000000000015","incidentVersion":3,"occurredAt":"%s","attempt":2}`,
+		`{"schemaVersion":"v1","deliveryId":"00000000-0000-7000-8000-000000000010","alertId":"00000000-0000-7000-8000-000000000011","alertKind":"incident.opened","organizationId":"00000000-0000-7000-8000-000000000012","monitorId":"00000000-0000-7000-8000-000000000014","incidentId":"00000000-0000-7000-8000-000000000015","incidentVersion":3,"occurredAt":"%s","attempt":2}`,
 		claim.OccurredAt.Format(time.RFC3339Nano),
 	)
 	if string(body) != wantBody {
@@ -200,7 +200,6 @@ func testDeliveryClaim(
 			OrganizationID:     organizationID,
 			AlertID:            "00000000-0000-7000-8000-000000000011",
 			AlertKind:          "incident.opened",
-			ProjectID:          "00000000-0000-7000-8000-000000000013",
 			MonitorID:          "00000000-0000-7000-8000-000000000014",
 			IncidentID:         "00000000-0000-7000-8000-000000000015",
 			IncidentVersion:    3,

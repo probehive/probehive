@@ -66,7 +66,6 @@ export const zhCN: Catalog = {
   'organization.identifier': '标识符',
   'organization.created': '创建时间',
   'organization.eyebrow': '组织',
-  'organization.defaultProject': '默认项目',
   'organization.name': '名称',
   'organization.navigation': '组织各部分',
   'organization.tab.overview': '概览',
