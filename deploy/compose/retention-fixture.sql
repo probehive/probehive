@@ -24,20 +24,10 @@ BEGIN
 END
 $$;
 
-INSERT INTO organizations (id, slug, display_name, created_at)
+INSERT INTO organizations (id, display_name, created_at)
 VALUES (
     '00000000-0000-7000-8000-000000000001',
-    'retention-fixture',
     'Retention Fixture',
-    now()
-);
-
-INSERT INTO projects (id, organization_id, name, is_default, created_at)
-VALUES (
-    '00000000-0000-7000-8000-000000000002',
-    '00000000-0000-7000-8000-000000000001',
-    'Default',
-    true,
     now()
 );
 
@@ -60,12 +50,11 @@ VALUES (
 );
 
 INSERT INTO monitors (
-    id, organization_id, project_id, name, check_type, state,
+    id, organization_id, name, check_type, state,
     latest_revision_number, created_at, updated_at, interval_seconds
 ) VALUES (
     '00000000-0000-7000-8000-000000000004',
     '00000000-0000-7000-8000-000000000001',
-    '00000000-0000-7000-8000-000000000002',
     'Retention evidence',
     'http',
     'draft',
@@ -156,7 +145,7 @@ WITH schedule AS (
         AS expired_at
 )
 INSERT INTO health_transitions (
-    id, organization_id, project_id, monitor_id, version, old_state, new_state,
+    id, organization_id, monitor_id, version, old_state, new_state,
     policy_version, source_revision_number, causal_run_id,
     causal_run_scheduled_for, configured_count, eligible_count, responding_count,
     passing_count, failing_count, location_fault_count, indeterminate_count,
@@ -165,7 +154,6 @@ INSERT INTO health_transitions (
 SELECT
     '00000000-0000-7000-8000-000000000008',
     '00000000-0000-7000-8000-000000000001',
-    '00000000-0000-7000-8000-000000000002',
     '00000000-0000-7000-8000-000000000004',
     1,
     'unknown',
@@ -179,12 +167,11 @@ SELECT
 FROM schedule;
 
 INSERT INTO incidents (
-    id, organization_id, project_id, monitor_id, state, version,
+    id, organization_id, monitor_id, state, version,
     opened_transition_id, created_at, updated_at
 ) VALUES (
     '00000000-0000-7000-8000-000000000009',
     '00000000-0000-7000-8000-000000000001',
-    '00000000-0000-7000-8000-000000000002',
     '00000000-0000-7000-8000-000000000004',
     'open',
     1,
@@ -216,12 +203,11 @@ SELECT
     now();
 
 INSERT INTO alerts (
-    id, organization_id, project_id, monitor_id, incident_id,
+    id, organization_id, monitor_id, incident_id,
     incident_version, kind, occurred_at, created_at
 ) VALUES (
     '00000000-0000-7000-8000-000000000011',
     '00000000-0000-7000-8000-000000000001',
-    '00000000-0000-7000-8000-000000000002',
     '00000000-0000-7000-8000-000000000004',
     '00000000-0000-7000-8000-000000000009',
     1,

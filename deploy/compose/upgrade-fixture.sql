@@ -3,10 +3,9 @@ CREATE TABLE runs_2026_08 PARTITION OF runs
 CREATE TABLE observations_2026_08 PARTITION OF observations
     FOR VALUES FROM ('2026-08-01T00:00:00Z') TO ('2026-09-01T00:00:00Z');
 
-INSERT INTO organizations (id, slug, display_name, created_at)
+INSERT INTO organizations (id, display_name, created_at)
 VALUES (
     '00000000-0000-7000-8000-000000000001',
-    'upgrade-fixture',
     'Upgrade Fixture',
     '2026-08-05T00:00:00Z'
 );

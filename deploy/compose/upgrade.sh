@@ -119,7 +119,6 @@ postgres_psql --single-transaction <"$fixture_sql"
 
 evidence_query="SELECT concat_ws('|',
   organizations.id::text,
-  projects.id::text,
   users.email,
   organization_members.role,
   monitors.id::text,
@@ -128,15 +127,14 @@ evidence_query="SELECT concat_ws('|',
   runs.outcome,
   observations.http_status_code::text)
 FROM organizations
-JOIN projects ON projects.organization_id = organizations.id
 JOIN organization_members ON organization_members.organization_id = organizations.id
 JOIN users ON users.id = organization_members.user_id
-JOIN monitors ON monitors.project_id = projects.id AND monitors.organization_id = organizations.id
+JOIN monitors ON monitors.organization_id = organizations.id
 JOIN monitor_revisions ON monitor_revisions.monitor_id = monitors.id
 JOIN runs ON runs.monitor_id = monitors.id AND runs.organization_id = organizations.id
 JOIN observations ON observations.run_id = runs.id
   AND observations.scheduled_for = runs.scheduled_for;"
-expected_evidence="00000000-0000-7000-8000-000000000001|00000000-0000-7000-8000-000000000002|upgrade-admin@example.test|Administrator|00000000-0000-7000-8000-000000000004|00000000-0000-7000-8000-000000000005|00000000-0000-7000-8000-000000000006|passed|200"
+expected_evidence="00000000-0000-7000-8000-000000000001|upgrade-admin@example.test|Administrator|00000000-0000-7000-8000-000000000004|00000000-0000-7000-8000-000000000005|00000000-0000-7000-8000-000000000006|passed|200"
 before_evidence="$(postgres_query "$evidence_query")"
 if [[ "$before_evidence" != "$expected_evidence" ]]; then
   printf 'The pre-upgrade evidence fixture did not match the expected fingerprint.\n' >&2

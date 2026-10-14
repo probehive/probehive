@@ -100,9 +100,7 @@ setup="$(curl "${curl_common[@]}" \
   --data '{"email":"recovery-admin@example.test","displayName":"Recovery Administrator","password":"a-long-recovery-password"}' \
   "$PROBEHIVE_PUBLIC_ORIGIN/api/v1/setup/admin")"
 organization_id="$(jq -er '.organization.id' <<<"$setup")"
-project_id="$(jq -er '.organization.defaultProject.id' <<<"$setup")"
-scope_url="$PROBEHIVE_PUBLIC_ORIGIN/api/v1/organizations/$organization_id/projects/$project_id"
-monitors_url="$scope_url/monitors"
+monitors_url="$PROBEHIVE_PUBLIC_ORIGIN/api/v1/organizations/$organization_id/monitors"
 
 request_antiforgery
 passing_monitor="$(curl "${curl_common[@]}" \
