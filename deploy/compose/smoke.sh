@@ -109,12 +109,11 @@ setup="$(curl "${curl_common[@]}" \
   --data '{"email":"admin@example.test","displayName":"Smoke Administrator","password":"a-long-smoke-password"}' \
   "$base_url/api/v1/setup/admin")"
 organization_id="$(jq -er '.organization.id' <<<"$setup")"
-project_id="$(jq -er '.organization.defaultProject.id' <<<"$setup")"
 
 antiforgery="$(curl "${curl_common[@]}" "$base_url/api/v1/auth/antiforgery")"
 header_name="$(jq -er '.headerName' <<<"$antiforgery")"
 request_token="$(jq -er '.requestToken' <<<"$antiforgery")"
-monitors_url="$base_url/api/v1/organizations/$organization_id/projects/$project_id/monitors"
+monitors_url="$base_url/api/v1/organizations/$organization_id/monitors"
 monitor="$(curl "${curl_common[@]}" \
   --request POST \
   --header 'Content-Type: application/json' \
