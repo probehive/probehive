@@ -52,10 +52,13 @@ func main() {
 // launch is named around the run package rather than shadowing it: the composition root
 // imports internal/run, and an entry point called run() would make that import unusable.
 func launch(arguments []string, logger *slog.Logger) error {
-	if len(arguments) != 0 {
-		return errors.New("usage: probehive")
+	if len(arguments) == 0 {
+		return serve(logger)
 	}
-	return serve(logger)
+	if arguments[0] == "reset-password" {
+		return resetPassword(arguments[1:], logger)
+	}
+	return errors.New("usage: probehive [reset-password <email>]")
 }
 
 func serve(logger *slog.Logger) error {

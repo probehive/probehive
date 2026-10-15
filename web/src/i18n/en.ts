@@ -60,6 +60,15 @@ export const en = {
   'users.create.created': 'User created.',
   'users.create.conflict': 'A user with this email address already exists.',
 
+  'users.edit.action': 'Edit',
+  'users.edit.form': 'Edit user',
+  'users.edit.email': 'Email',
+  'users.edit.displayName': 'Display name (optional)',
+  'users.edit.submit': 'Save',
+  'users.edit.submitting': 'Saving…',
+  'users.edit.cancel': 'Cancel',
+  'users.edit.conflict': 'A user with this email address already exists.',
+
   'organization.create.heading': 'Create an Organization',
   'organization.create.form': 'Create organization',
   'organization.create.displayName': 'Display name',

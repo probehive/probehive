@@ -38,6 +38,7 @@ func TestOpenAPIDocumentDescribesEveryRoute(t *testing.T) {
 		"/api/v1/auth/logout":                    {"post"},
 		"/api/v1/auth/session":                   {"get"},
 		"/api/v1/users":                          {"get", "post"},
+		"/api/v1/users/{userId}":                 {"put"},
 		"/api/v1/organizations":                  {"get", "post"},
 		"/api/v1/organizations/{organizationId}": {"get"},
 		"/api/v1/organizations/{organizationId}/overview":                                                              {"get"},

@@ -2739,6 +2739,74 @@
           }
         }
       }
+    },
+    "/api/v1/users/{userId}": {
+      "put": {
+        "tags": [
+          "Users"
+        ],
+        "operationId": "updateUser",
+        "summary": "Replace a local user's profile",
+        "description": "Requires the instance Administrator role. Replaces the login email and display name. An omitted display name defaults to the new email. Sessions are unaffected because they bind to the immutable user id.",
+        "security": [
+          {
+            "sessionCookie": [],
+            "antiforgeryCookie": [],
+            "antiforgeryHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateUserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The profile was replaced.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5852,6 +5920,30 @@
             "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
             "description": "Value without Unicode control characters; length is measured in UTF-16 code units.",
             "x-probehive-length-unit": "utf16-code-units"
+          }
+        }
+      },
+      "UpdateUserRequest": {
+        "type": "object",
+        "description": "Request property names are matched ASCII-case-insensitively; canonical spellings are shown. Replaces the login email and display name.",
+        "x-probehive-property-name-comparison": "ascii-case-insensitive",
+        "required": [
+          "email"
+        ],
+        "properties": {
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The replacement login email address. Existing sessions survive because they bind to the immutable user id."
+          },
+          "displayName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional. An omitted or blank display name defaults to the new normalized email address."
           }
         }
       }

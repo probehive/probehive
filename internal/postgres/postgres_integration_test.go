@@ -371,6 +371,52 @@ func TestFirstAdministratorContentionCreatesExactlyOneUser(t *testing.T) {
 	}
 }
 
+func TestUserStoreUpdateProfileReplacesEmailAndDisplayName(t *testing.T) {
+	database := newIntegrationDatabase(t, true)
+	store := database.Users()
+	now := testTime()
+	account := mustUser(t, 50, "before@example.com", now)
+	other := mustUser(t, 51, "other@example.com", now)
+	if err := store.CreateFirstAdministrator(t.Context(), account); err != nil {
+		t.Fatalf("CreateFirstAdministrator() error = %v", err)
+	}
+	if err := store.Create(t.Context(), other); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	renamed, err := user.NewUser(account.ID, "after@example.com", "After", user.AdministratorRole, account.PasswordHash, account.CreatedAt)
+	if err != nil {
+		t.Fatalf("NewUser() error = %v", err)
+	}
+	if err := store.UpdateProfile(t.Context(), account.ID, renamed); err != nil {
+		t.Fatalf("UpdateProfile() error = %v", err)
+	}
+
+	got, found, err := store.FindByEmail(t.Context(), "after@example.com")
+	if err != nil || !found {
+		t.Fatalf("FindByEmail() after update found/error = %v/%v", found, err)
+	}
+	if got.ID != account.ID || got.DisplayName != "After" || got.PasswordHash != account.PasswordHash {
+		t.Fatalf("updated user = %#v", got)
+	}
+	if _, found, _ := store.FindByEmail(t.Context(), "before@example.com"); found {
+		t.Fatal("previous email still resolves after update")
+	}
+
+	duplicate, err := user.NewUser(other.ID, "after@example.com", "Duplicate", user.AdministratorRole, other.PasswordHash, other.CreatedAt)
+	if err != nil {
+		t.Fatalf("NewUser() duplicate error = %v", err)
+	}
+	if err := store.UpdateProfile(t.Context(), other.ID, duplicate); !errors.Is(err, user.ErrDuplicateEmail) {
+		t.Fatalf("UpdateProfile() duplicate error = %v, want ErrDuplicateEmail", err)
+	}
+
+	missing := user.ID(testUUID(52))
+	if err := store.UpdateProfile(t.Context(), missing, renamed); !errors.Is(err, user.ErrUserMissing) {
+		t.Fatalf("UpdateProfile() missing error = %v, want ErrUserMissing", err)
+	}
+}
+
 func TestSessionStoreRoundTripAndDeletion(t *testing.T) {
 	database := newIntegrationDatabase(t, true)
 	account := mustUser(t, 100, "roundtrip@example.com", testTime())

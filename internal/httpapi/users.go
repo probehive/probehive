@@ -18,6 +18,44 @@ func (server *Server) usersRoot(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (server *Server) userItem(w http.ResponseWriter, r *http.Request) {
+	id, ok := canonicalUUID(r.PathValue("userId"))
+	if !ok {
+		writeStatusProblem(w, http.StatusNotFound)
+		return
+	}
+	if r.Method != http.MethodPut {
+		methodNotAllowed(w, http.MethodPut)
+		return
+	}
+	if _, ok = server.protectUnsafe(w, r, server.requireInstanceAdministrator); !ok {
+		return
+	}
+	var request api.UpdateUserRequest
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	result, err := server.users.UpdateUser(r.Context(), user.UpdateUserCommand{
+		ID: user.ID(id), Email: valueOrEmpty(request.Email), DisplayName: valueOrEmpty(request.DisplayName),
+	})
+	if err != nil {
+		server.internalError(w, r, "update user", err)
+		return
+	}
+	switch result.Kind {
+	case user.UpdateUserUpdated:
+		writeJSON(w, http.StatusOK, toUserResponse(result.User))
+	case user.UpdateUserNotFound:
+		writeStatusProblem(w, http.StatusNotFound)
+	case user.UpdateUserDuplicateEmail:
+		writeCodedProblem(w, http.StatusConflict, user.EmailConflictCode, user.EmailConflictTitle, user.EmailConflictDetail)
+	case user.UpdateUserInvalid:
+		writeValidationProblem(w, userFailurePairs(result.Failures))
+	default:
+		server.internalError(w, r, "update user", errUnexpectedResult)
+	}
+}
+
 func (server *Server) listUsers(w http.ResponseWriter, r *http.Request) {
 	if _, ok := server.requireInstanceAdministrator(w, r); !ok {
 		return

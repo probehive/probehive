@@ -235,6 +235,26 @@ A normal down also retains the named PostgreSQL volume. Do not add --volumes
 unless the installation data is intentionally disposable; that option deletes
 the database volume.
 
+## Recover a Forgotten Password
+
+There is no email-based password recovery. An operator who controls the
+database credentials resets any local user's password directly:
+
+~~~bash
+"${compose[@]}" -f deploy/compose/compose.yaml exec -it api \
+  /app/probehive reset-password admin@example.test
+~~~
+
+The command resolves the account by normalized email in the configured
+database, prompts for the replacement password twice without echo on a
+terminal, and requires 12 to 128 characters. For automation, pipe one line
+into the command instead of using an interactive terminal. Existing sessions
+keep working; only the next login uses the new password. Running the binary
+outside Compose works the same way and needs `PROBEHIVE_DATABASE_URL` or
+`PROBEHIVE_DATABASE_URL_FILE` in its environment. The same authority boundary
+applies: anyone who can run it against the database can already change every
+user's credentials, which is why it performs no email verification.
+
 ## Diagnose Startup and Readiness
 
 Select the Compose implementation once, then inspect service state, bounded log

@@ -175,6 +175,7 @@ func (server *Server) routes() *http.ServeMux {
 	mux.HandleFunc("/api/v1/auth/logout", server.logout)
 	mux.HandleFunc("/api/v1/auth/session", server.session)
 	mux.HandleFunc("/api/v1/users", server.usersRoot)
+	mux.HandleFunc("/api/v1/users/{userId}", server.userItem)
 	mux.HandleFunc("/api/v1/organizations", server.organizationsRoot)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}", server.organizationItem)
 	mux.HandleFunc("/api/v1/organizations/{organizationId}/overview", server.organizationOverview)

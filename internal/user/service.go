@@ -14,6 +14,9 @@ var ErrSetupAlreadyCompleted = errors.New("setup already completed")
 // ErrDuplicateEmail is returned by Store.Create when the email uniqueness race is lost.
 var ErrDuplicateEmail = errors.New("user email already exists")
 
+// ErrUserMissing is returned by Store.UpdateProfile when its target no longer exists.
+var ErrUserMissing = errors.New("user does not exist")
+
 // Clock supplies domain-relevant time.
 type Clock interface {
 	Now() time.Time
@@ -37,6 +40,10 @@ type Store interface {
 	// Create inserts an additional user, returning ErrDuplicateEmail on a lost
 	// email uniqueness race.
 	Create(context.Context, User) error
+	// UpdateProfile replaces one user's login email and display name, returning
+	// ErrDuplicateEmail on a lost email uniqueness race and ErrUserMissing when
+	// the target no longer exists.
+	UpdateProfile(context.Context, ID, User) error
 	UpdatePasswordHash(context.Context, ID, string) error
 }
 
@@ -97,6 +104,55 @@ type CreateUserCommand struct {
 // CreateUserResult is an expected user-creation outcome.
 type CreateUserResult struct {
 	Kind     CreateUserKind
+	User     User
+	Failures []ValidationFailure
+}
+
+// UpdateUserKind identifies a profile-update use-case result.
+type UpdateUserKind uint8
+
+const (
+	UpdateUserInvalid UpdateUserKind = iota + 1
+	UpdateUserNotFound
+	UpdateUserDuplicateEmail
+	UpdateUserUpdated
+)
+
+// UpdateUserCommand carries replacement profile fields. The email is the login
+// identifier; an omitted display name defaults to the new email, matching setup.
+type UpdateUserCommand struct {
+	ID          ID
+	Email       string
+	DisplayName string
+}
+
+// UpdateUserResult is an expected profile-update outcome.
+type UpdateUserResult struct {
+	Kind     UpdateUserKind
+	User     User
+	Failures []ValidationFailure
+}
+
+// ResetPasswordKind identifies an operator-initiated credential-reset result.
+type ResetPasswordKind uint8
+
+const (
+	ResetPasswordInvalid ResetPasswordKind = iota + 1
+	ResetPasswordNotFound
+	ResetPasswordReset
+)
+
+// ResetPasswordCommand carries the target login email and a replacement password.
+// It backs the local reset-password command for operators who already control the
+// database credentials; no email verification is involved.
+type ResetPasswordCommand struct {
+	Email    string
+	Password string
+}
+
+// ResetPasswordResult is an expected credential-reset outcome.
+type ResetPasswordResult struct {
+	Kind     ResetPasswordKind
 	User     User
 	Failures []ValidationFailure
 }
@@ -162,9 +218,9 @@ func (service *Service) List(ctx context.Context) ([]User, error) {
 	return values, nil
 }
 
-// validateAccountInput applies the shared local-account field rules: a normalized
-// email, an optional display name that defaults to it, and a password.
-func validateAccountInput(email, displayName, password string) (string, string, []ValidationFailure) {
+// validateProfileInput applies the shared local-account profile rules: a
+// normalized email and an optional display name that defaults to it.
+func validateProfileInput(email, displayName string) (string, string, []ValidationFailure) {
 	var failures []ValidationFailure
 	normalizedEmail, validEmail := NormalizeEmail(email)
 	if !validEmail {
@@ -180,6 +236,13 @@ func validateAccountInput(email, displayName, password string) (string, string, 
 	if _, validDisplayName := NormalizeDisplayName(normalizedDisplayName); !validDisplayName {
 		failures = append(failures, ValidationFailure{Code: DisplayNameInvalidCode, Field: "displayName", Message: DisplayNameValidationMessage})
 	}
+	return normalizedEmail, normalizedDisplayName, failures
+}
+
+// validateAccountInput applies the shared local-account field rules: a normalized
+// email, an optional display name that defaults to it, and a password.
+func validateAccountInput(email, displayName, password string) (string, string, []ValidationFailure) {
+	normalizedEmail, normalizedDisplayName, failures := validateProfileInput(email, displayName)
 	if !ValidPassword(password) {
 		failures = append(failures, ValidationFailure{Code: PasswordLengthCode, Field: "password", Message: PasswordValidationMessage})
 	}
@@ -244,6 +307,71 @@ func (service *Service) CreateUser(ctx context.Context, command CreateUserComman
 		return CreateUserResult{}, err
 	}
 	return CreateUserResult{Kind: CreateUserCreated, User: created}, nil
+}
+
+// UpdateUser validates and replaces one local user's login email and display name.
+// Existing sessions survive the change because they bind to the immutable user id.
+func (service *Service) UpdateUser(ctx context.Context, command UpdateUserCommand) (UpdateUserResult, error) {
+	email, displayName, failures := validateProfileInput(command.Email, command.DisplayName)
+	if len(failures) != 0 {
+		return UpdateUserResult{Kind: UpdateUserInvalid, Failures: failures}, nil
+	}
+	existing, found, err := service.store.FindByID(ctx, command.ID)
+	if err != nil {
+		return UpdateUserResult{}, err
+	}
+	if !found {
+		return UpdateUserResult{Kind: UpdateUserNotFound}, nil
+	}
+	updated, err := NewUser(existing.ID, email, displayName, existing.Role, existing.PasswordHash, existing.CreatedAt)
+	if err != nil {
+		return UpdateUserResult{}, err
+	}
+	if err = service.store.UpdateProfile(ctx, command.ID, updated); err != nil {
+		if errors.Is(err, ErrDuplicateEmail) {
+			return UpdateUserResult{Kind: UpdateUserDuplicateEmail}, nil
+		}
+		if errors.Is(err, ErrUserMissing) {
+			return UpdateUserResult{Kind: UpdateUserNotFound}, nil
+		}
+		return UpdateUserResult{}, err
+	}
+	return UpdateUserResult{Kind: UpdateUserUpdated, User: updated}, nil
+}
+
+// ResetPassword validates and replaces one local user's password outright. It backs
+// the operator-facing reset-password command for someone who already controls the
+// database credentials, so no email verification or old-password proof is involved.
+func (service *Service) ResetPassword(ctx context.Context, command ResetPasswordCommand) (ResetPasswordResult, error) {
+	email, validEmail := NormalizeEmail(command.Email)
+	var failures []ValidationFailure
+	if !validEmail {
+		failures = append(failures, ValidationFailure{Code: EmailInvalidCode, Field: "email", Message: EmailValidationMessage})
+	}
+	if !ValidPassword(command.Password) {
+		failures = append(failures, ValidationFailure{Code: PasswordLengthCode, Field: "password", Message: PasswordValidationMessage})
+	}
+	if len(failures) != 0 {
+		return ResetPasswordResult{Kind: ResetPasswordInvalid, Failures: failures}, nil
+	}
+	account, found, err := service.store.FindByEmail(ctx, email)
+	if err != nil {
+		return ResetPasswordResult{}, err
+	}
+	if !found {
+		return ResetPasswordResult{Kind: ResetPasswordNotFound}, nil
+	}
+	passwordHash, err := service.hasher.Hash(command.Password)
+	if err != nil {
+		return ResetPasswordResult{}, fmt.Errorf("hash password: %w", err)
+	}
+	if err = service.store.UpdatePasswordHash(ctx, account.ID, passwordHash); err != nil {
+		return ResetPasswordResult{}, err
+	}
+	if err = account.ReplacePasswordHash(passwordHash); err != nil {
+		return ResetPasswordResult{}, err
+	}
+	return ResetPasswordResult{Kind: ResetPasswordReset, User: account}, nil
 }
 
 // Authenticate verifies local credentials and upgrades an outdated hash after success.

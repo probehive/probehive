@@ -138,6 +138,7 @@ antiforgery and origin rules in section 5 also apply.
 | `GET /api/v1/auth/session` | Authenticated | `200 SessionResponse` | `401` |
 | `GET /api/v1/users` | Instance admin | `200 UserResponse[]` of every local user in creation order | `401`, `403` |
 | `POST /api/v1/users` | Instance admin, unsafe | `201 UserResponse` and `Location: /api/v1/users/{id}`; the user becomes an Administrator of every existing Organization | `400` validation, `409` email conflict, `401`, `403` |
+| `PUT /api/v1/users/{userId}` | Instance admin, unsafe | `200 UserResponse` with the replaced profile | `400` validation, `404`, `409` email conflict, `401`, `403` |
 | `GET /api/v1/organizations` | Authenticated | `200 OrganizationResponse[]` of the caller's memberships in creation order, UUID as tie-breaker; `[]` when none | `401` |
 | `POST /api/v1/organizations` | Instance admin, unsafe | `201 OrganizationResponse` and `Location: /api/v1/organizations/{id}`; every current user becomes an Administrator of it in the same transaction | `400`, `401`, `403` |
 | `GET /api/v1/organizations/{organizationId}` | `organization.read` | `200 OrganizationResponse` | `404`, `401`, `403` |
@@ -380,6 +381,22 @@ normalized email returns `409` with title `Email already in use`, detail
 `A user with this email address already exists.`, and code `user.email.conflict`.
 `GET /api/v1/users` returns every local user in creation order; password hashes are never
 serialized.
+
+`PUT /api/v1/users/{userId}` replaces one local user's profile. An instance Administrator
+supplies `email` and optionally `displayName`; the same field rules as setup apply, an
+omitted display name defaults to the new normalized email, and a duplicate normalized
+email returns the same `409` email-conflict problem as creation. The role, password hash,
+and creation instant are unchanged, and existing sessions survive because sessions bind
+to the immutable user id; the new email becomes the login identifier immediately. An
+unknown user id returns `404`.
+
+Forgotten passwords are recovered out of band by the operator command
+`probehive reset-password <email>`, which resolves the account by normalized email in the
+configured database, applies the same 12-128 UTF-16 password rule, prompts twice without
+echo when run on a terminal (or reads one line from piped stdin), and replaces the
+password hash directly. Whoever can run it already controls the database credentials, so
+no email verification or old-password proof is involved; existing sessions keep working
+and only the next login uses the new password.
 
 Setup then provisions the installation Organization through the same use case as
 `POST /api/v1/organizations`, with display name exactly `Default`. Setup accepts no

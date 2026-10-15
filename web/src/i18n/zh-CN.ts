@@ -53,6 +53,15 @@ export const zhCN: Catalog = {
   'users.create.created': '用户已创建。',
   'users.create.conflict': '该邮箱已被使用。',
 
+  'users.edit.action': '编辑',
+  'users.edit.form': '编辑用户',
+  'users.edit.email': '邮箱',
+  'users.edit.displayName': '显示名称（可选）',
+  'users.edit.submit': '保存',
+  'users.edit.submitting': '正在保存…',
+  'users.edit.cancel': '取消',
+  'users.edit.conflict': '该邮箱已被使用。',
+
   'organization.create.heading': '创建组织',
   'organization.create.form': '创建组织',
   'organization.create.displayName': '显示名称',

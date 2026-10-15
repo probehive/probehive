@@ -59,6 +59,9 @@ type fakeStore struct {
 	created      []User
 	updatedID    ID
 	updatedHash  string
+	profileErr   error
+	profileID    ID
+	profileUser  User
 	findCalls    int
 	listed       []User
 	contextValue any
@@ -95,6 +98,22 @@ func (store *fakeStore) Create(ctx context.Context, value User) error {
 	}
 	store.created = append(store.created, value)
 	return store.createErr
+}
+func (store *fakeStore) UpdateProfile(ctx context.Context, id ID, value User) error {
+	store.contextValue = ctx.Value(contextKey{})
+	if store.profileErr != nil {
+		return store.profileErr
+	}
+	if !store.found {
+		return ErrUserMissing
+	}
+	for _, existing := range store.created {
+		if existing.Email == value.Email && existing.ID != id {
+			return ErrDuplicateEmail
+		}
+	}
+	store.profileID, store.profileUser = id, value
+	return nil
 }
 func (store *fakeStore) UpdatePasswordHash(ctx context.Context, id ID, hash string) error {
 	store.contextValue = ctx.Value(contextKey{})
@@ -367,5 +386,146 @@ func TestDependencyErrorsPropagate(t *testing.T) {
 	})
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("error = %v, want wrapped sentinel", err)
+	}
+}
+
+func TestUpdateUserValidatesProfileWithoutTouchingStore(t *testing.T) {
+	t.Parallel()
+	store := &fakeStore{}
+	service := NewService(store, &fakePasswordHasher{}, fixedClock{time.Now()}, &fixedUUID{})
+	result, err := service.UpdateUser(context.Background(), UpdateUserCommand{ID: "user"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []ValidationFailure{
+		{Code: EmailInvalidCode, Field: "email", Message: EmailValidationMessage},
+		{Code: DisplayNameInvalidCode, Field: "displayName", Message: DisplayNameValidationMessage},
+	}
+	if result.Kind != UpdateUserInvalid || !reflect.DeepEqual(result.Failures, want) {
+		t.Fatalf("result = %#v, want failures %#v", result, want)
+	}
+	if store.contextValue != nil {
+		t.Fatal("validation failure touched the store")
+	}
+}
+
+func TestUpdateUserReplacesProfileAndKeepsCredentials(t *testing.T) {
+	t.Parallel()
+	createdAt := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
+	account, err := NewUser("user", "admin@example.test", "Admin", AdministratorRole, "stored-hash", createdAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &fakeStore{account: account, found: true}
+	service := NewService(store, &fakePasswordHasher{}, fixedClock{time.Now()}, &fixedUUID{})
+	result, err := service.UpdateUser(context.Background(), UpdateUserCommand{
+		ID: account.ID, Email: " OPERATOR@Example.Test ", DisplayName: "  Ops  ",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Kind != UpdateUserUpdated || result.User.Email != "operator@example.test" ||
+		result.User.DisplayName != "Ops" || result.User.PasswordHash != "stored-hash" ||
+		result.User.Role != AdministratorRole || !result.User.CreatedAt.Equal(createdAt) {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+	if store.profileID != account.ID || store.profileUser != result.User {
+		t.Fatalf("persisted profile = %s, %#v", store.profileID, store.profileUser)
+	}
+}
+
+func TestUpdateUserDefaultsOmittedDisplayNameToNewEmail(t *testing.T) {
+	t.Parallel()
+	account, _ := NewUser("user", "admin@example.test", "Admin", AdministratorRole, "hash", time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC))
+	store := &fakeStore{account: account, found: true}
+	service := NewService(store, &fakePasswordHasher{}, fixedClock{time.Now()}, &fixedUUID{})
+	result, err := service.UpdateUser(context.Background(), UpdateUserCommand{
+		ID: account.ID, Email: "operator@example.test", DisplayName: "  ",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Kind != UpdateUserUpdated || result.User.DisplayName != "operator@example.test" {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+}
+
+func TestUpdateUserMapsMissingTargetOutcomes(t *testing.T) {
+	t.Parallel()
+	account, _ := NewUser("user", "admin@example.test", "Admin", AdministratorRole, "hash", time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC))
+	command := UpdateUserCommand{ID: account.ID, Email: "operator@example.test"}
+	for _, test := range []struct {
+		name  string
+		store *fakeStore
+	}{
+		{"unknown id", &fakeStore{}},
+		{"vanished during update", &fakeStore{account: account, found: true, profileErr: ErrUserMissing}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := NewService(test.store, &fakePasswordHasher{}, fixedClock{time.Now()}, &fixedUUID{}).
+				UpdateUser(context.Background(), command)
+			if err != nil || result.Kind != UpdateUserNotFound {
+				t.Fatalf("result = %#v, error %v", result, err)
+			}
+		})
+	}
+}
+
+func TestUpdateUserMapsDuplicateEmail(t *testing.T) {
+	t.Parallel()
+	account, _ := NewUser("user", "admin@example.test", "Admin", AdministratorRole, "hash", time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC))
+	store := &fakeStore{account: account, found: true, profileErr: ErrDuplicateEmail}
+	result, err := NewService(store, &fakePasswordHasher{}, fixedClock{time.Now()}, &fixedUUID{}).
+		UpdateUser(context.Background(), UpdateUserCommand{ID: account.ID, Email: "operator@example.test"})
+	if err != nil || result.Kind != UpdateUserDuplicateEmail {
+		t.Fatalf("result = %#v, error %v", result, err)
+	}
+}
+
+func TestResetPasswordValidatesWithoutDependencies(t *testing.T) {
+	t.Parallel()
+	store := &fakeStore{}
+	hasher := &fakePasswordHasher{}
+	result, err := NewService(store, hasher, fixedClock{time.Now()}, &fixedUUID{}).
+		ResetPassword(context.Background(), ResetPasswordCommand{Email: "bad", Password: "short"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []ValidationFailure{
+		{Code: EmailInvalidCode, Field: "email", Message: EmailValidationMessage},
+		{Code: PasswordLengthCode, Field: "password", Message: PasswordValidationMessage},
+	}
+	if result.Kind != ResetPasswordInvalid || !reflect.DeepEqual(result.Failures, want) {
+		t.Fatalf("result = %#v, want failures %#v", result, want)
+	}
+	if store.findCalls != 0 || len(hasher.hashCalls) != 0 {
+		t.Fatal("validation failure touched dependencies")
+	}
+}
+
+func TestResetPasswordReplacesHashForKnownEmail(t *testing.T) {
+	t.Parallel()
+	account, _ := NewUser("user", "ADMIN@example.test", "Admin", AdministratorRole, "old", time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC))
+	store := &fakeStore{account: account, found: true}
+	hasher := &fakePasswordHasher{hashResult: "new-hash"}
+	result, err := NewService(store, hasher, fixedClock{time.Now()}, &fixedUUID{}).
+		ResetPassword(context.Background(), ResetPasswordCommand{Email: " admin@EXAMPLE.test ", Password: "password-123"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Kind != ResetPasswordReset || result.User.PasswordHash != "new-hash" ||
+		store.updatedID != account.ID || store.updatedHash != "new-hash" || len(hasher.hashCalls) != 1 {
+		t.Fatalf("unexpected result: %#v, store %#v, hasher %#v", result, store, hasher)
+	}
+}
+
+func TestResetPasswordReportsUnknownEmailWithoutHashing(t *testing.T) {
+	t.Parallel()
+	store := &fakeStore{}
+	hasher := &fakePasswordHasher{}
+	result, err := NewService(store, hasher, fixedClock{time.Now()}, &fixedUUID{}).
+		ResetPassword(context.Background(), ResetPasswordCommand{Email: "missing@example.test", Password: "password-123"})
+	if err != nil || result.Kind != ResetPasswordNotFound || len(hasher.hashCalls) != 0 {
+		t.Fatalf("result = %#v, error %v, hasher %#v", result, err, hasher)
 	}
 }

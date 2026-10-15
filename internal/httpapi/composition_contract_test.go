@@ -372,6 +372,93 @@ func TestUserAdministrationCreatesTeammatesAndSharesOrganizations(t *testing.T) 
 	}
 }
 
+func TestUserItemReplacesProfileAndKeepsSessions(t *testing.T) {
+	environment := newTestEnvironment(t, true, 0)
+	unauthenticated := environment.request(
+		t, environment.client, http.MethodPut, "/api/v1/users/00000000-0000-7000-8000-000000000001",
+		`{"email":"operator@example.test"}`, "", "",
+	)
+	assertProblem(t, unauthenticated, http.StatusUnauthorized, "Unauthorized", "")
+
+	token := environment.bootstrapAdministrator(t)
+	administratorID := environment.administratorID(t)
+
+	invalid := environment.request(
+		t, environment.client, http.MethodPut, "/api/v1/users/"+administratorID,
+		`{"email":"not-an-email"}`, environment.server.URL, token,
+	)
+	refreshed, _ := environment.getAntiforgery(t)
+	token = refreshed.RequestToken
+	problem := decodeProblem(t, invalid)
+	if invalid.StatusCode != http.StatusBadRequest || problem.Errors["email"] == nil {
+		t.Fatalf("invalid email = %d, body %s", invalid.StatusCode, invalid.Body)
+	}
+
+	// Setup consumes UUIDs 0001 (user) and 0002 (Organization).
+	updated := environment.request(
+		t, environment.client, http.MethodPut, "/api/v1/users/"+administratorID,
+		`{"email":" OPERATOR@Example.Test ","displayName":"  Ops  "}`, environment.server.URL, token,
+	)
+	refreshed, _ = environment.getAntiforgery(t)
+	token = refreshed.RequestToken
+	assertExactJSON(t, updated, http.StatusOK, `{"id":"`+administratorID+`","email":"operator@example.test","displayName":"Ops","role":"Administrator","createdAt":"2026-07-24T00:00:00Z"}`+"\n")
+
+	// The same session keeps working because sessions bind to the immutable user id.
+	session := environment.request(t, environment.client, http.MethodGet, "/api/v1/auth/session", "", "", "")
+	if session.StatusCode != http.StatusOK {
+		t.Fatalf("session after profile update = %d, body %s", session.StatusCode, session.Body)
+	}
+
+	// The new email is immediately the login identifier.
+	login := environment.request(
+		t, environment.client, http.MethodPost, "/api/v1/auth/login",
+		`{"email":"operator@example.test","password":"password-123"}`, environment.server.URL, token,
+	)
+	refreshed, _ = environment.getAntiforgery(t)
+	token = refreshed.RequestToken
+	if login.StatusCode != http.StatusOK {
+		t.Fatalf("login with new email = %d, body %s", login.StatusCode, login.Body)
+	}
+
+	defaulted := environment.request(
+		t, environment.client, http.MethodPut, "/api/v1/users/"+administratorID,
+		`{"email":"owner@example.test","displayName":"   "}`, environment.server.URL, token,
+	)
+	refreshed, _ = environment.getAntiforgery(t)
+	token = refreshed.RequestToken
+	assertExactJSON(t, defaulted, http.StatusOK, `{"id":"`+administratorID+`","email":"owner@example.test","displayName":"owner@example.test","role":"Administrator","createdAt":"2026-07-24T00:00:00Z"}`+"\n")
+
+	created := environment.request(
+		t, environment.client, http.MethodPost, "/api/v1/users",
+		`{"email":"teammate@example.test","password":"password-123"}`, environment.server.URL, token,
+	)
+	refreshed, _ = environment.getAntiforgery(t)
+	token = refreshed.RequestToken
+	if created.StatusCode != http.StatusCreated {
+		t.Fatalf("create teammate = %d, body %s", created.StatusCode, created.Body)
+	}
+	conflict := environment.request(
+		t, environment.client, http.MethodPut, "/api/v1/users/"+administratorID,
+		`{"email":" TEAMMATE@example.test "}`, environment.server.URL, token,
+	)
+	if duplicate := decodeProblem(t, conflict); conflict.StatusCode != http.StatusConflict ||
+		duplicate.Code != user.EmailConflictCode {
+		t.Fatalf("duplicate email = %d, body %s", conflict.StatusCode, conflict.Body)
+	}
+
+	missing := environment.request(
+		t, environment.client, http.MethodPut,
+		"/api/v1/users/00000000-0000-7000-8000-0000000000ff",
+		`{"email":"nobody@example.test"}`, environment.server.URL, token,
+	)
+	assertProblem(t, missing, http.StatusNotFound, "Not Found", "")
+
+	method := environment.request(
+		t, environment.client, http.MethodDelete, "/api/v1/users/"+administratorID, "", environment.server.URL, token,
+	)
+	assertProblem(t, method, http.StatusMethodNotAllowed, "Method Not Allowed", "")
+}
+
 func TestReadinessFailureReturnsPlainTextServiceUnavailable(t *testing.T) {
 	readyCalls := 0
 	environment := newTestEnvironment(t, true, 0, func(config *Config) {

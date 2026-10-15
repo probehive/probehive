@@ -131,6 +131,24 @@ VALUES ($1, $2, $3, $4, $5, $6)`, string(account.ID), account.Email, account.Dis
 	return nil
 }
 
+// UpdateProfile atomically replaces one user's login email and display name.
+func (store *UserStore) UpdateProfile(ctx context.Context, id user.ID, account user.User) error {
+	result, err := store.pool.Exec(ctx, `
+UPDATE users
+SET email = $2, display_name = $3
+WHERE id = $1`, string(id), account.Email, account.DisplayName)
+	if err != nil {
+		if isConstraintViolation(err, uniqueViolation, userEmailUniqueIndex) {
+			return user.ErrDuplicateEmail
+		}
+		return fmt.Errorf("update user profile: %w", err)
+	}
+	if result.RowsAffected() != 1 {
+		return user.ErrUserMissing
+	}
+	return nil
+}
+
 // UpdatePasswordHash atomically replaces one user's password hash.
 func (store *UserStore) UpdatePasswordHash(ctx context.Context, id user.ID, passwordHash string) error {
 	result, err := store.pool.Exec(ctx, `

@@ -385,6 +385,21 @@ func (store *memoryUserStore) Create(_ context.Context, value user.User) error {
 	store.byID[value.ID], store.byEmail[value.Email] = value, value.ID
 	return nil
 }
+func (store *memoryUserStore) UpdateProfile(_ context.Context, id user.ID, value user.User) error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if _, found := store.byID[id]; !found {
+		return user.ErrUserMissing
+	}
+	if owner, found := store.byEmail[value.Email]; found && owner != id {
+		return user.ErrDuplicateEmail
+	}
+	delete(store.byEmail, store.byID[id].Email)
+	value.PasswordHash = store.byID[id].PasswordHash
+	store.byID[id] = value
+	store.byEmail[value.Email] = id
+	return nil
+}
 func (store *memoryUserStore) UpdatePasswordHash(_ context.Context, id user.ID, hash string) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()

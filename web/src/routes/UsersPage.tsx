@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 
-import { ApiError, createUser } from '../api/users'
+import { ApiError, createUser, updateUser, type UserResponse } from '../api/users'
 import { useTranslation } from '../i18n/context'
 import { usersQueryKey, useUsers } from './useUsers'
 
@@ -75,14 +75,7 @@ export default function UsersPage() {
           {users.data && users.data.length > 0 && (
             <ul className="organization-list">
               {users.data.map((user) => (
-                <li key={user.id} className="organization-card">
-                  <span className="organization-card-name">{user.displayName}</span>
-                  <div className="organization-card-meta">
-                    <span>{user.email}</span>
-                    <span>{user.role}</span>
-                    <span>{formatDateTime(user.createdAt)}</span>
-                  </div>
-                </li>
+                <UserCard key={user.id} user={user} formatDateTime={formatDateTime} />
               ))}
             </ul>
           )}
@@ -153,5 +146,105 @@ export default function UsersPage() {
         </aside>
       </div>
     </section>
+  )
+}
+
+/**
+ * One local user with an inline profile editor. The login email can be fixed
+ * here, which until now was impossible after setup; an omitted display name
+ * falls back to the new email.
+ */
+function UserCard({
+  user,
+  formatDateTime,
+}: {
+  user: UserResponse
+  formatDateTime: (value: string) => string
+}) {
+  const [editing, setEditing] = useState(false)
+  const [email, setEmail] = useState(user.email)
+  const [displayName, setDisplayName] = useState(user.displayName)
+  const { t } = useTranslation()
+  const fieldErrors = useFieldErrors()
+  const queryClient = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: () => updateUser(user.id, { email, displayName }),
+    onSuccess: async () => {
+      setEditing(false)
+      await queryClient.invalidateQueries({ queryKey: usersQueryKey })
+    },
+  })
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    mutation.mutate()
+  }
+
+  function startEditing() {
+    setEmail(user.email)
+    setDisplayName(user.displayName)
+    setEditing(true)
+  }
+
+  const conflict = mutation.error instanceof ApiError && mutation.error.status === 409
+
+  return (
+    <li className="organization-card">
+      <span className="organization-card-name">{user.displayName}</span>
+      <div className="organization-card-meta">
+        <span>{user.email}</span>
+        <span>{user.role}</span>
+        <span>{formatDateTime(user.createdAt)}</span>
+      </div>
+      {!editing && (
+        <button type="button" onClick={startEditing}>
+          {t('users.edit.action')}
+        </button>
+      )}
+      {editing && (
+        <form onSubmit={onSubmit} aria-label={t('users.edit.form')}>
+          <label>
+            {t('users.edit.email')}
+            <input
+              name="email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="off"
+            />
+          </label>
+          <ul className="field-errors" role="alert">
+            {fieldErrors(mutation.error, 'email').map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+          <label>
+            {t('users.edit.displayName')}
+            <input
+              name="displayName"
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              autoComplete="off"
+            />
+          </label>
+          <ul className="field-errors" role="alert">
+            {fieldErrors(mutation.error, 'displayName').map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+          <button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? t('users.edit.submitting') : t('users.edit.submit')}
+          </button>
+          <button type="button" onClick={() => setEditing(false)} disabled={mutation.isPending}>
+            {t('users.edit.cancel')}
+          </button>
+          {conflict && (
+            <p className="error" role="alert">
+              {t('users.edit.conflict')}
+            </p>
+          )}
+        </form>
+      )}
+    </li>
   )
 }

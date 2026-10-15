@@ -414,6 +414,13 @@ type CreateUserRequest struct {
 	Password    *string `json:"password"`
 }
 
+// UpdateUserRequest replaces a local user's profile. Email is the login
+// identifier; an omitted display name defaults to the new email.
+type UpdateUserRequest struct {
+	Email       *string `json:"email"`
+	DisplayName *string `json:"displayName"`
+}
+
 type RenameOrganizationRequest struct {
 	DisplayName *string `json:"displayName"`
 }
